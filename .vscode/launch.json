@@ -1,0 +1,45 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'infinite-escape-velocity'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=infinite-escape-velocity",
+                    "--package=infinite-escape-velocity"
+                ],
+                "filter": {
+                    "name": "infinite-escape-velocity",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'infinite-escape-velocity'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=infinite-escape-velocity",
+                    "--package=infinite-escape-velocity"
+                ],
+                "filter": {
+                    "name": "infinite-escape-velocity",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
