@@ -95,6 +95,8 @@ impl SpatialHashmap {
             object_output_list[index] = &object;
         }
 
+        let mut dedup = Vec::new();
+
         for index in 0..object_output_list.len() {
             let outer_object = &object_output_list[index];
 
@@ -104,13 +106,11 @@ impl SpatialHashmap {
                 continue;
             }
 
-            let mut dedup = Vec::new();
+            dedup.clear();
 
-            let inner_object = &object_output_list[inner_index];
-
-            while outer_object.cell == inner_object.cell && inner_index < object_output_list.len() {
-                if outer_object.object.get_shape().collides(&inner_object.object.get_shape()) {
-                    dedup.push(inner_object);
+            while  inner_index < object_output_list.len() && outer_object.cell == object_output_list[inner_index].cell {
+                if outer_object.object.get_shape().collides(&object_output_list[inner_index].object.get_shape()) {
+                    dedup.push(object_output_list[inner_index]);
                 }
 
                 inner_index += 1;
@@ -119,7 +119,7 @@ impl SpatialHashmap {
             dedup.sort_unstable_by(|x,y| x.id.cmp(&y.id));
             dedup.dedup_by(|x,y| x.id.eq(&y.id));
 
-            for dedup_object in dedup {
+            for dedup_object in &dedup {
                 outer_object.object.collide_with(&dedup_object.object.get_shape(), dedup_object.id);
                 dedup_object.object.collide_with(&outer_object.object.get_shape(), outer_object.id);
             }

@@ -78,10 +78,14 @@ fn main() {
     let map = Arc::new(spatial_hashmap::SpatialHashmap::new());
     let storage = Arc::new(UniqueObjectStorage::new());
     let unique_id_generator = UniqueIdAllocator::new();
-    storage.add(Arc::new(DynamicObject::new(map.clone(), storage.clone(), Shape::RoundedTube(RoundedTubeData{x1: -1.0, y1: 2.0, x2: 1.0, y2: 2.0, r:1.0}), unique_id_generator.new_allocated_id())));
-    storage.add(Arc::new(DynamicObject::new(map.clone(), storage.clone(), Shape::RoundedTube(RoundedTubeData{x1: -1.0, y1: 1.0, x2: 1.0, y2: 1.0, r:1.0}), unique_id_generator.new_allocated_id())));
 
-        for _x in 0..100000 {
+    for x in (-100..100).step_by(2) {
+        for y in (-100..100).step_by(2) {
+            storage.add(Arc::new(DynamicObject::new(map.clone(), storage.clone(), Shape::Circle(CircleData{x: x as f64 + 0.5, y: y as f64 + 0.5, r: 0.9}), unique_id_generator.new_allocated_id())));
+        }
+    }
+
+        for _x in 0..10 {
             storage.tick();
             map.run_collisions();
         }
