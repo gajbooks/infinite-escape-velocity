@@ -28,79 +28,61 @@ use shape::*;
 use spatial_hashmap::*;
 use std::sync::*;
 use identifiable_object::*;
-use std::thread;
 use unique_id_allocator::*;
 use unique_object_storage::*;
 
-struct CollidingObject {
-    collision_query_sender: crossbeam_channel::Sender<SpatialMessage>,
-    collision_query_receiver: crossbeam_channel::Receiver<SentFrom<Arc<Shape>>>,
+struct DynamicObject {
     id: ReturnableId,
-    position: Arc<Shape>
+    position: Shape,
+    spatial_map: Arc<spatial_hashmap::SpatialHashmap>,
+    storage: Arc<UniqueObjectStorage>
 }
 
-impl StoredObject for CollidingObject {
+impl StoredObject for DynamicObject {
     fn get_id(&self) -> IdType {
         return self.id.id;
     }
 
-    fn process_messages(&self) {
-        self.print_received();
+    fn tick(self: Arc<Self>) {
+        self.spatial_map.add(self.clone());
     }
 }
 
-impl CollidingObject {
+impl CollidableObject for DynamicObject {
 
-    pub fn new(spatial_map: &spatial_hashmap::SpatialHashmap, spatial_response_distributor: &distributing_queue::DistributingQueue<Arc<Shape>>, position: Shape, id: ReturnableId) -> CollidingObject {
-        let (s, r) = crossbeam_channel::unbounded();
-        spatial_response_distributor.register_receiver(id.id, s);
-        let spatial_map_channel = spatial_map.get_channel();
-        let position = Arc::new(position);
-        return CollidingObject {collision_query_sender: spatial_map_channel, collision_query_receiver: r, id: id, position: position};
+    fn get_shape(&self) -> &Shape {
+        return &self.position;
     }
 
-    pub fn print_received(&self) {
-        self.collision_query_sender.send(SpatialMessage::Add{new: SentFrom{origin_id: self.id.id, data: self.position.clone()}});
-        match self.collision_query_receiver.try_recv() {
-            Ok(mesg) => {
-                println!("From ID: {}, Shape type: {:?}", mesg.origin_id, mesg.data);
-            },
-            Err(_e) => {
-                // Who effin cares
-            }
-        }
+    fn get_id(&self) -> IdType {
+        return self.id.id;
     }
+
+    fn collide_with(&self, shape: &Shape, from: IdType) {
+        //println!("From ID: {}, Shape type: {:?}", from, shape);
+    }
+}
+
+impl DynamicObject {
+    pub fn new(spatial_map: Arc<spatial_hashmap::SpatialHashmap>, storage: Arc<UniqueObjectStorage>, position: Shape, id: ReturnableId) -> DynamicObject {
+        return DynamicObject {spatial_map: spatial_map, storage: storage, id: id, position: position};
+    }
+}
+
+struct ViewportObject {
+    spatial_map: Arc<spatial_hashmap::SpatialHashmap>,
+    position: Shape
 }
 
 fn main() {
-    let spatial_response_queue = distributing_queue::DistributingQueue::<Arc<Shape>>::new();
-    let map = spatial_hashmap::SpatialHashmap::new(spatial_response_queue.get_sender());
-    let storage = UniqueObjectStorage::new();
+    let map = Arc::new(spatial_hashmap::SpatialHashmap::new());
+    let storage = Arc::new(UniqueObjectStorage::new());
     let unique_id_generator = UniqueIdAllocator::new();
-    storage.add(Box::new(CollidingObject::new(&map, &spatial_response_queue, Shape::RoundedTube(RoundedTubeData{x1: -1.0, y1: 2.0, x2: 1.0, y2: 2.0, r:1.0}), unique_id_generator.new_allocated_id())));
-    storage.add(Box::new(CollidingObject::new(&map, &spatial_response_queue, Shape::RoundedTube(RoundedTubeData{x1: -1.0, y1: 1.0, x2: 1.0, y2: 1.0, r:1.0}), unique_id_generator.new_allocated_id())));
+    storage.add(Arc::new(DynamicObject::new(map.clone(), storage.clone(), Shape::RoundedTube(RoundedTubeData{x1: -1.0, y1: 2.0, x2: 1.0, y2: 2.0, r:1.0}), unique_id_generator.new_allocated_id())));
+    storage.add(Arc::new(DynamicObject::new(map.clone(), storage.clone(), Shape::RoundedTube(RoundedTubeData{x1: -1.0, y1: 1.0, x2: 1.0, y2: 1.0, r:1.0}), unique_id_generator.new_allocated_id())));
 
-    let mut threads = vec![];
-
-    threads.push(thread::spawn(move || {
-        loop {
-            map.process_entry();
+        for _x in 0..100000 {
+            storage.tick();
+            map.run_collisions();
         }
-    }));
-
-    threads.push(thread::spawn(move || {
-        loop {
-            spatial_response_queue.process_queue();
-        }
-    }));
-
-    threads.push(thread::spawn(move || {
-        loop {
-            storage.process_object_messages();
-        }
-    }));
-
-    for child in threads {
-        let _ = child.join();
-    }
 }

@@ -18,168 +18,113 @@
 use super::hash_coordinates::*;
 use super::identifiable_object::*;
 use super::shape::*;
-use crossbeam_channel::unbounded;
 use dashmap::DashMap;
 use fxhash::FxBuildHasher;
 use std::sync::Arc;
+use std::sync::atomic::*;
+use std::sync::Mutex;
 
-pub enum SpatialMessage {
-    Add { new: SentFrom<Arc<Shape>> },
-    Delete { old: IdType },
+pub trait CollidableObject {
+    fn collide_with(&self, shape: &Shape, from: IdType);
+    fn get_shape(&self) -> &Shape;
+    fn get_id(&self) -> IdType;
+}
+
+struct ObjectWithinCell {
+    pub cell: HashCoordinates,
+    pub id: IdType,
+    pub object: Arc<dyn CollidableObject>
 }
 
 pub struct SpatialHashmap {
-    map: DashMap<HashCoordinates, Vec<SentFrom<Arc<Shape>>>, FxBuildHasher>,
-    current_registered_shapes: DashMap<IdType, Arc<Shape>, FxBuildHasher>,
-    channel_sender: crossbeam_channel::Sender<SpatialMessage>,
-    channel_receiver: crossbeam_channel::Receiver<SpatialMessage>,
-    global_collision_distributor: crossbeam_channel::Sender<SendTo<Arc<Shape>>>,
+    object_input_list: Mutex<Vec<ObjectWithinCell>>
 }
 
 impl SpatialHashmap {
-    pub fn new(
-        collision_distributor: crossbeam_channel::Sender<SendTo<Arc<Shape>>>,
-    ) -> SpatialHashmap {
-        let (s, r) = unbounded();
+    pub fn new() -> SpatialHashmap {
         return SpatialHashmap {
-            map: DashMap::with_hasher(FxBuildHasher::default()),
-            current_registered_shapes: DashMap::with_hasher(FxBuildHasher::default()),
-            channel_sender: s,
-            channel_receiver: r,
-            global_collision_distributor: collision_distributor,
+            object_input_list: Mutex::<Vec<ObjectWithinCell>>::new(Vec::new())
         };
     }
 
-    pub fn get_channel(&self) -> crossbeam_channel::Sender<SpatialMessage> {
-        return self.channel_sender.clone();
-    }
+    pub fn add(&self, add: Arc<dyn CollidableObject>) -> () {
+        let mut locked = self.object_input_list.lock().unwrap();
 
-    fn add(&self, add: &SentFrom<Arc<Shape>>) -> () {
-        let mut dedup = Vec::<SentFrom<Arc<Shape>>>::new();
-
-        match self.current_registered_shapes.entry(add.origin_id) {
-            dashmap::mapref::entry::Entry::Occupied(has) => {
-                let removed = has.replace_entry(add.data.clone());
-                self.remove_old_entries_from_map(&removed.0, &removed.1);
-            }
-            dashmap::mapref::entry::Entry::Vacant(not) => {
-                // Entry not already present
-                not.insert(add.data.clone());
-            }
-        }
-
-        for coordinates in add.data.aabb_iter() {
-            let mut entry = self.map.entry(coordinates).or_default();
-            for i in entry.value() {
-                dedup.push(i.clone());
-            }
-
-            entry.push(add.clone());
-        }
-
-        dedup.sort_by(|a, b| a.origin_id.cmp(&b.origin_id));
-        dedup.dedup_by(|a, b| a.origin_id.eq(&b.origin_id));
-
-        for collision in dedup {
-            if collision.data.collides(&add.data) {
-                // Send old entity collisions to new entity
-                match self.global_collision_distributor.send(SendTo {
-                    destination_id: add.origin_id,
-                    from: collision.clone(),
-                }) {
-                    Ok(_) => {
-                        //Sent successfully
-                    }
-                    Err(_e) => {
-                        // New entity disconnected channel before deletion processed, queue for deletion now
-                        match self
-                            .channel_sender
-                            .send(SpatialMessage::Delete { old: add.origin_id })
-                        {
-                            Ok(_) => {
-                                // Sent successfully
-                            }
-                            Err(_e) => {
-                                // Cannot disconnect because this object owns both ends
-                            }
-                        }
-                    }
-                }
-
-                // Send new entity collisions to old entity
-                match self.global_collision_distributor.send(SendTo {
-                    destination_id: collision.origin_id,
-                    from: add.clone(),
-                }) {
-                    Ok(_) => {
-                        //Sent successfully
-                    }
-                    Err(_e) => {
-                        // Entity disconnected channel before deletion processed, queue for deletion now
-                        match self.channel_sender.send(SpatialMessage::Delete {
-                            old: collision.origin_id,
-                        }) {
-                            Ok(_) => {
-                                // Sent successfully
-                            }
-                            Err(_e) => {
-                                // Cannot disconnect because this object owns both ends
-                            }
-                        }
-                    }
-                }
-            }
+        for cell in add.get_shape().aabb_iter() {
+            locked.push(ObjectWithinCell{cell: cell, id: add.get_id(), object: add.clone()})
         }
     }
 
-    fn remove_old_entries_from_map(
-        &self, id: &IdType, old: &Arc<Shape>
-    ) {
-        for coordinates in old.aabb_iter() {
-            match self.map.get_mut(&coordinates) {
-                Some(mut exists) => {
-                    exists.retain(|x| x.origin_id != *id);
-                    super::shrink_storage!(exists);
-                }
+    pub fn run_collisions(&self) -> () {
+        let cell_offset_list: DashMap<HashCoordinates, AtomicUsize, FxBuildHasher> = DashMap::with_hasher(FxBuildHasher::default());
+
+        let mut locked = self.object_input_list.lock().unwrap();
+
+        for object in locked.iter() {
+            match cell_offset_list.get(&object.cell) {
+                Some(has) => {
+                    has.fetch_add(1, Ordering::Relaxed);
+                },
                 None => {
-                    // ???
-                    println!("Tried to remove entry from hashmap that was never entered?");
+                    cell_offset_list.insert(object.cell.clone(), AtomicUsize::new(0));
                 }
-            }
-            self.map.remove_if(&coordinates, |_, list| list.is_empty());
+            };
         }
 
-        super::shrink_storage!(self.map);
-    }
+        let mut list_position: usize = 0;
 
-    fn remove(&self, old: IdType) -> () {
-        match self.current_registered_shapes.entry(old) {
-            dashmap::mapref::entry::Entry::Occupied(has) => {
-                self.remove_old_entries_from_map(has.key(), has.get());
-                has.remove();
-            },
-            dashmap::mapref::entry::Entry::Vacant(_not) => {
-                // Tried to remove entry that is not present, does not matter
-                println!("Tried to remove ID that was never entered?");
+        for cell_object in cell_offset_list.iter() {
+            list_position += cell_object.value().fetch_add(list_position, Ordering::Relaxed);
+        }
+
+        let mut object_output_list: Vec<&ObjectWithinCell> = Vec::new();
+
+        let placeholder = match locked.first() {
+            Some(has) => has,
+            None => {
+                // List has no first element so is empty
+                return;
+            }
+        };
+
+        object_output_list.resize(locked.len(), placeholder);
+
+        for object in locked.iter() {
+            let count = cell_offset_list.get(&object.cell).unwrap();
+            let index = count.value().fetch_sub(1, Ordering::Relaxed);
+            object_output_list[index] = &object;
+        }
+
+        for index in 0..object_output_list.len() {
+            let outer_object = &object_output_list[index];
+
+            let mut inner_index = index + 1;
+
+            if inner_index >= object_output_list.len() {
+                continue;
+            }
+
+            let mut dedup = Vec::new();
+
+            let inner_object = &object_output_list[inner_index];
+
+            while outer_object.cell == inner_object.cell && inner_index < object_output_list.len() {
+                if outer_object.object.get_shape().collides(&inner_object.object.get_shape()) {
+                    dedup.push(inner_object);
+                }
+
+                inner_index += 1;
+            }
+
+            dedup.sort_unstable_by(|x,y| x.id.cmp(&y.id));
+            dedup.dedup_by(|x,y| x.id.eq(&y.id));
+
+            for dedup_object in dedup {
+                outer_object.object.collide_with(&dedup_object.object.get_shape(), dedup_object.id);
+                dedup_object.object.collide_with(&outer_object.object.get_shape(), outer_object.id);
             }
         }
 
-        super::shrink_storage!(self.current_registered_shapes);
-    }
-
-    pub fn process_entry(&self) {
-        match self.channel_receiver.try_recv() {
-            Ok(val) => match val {
-                SpatialMessage::Add { new } => {
-                    self.add(&new);
-                }
-                SpatialMessage::Delete { old } => {
-                    self.remove(old);
-                }
-            },
-            Err(_e) => {
-                // Queue is empty, cannot be disconnected as it owns its own queue
-            }
-        }
+        locked.clear();
     }
 }
