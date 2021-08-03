@@ -16,115 +16,60 @@
 */
 
 use super::hash_coordinates::*;
-use super::identifiable_object::*;
-use super::shape::*;
-use dashmap::DashMap;
-use fxhash::FxBuildHasher;
+use rayon::prelude::*;
 use std::sync::Arc;
-use std::sync::atomic::*;
-use std::sync::Mutex;
+use super::unique_object::*;
 
-pub trait CollidableObject {
-    fn collide_with(&self, shape: &Shape, from: IdType);
-    fn get_shape(&self) -> &Shape;
-    fn get_id(&self) -> IdType;
-}
-
-struct ObjectWithinCell {
+struct ObjectWithinCell<'a> {
     pub cell: HashCoordinates,
-    pub id: IdType,
-    pub object: Arc<dyn CollidableObject>
+    pub object: &'a (dyn UniqueObject + Sync + Send),
 }
 
-pub struct SpatialHashmap {
-    object_input_list: Mutex<Vec<ObjectWithinCell>>
-}
+pub struct SpatialHashmap {}
 
 impl SpatialHashmap {
     pub fn new() -> SpatialHashmap {
-        return SpatialHashmap {
-            object_input_list: Mutex::<Vec<ObjectWithinCell>>::new(Vec::new())
-        };
+        return SpatialHashmap {};
     }
 
-    pub fn add(&self, add: Arc<dyn CollidableObject>) -> () {
-        let mut locked = self.object_input_list.lock().unwrap();
+    pub fn run_collisions(&self, object_list: &[Arc<(dyn UniqueObject + Sync + Send)>]) -> () {
+        let mut list: Vec<ObjectWithinCell> = object_list.par_iter().filter(|x| match x.as_collision_component() {
+            Some(_x) => true,
+            None => false
+        }).flat_map_iter(|x| x.as_collision_component().unwrap().get_shape().aabb_iter().map(move |y| ObjectWithinCell{cell: y, object: x.as_ref()})).collect();
 
-        for cell in add.get_shape().aabb_iter() {
-            locked.push(ObjectWithinCell{cell: cell, id: add.get_id(), object: add.clone()})
-        }
-    }
+        let length = list.len();
 
-    pub fn run_collisions(&self) -> () {
-        let cell_offset_list: DashMap<HashCoordinates, AtomicUsize, FxBuildHasher> = DashMap::with_hasher(FxBuildHasher::default());
+        list.par_sort_unstable_by(|x, y| x.cell.cmp(&y.cell));
 
-        let mut locked = self.object_input_list.lock().unwrap();
+        list.par_iter().enumerate().for_each(|range| {
+            let outer_object = &range.1;
 
-        for object in locked.iter() {
-            match cell_offset_list.get(&object.cell) {
-                Some(has) => {
-                    has.fetch_add(1, Ordering::Relaxed);
-                },
-                None => {
-                    cell_offset_list.insert(object.cell.clone(), AtomicUsize::new(0));
-                }
-            };
-        }
+            let mut inner_index = range.0 + 1;
 
-        let mut list_position: usize = 0;
-
-        for cell_object in cell_offset_list.iter() {
-            list_position += cell_object.value().fetch_add(list_position, Ordering::Relaxed);
-        }
-
-        let mut object_output_list: Vec<&ObjectWithinCell> = Vec::new();
-
-        let placeholder = match locked.first() {
-            Some(has) => has,
-            None => {
-                // List has no first element so is empty
+            if inner_index >= length {
                 return;
             }
-        };
 
-        object_output_list.resize(locked.len(), placeholder);
-
-        for object in locked.iter() {
-            let count = cell_offset_list.get(&object.cell).unwrap();
-            let index = count.value().fetch_sub(1, Ordering::Relaxed);
-            object_output_list[index] = &object;
-        }
-
-        let mut dedup = Vec::new();
-
-        for index in 0..object_output_list.len() {
-            let outer_object = &object_output_list[index];
-
-            let mut inner_index = index + 1;
-
-            if inner_index >= object_output_list.len() {
-                continue;
-            }
-
-            dedup.clear();
-
-            while  inner_index < object_output_list.len() && outer_object.cell == object_output_list[inner_index].cell {
-                if outer_object.object.get_shape().collides(&object_output_list[inner_index].object.get_shape()) {
-                    dedup.push(object_output_list[inner_index]);
+            while inner_index < length && outer_object.cell == list[inner_index].cell {
+                let inner_object = &list[inner_index];
+                if outer_object
+                    .object.as_collision_component().unwrap()
+                    .get_shape()
+                    .collides(inner_object.object.as_collision_component().unwrap().get_shape())
+                {
+                    outer_object
+                        .object.as_collision_component().unwrap()
+                        .collide_with(inner_object.object.as_collision_component().unwrap().get_shape(), inner_object.object.get_id());
+                    inner_object
+                        .object.as_collision_component().unwrap()
+                        .collide_with(outer_object.object.as_collision_component().unwrap().get_shape(), outer_object.object.get_id());
                 }
 
                 inner_index += 1;
             }
+        });
 
-            dedup.sort_unstable_by(|x,y| x.id.cmp(&y.id));
-            dedup.dedup_by(|x,y| x.id.eq(&y.id));
-
-            for dedup_object in &dedup {
-                outer_object.object.collide_with(&dedup_object.object.get_shape(), dedup_object.id);
-                dedup_object.object.collide_with(&outer_object.object.get_shape(), outer_object.id);
-            }
-        }
-
-        locked.clear();
+        list.clear();
     }
 }

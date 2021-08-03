@@ -54,6 +54,15 @@ impl Shape {
         }
     }
 
+    pub fn center(&self) -> (f64, f64) {
+        match self {
+            Shape::Circle(circle) => (circle.x, circle.y),
+            Shape::RoundedTube(tube) => {
+                ((tube.x1 + tube.x2) / 2.0, (tube.y1 + tube.y2) / 2.0)
+            }
+        }
+    }
+
     pub fn aabb_iter(&self) -> AABBIterator {
         return AABBIterator::new(self.aabb())
     }

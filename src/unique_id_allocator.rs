@@ -18,7 +18,7 @@
 use std::sync::atomic::*;
 use dashmap::DashSet;
 use std::sync::*;
-use super::identifiable_object::*;
+use super::id_type::*;
 use fxhash::FxBuildHasher;
 use super::shrink_storage;
 

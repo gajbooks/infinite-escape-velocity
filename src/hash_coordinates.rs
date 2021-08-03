@@ -19,7 +19,7 @@ use std::hash::*;
 
 pub type HashCoordinateType = i32;
 
-#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub struct HashCoordinates{
     pub x: HashCoordinateType,
     pub y: HashCoordinateType

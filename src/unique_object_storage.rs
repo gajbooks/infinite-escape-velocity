@@ -17,24 +17,14 @@
 
 use fxhash::FxBuildHasher;
 use dashmap::DashMap;
-use super::identifiable_object::*;
 use super::shrink_storage;
 use std::sync::Arc;
-use std::any::Any;
-
-pub enum UniqueObjectStorageOperation {
-    Add(Box<dyn StoredObject + Send>),
-    Remove(IdType)
-}
-
-pub trait StoredObject: Any {
-    fn get_id(&self) -> IdType;
-    fn tick(self: Arc<Self>);
-    // Placeholder for now, later will be able to serialize and deserialize
-}
+use rayon::prelude::*;
+use super::id_type::*;
+use super::unique_object::*;
 
 pub struct UniqueObjectStorage {
-    objects: DashMap<IdType, Arc<dyn StoredObject>, FxBuildHasher>
+    objects: DashMap<IdType, Arc<dyn UniqueObject + Sync + Send>, FxBuildHasher>
 }
 
 impl UniqueObjectStorage {
@@ -42,7 +32,7 @@ impl UniqueObjectStorage {
         return UniqueObjectStorage {objects: DashMap::with_hasher(FxBuildHasher::default())};
     }
 
-    pub fn add(&self, new: Arc<dyn StoredObject>) {
+    pub fn add(&self, new: Arc<dyn UniqueObject + Sync + Send>) {
 
         match self.objects.entry(new.get_id()) {
             dashmap::mapref::entry::Entry::Occupied(_has) => (),
@@ -57,9 +47,14 @@ impl UniqueObjectStorage {
         shrink_storage!(self.objects);
     }
 
-    pub fn tick(&self) {
-        for object in self.objects.iter() {
-            object.clone().tick();
-        }
+    pub fn get_by_id(&self, id: IdType) -> Option<Arc<dyn UniqueObject + Sync + Send>>{
+        return match self.objects.get(&id) {
+            None => None,
+            Some(has) => Some(has.value().clone())
+        };
+    }
+
+    pub fn all_objects(&self) -> Vec<Arc<dyn UniqueObject + Sync + Send>> {
+        self.objects.par_iter().map(|x| x.clone()).collect()
     }
 }

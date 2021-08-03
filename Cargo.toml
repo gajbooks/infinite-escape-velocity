@@ -8,6 +8,12 @@ edition = "2018"
 
 [dependencies]
 fxhash = "0.2.1"
-dashmap = "4.0.2"
+dashmap = { version = "4.0.2", features= ["rayon"] }
 tiny-skia = "0.5.1"
 crossbeam-channel = "0.5.1"
+rayon = "1.5"
+macroquad = "0.3"
+
+[profile.release]
+lto = true
+codegen-units=1
