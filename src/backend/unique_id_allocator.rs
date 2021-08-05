@@ -18,9 +18,8 @@
 use std::sync::atomic::*;
 use dashmap::DashSet;
 use std::sync::*;
-use super::id_type::*;
+use super::super::shared_types::*;
 use fxhash::FxBuildHasher;
-use super::shrink_storage;
 
 impl Drop for ReturnableId {
     fn drop(&mut self) {
@@ -62,7 +61,7 @@ impl UniqueIdInternal {
     pub fn drop_allocated_id(&self, id: IdType) {
         self.allocated_ids.remove(&id);
 
-        shrink_storage!(self.allocated_ids);
+        crate::shrink_storage!(self.allocated_ids);
     }
 
     fn new_allocated_id(&self, self_ref: Arc<UniqueIdInternal>) -> ReturnableId {

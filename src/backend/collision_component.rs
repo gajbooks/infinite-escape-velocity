@@ -1,7 +1,6 @@
-use super::id_type::*;
+use super::super::shared_types::*;
 use super::shape::*;
 use std::sync::Mutex;
-use super::shrink_storage;
 
 pub struct AlreadyCollidedTracker {
     list: Mutex<Vec<IdType>>,
@@ -10,7 +9,7 @@ pub struct AlreadyCollidedTracker {
 impl AlreadyCollidedTracker {
     pub fn clear(&self) {
         let mut locked = self.list.lock().unwrap();
-        shrink_storage!(locked);
+        crate::shrink_storage!(locked);
         locked.clear();
     }
 
@@ -37,13 +36,13 @@ impl AlreadyCollidedTracker {
 }
 
 pub struct CollisionComponent {
-    shape: Shape,
+    shape: Mutex<Shape>,
     already_collided: AlreadyCollidedTracker
 }
 
 impl CollisionComponent {
     pub fn new(shape: Shape) -> CollisionComponent {
-        return CollisionComponent{shape: shape, already_collided: AlreadyCollidedTracker::new()};
+        return CollisionComponent{shape: Mutex::new(shape), already_collided: AlreadyCollidedTracker::new()};
     }
 
     pub fn collide_with(&self, target: &dyn CollidableObject, shape: &Shape, id: IdType) {
@@ -52,12 +51,12 @@ impl CollisionComponent {
         }
     }
 
-    pub fn get_shape(&self) -> &Shape {
-        return &self.shape;
+    pub fn get_shape(&self) -> Shape {
+        return self.shape.lock().unwrap().clone();
     }
 
-    pub fn set_shape(&mut self, new_shape: &Shape) -> () {
-        self.shape = new_shape.clone();
+    pub fn set_shape(&self, new_shape: Shape) -> () {
+        *self.shape.lock().unwrap() = new_shape;
     }
 
     pub fn clear(&self) -> () {
@@ -79,7 +78,7 @@ pub trait CollidableObject {
         self.get_collision_component().collide_with(self.as_dyn_collidable_object(), shape, id);
     }
 
-    fn get_shape(&self) -> &Shape {
+    fn get_shape(&self) -> Shape {
         return self.get_collision_component().get_shape();
     }
 }

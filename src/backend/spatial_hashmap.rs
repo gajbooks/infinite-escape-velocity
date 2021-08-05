@@ -56,14 +56,14 @@ impl SpatialHashmap {
                 if outer_object
                     .object.as_collision_component().unwrap()
                     .get_shape()
-                    .collides(inner_object.object.as_collision_component().unwrap().get_shape())
+                    .collides(&inner_object.object.as_collision_component().unwrap().get_shape())
                 {
                     outer_object
                         .object.as_collision_component().unwrap()
-                        .collide_with(inner_object.object.as_collision_component().unwrap().get_shape(), inner_object.object.get_id());
+                        .collide_with(&inner_object.object.as_collision_component().unwrap().get_shape(), inner_object.object.get_id());
                     inner_object
                         .object.as_collision_component().unwrap()
-                        .collide_with(outer_object.object.as_collision_component().unwrap().get_shape(), outer_object.object.get_id());
+                        .collide_with(&outer_object.object.as_collision_component().unwrap().get_shape(), outer_object.object.get_id());
                 }
 
                 inner_index += 1;

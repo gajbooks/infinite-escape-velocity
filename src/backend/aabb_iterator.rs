@@ -14,11 +14,10 @@
     You should have received a copy of the GNU General Public License
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
-
+use super::super::shared_types::*;
 use super::hash_coordinates::*;
 
-pub type AABB = (f64, f64, f64, f64);
-const SQUARE_SIZE: HashCoordinateType = 1;
+const SQUARE_SIZE: HashCoordinateType = 100;
 
 pub struct AABBIterator {
     x_len: HashCoordinateType,
@@ -31,10 +30,10 @@ pub struct AABBIterator {
 impl AABBIterator {
     pub fn new(bb: AABB) -> AABBIterator {
         let max = HashCoordinateType::MAX as f64;
-        let start_x = (bb.0 % max) as HashCoordinateType / SQUARE_SIZE;
-        let start_y = (bb.3 % max) as HashCoordinateType / SQUARE_SIZE;
-        let end_x = (bb.2 % max) as HashCoordinateType / SQUARE_SIZE;
-        let end_y = (bb.1 % max) as HashCoordinateType / SQUARE_SIZE;
+        let start_x = (bb.x1 % max) as HashCoordinateType / SQUARE_SIZE;
+        let start_y = (bb.y2 % max) as HashCoordinateType / SQUARE_SIZE;
+        let end_x = (bb.x2 % max) as HashCoordinateType / SQUARE_SIZE;
+        let end_y = (bb.y1 % max) as HashCoordinateType / SQUARE_SIZE;
 
         let x_len = (end_x - start_x) + 1;
         return AABBIterator {x_len: x_len, end_x: end_x, end_y: end_y, current_x: start_x, current_y: start_y}

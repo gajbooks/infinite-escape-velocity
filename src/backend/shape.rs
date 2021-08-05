@@ -16,21 +16,22 @@
 */
 
 use super::aabb_iterator::*;
+use super::super::shared_types::*;
 
 #[derive(Clone, Debug)]
 pub struct CircleData {
-    pub x: f64,
-    pub y: f64,
-    pub r: f64
+    pub x: GlobalCoordinateType,
+    pub y: GlobalCoordinateType,
+    pub r: GlobalCoordinateType
 }
 
 #[derive(Clone, Debug)]
 pub struct RoundedTubeData {
-    pub x1: f64,
-    pub y1: f64,
-    pub x2: f64,
-    pub y2: f64,
-    pub r: f64
+    pub x1: GlobalCoordinateType,
+    pub y1: GlobalCoordinateType,
+    pub x2: GlobalCoordinateType,
+    pub y2: GlobalCoordinateType,
+    pub r: GlobalCoordinateType
 }
 
 #[derive(Clone, Debug)]
@@ -42,23 +43,23 @@ pub enum Shape {
 impl Shape {
     pub fn aabb(&self) -> AABB {
         match self {
-            Shape::Circle(circle) => (circle.x - circle.r, circle.y + circle.r, circle.x + circle.r, circle.y - circle.r),
+            Shape::Circle(circle) => AABB{x1: circle.x - circle.r, y1: circle.y + circle.r, x2: circle.x + circle.r, y2: circle.y - circle.r},
             Shape::RoundedTube(tube) => {
                 let min_x = tube.x1.min(tube.x2);
                 let max_x = tube.x1.max(tube.x2);
                 let min_y = tube.y1.min(tube.y2);
                 let max_y = tube.y1.max(tube.y2);
 
-                (min_x - tube.r, max_y + tube.r, max_x + tube.r, min_y - tube.r)
+                AABB{x1: min_x - tube.r, y1: max_y + tube.r, x2: max_x + tube.r, y2: min_y - tube.r}
             }
         }
     }
 
-    pub fn center(&self) -> (f64, f64) {
+    pub fn center(&self) -> Coordinates {
         match self {
-            Shape::Circle(circle) => (circle.x, circle.y),
+            Shape::Circle(circle) => Coordinates{x: circle.x, y: circle.y},
             Shape::RoundedTube(tube) => {
-                ((tube.x1 + tube.x2) / 2.0, (tube.y1 + tube.y2) / 2.0)
+                Coordinates{x: (tube.x1 + tube.x2) / 2.0, y: (tube.y1 + tube.y2) / 2.0}
             }
         }
     }

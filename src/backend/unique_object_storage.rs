@@ -17,10 +17,9 @@
 
 use fxhash::FxBuildHasher;
 use dashmap::DashMap;
-use super::shrink_storage;
 use std::sync::Arc;
 use rayon::prelude::*;
-use super::id_type::*;
+use super::super::shared_types::*;
 use super::unique_object::*;
 
 pub struct UniqueObjectStorage {
@@ -44,7 +43,7 @@ impl UniqueObjectStorage {
 
     pub fn remove(&self, del: IdType) {
         self.objects.remove(&del);
-        shrink_storage!(self.objects);
+        crate::shrink_storage!(self.objects);
     }
 
     pub fn get_by_id(&self, id: IdType) -> Option<Arc<dyn UniqueObject + Sync + Send>>{
