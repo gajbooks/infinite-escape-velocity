@@ -6,6 +6,25 @@ pub type GlobalCoordinateType = f64;
 pub type LocalCoordinateType = f32;
 pub type DeltaT = f32;
 
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct ShipTypeData {
+    pub namespace: IdType,
+    pub id: IdType
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct StaticTypeData {
+    pub namespace: IdType,
+    pub id: IdType
+}
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub enum ObjectType {
+    NonWorld(),
+    Static(StaticTypeData),
+    Ship(ShipTypeData)
+}
+
 #[derive(Clone)]
 pub struct AABB {
     pub x1: GlobalCoordinateType,

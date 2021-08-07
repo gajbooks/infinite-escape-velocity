@@ -7,7 +7,7 @@ pub struct DynamicObjectMessageData {
     pub vx: f32,
     pub vy: f32,
     pub angular_velocity: f32,
-    pub object_type: IdType,
+    pub object_type: ObjectType,
     pub id: IdType
 }
 

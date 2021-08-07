@@ -70,10 +70,7 @@ impl CollidableObject for ServerViewport {
             None => {return;}
         };
 
-        let ship_type = match collided_object.get_type() {
-            ObjectType::Ship(id) => id,
-            _ => {return;}
-        };
+        let ship_type =  collided_object.get_type();
 
         match self.last_tick_ids.contains(&id) {
             true => {

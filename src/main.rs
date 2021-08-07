@@ -30,7 +30,7 @@ use macroquad::prelude::*;
 use backend::server_viewport::*;
 use backend::spatial_hashmap;
 use backend::ship;
-use frontend::frontend_viewport;
+use frontend::{frontend_viewport::*, texture_mapper::*, object_texture_mapping::*};
 
 
 enum ClientServerMessage {
@@ -43,12 +43,18 @@ async fn main() {
     let storage = Arc::new(UniqueObjectStorage::new());
     let unique_id_generator = UniqueIdAllocator::new();
 
+    let texture_mapper = TextureMapper::new();
+    texture_mapper.load_texture("default", "../starbridge.webp").unwrap();
+    TextureMapper::atlasize_textures();
+
+    let object_index = ObjectIndex::new(texture_mapper);
+
     let(s, r) = unbounded();
 
     storage.add(Arc::new(ship::Ship::new(&CoordinatesRotation{x: 0.0, y: 0.0, r: 1.0}, unique_id_generator.new_allocated_id())));
     storage.add(Arc::new(ServerViewport::new(Shape::Circle(CircleData{x: 0.0, y: 0.0, r: 1000.0}), unique_id_generator.new_allocated_id(), s, storage.clone())));
 
-    let viewport = frontend_viewport::FrontendViewport::new(r);
+    let viewport = FrontendViewport::new(r, object_index);
 
     let physics_update_rate: u64 = 20;
 

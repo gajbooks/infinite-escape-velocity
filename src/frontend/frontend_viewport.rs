@@ -6,15 +6,20 @@ use macroquad::prelude::*;
 use rayon::prelude::*;
 use super::super::connectivity::server_client_message::*;
 use super::dynamic_object_client_data::*;
+use super::object_texture_mapping::*;
+
+
+
 
 pub struct FrontendViewport {
     incoming_messages: crossbeam_channel::Receiver<ServerClientMessage>,
-    lag_compensation_cache: DashMap<IdType, DynamicObjectClientData, FxBuildHasher>
+    lag_compensation_cache: DashMap<IdType, DynamicObjectClientData, FxBuildHasher>,
+    object_index: ObjectIndex
 }
 
 impl FrontendViewport {
-    pub fn new(incoming_queue: crossbeam_channel::Receiver<ServerClientMessage>) -> FrontendViewport {
-        return FrontendViewport{incoming_messages: incoming_queue, lag_compensation_cache: DashMap::with_hasher(FxBuildHasher::default())}
+    pub fn new(incoming_queue: crossbeam_channel::Receiver<ServerClientMessage>, object_index: ObjectIndex) -> FrontendViewport {
+        return FrontendViewport{incoming_messages: incoming_queue, lag_compensation_cache: DashMap::with_hasher(FxBuildHasher::default()), object_index: object_index}
     }
 
     pub async fn tick(&self, delta_t: f32) {
@@ -35,7 +40,7 @@ impl FrontendViewport {
             match message {
                 ServerClientMessage::DynamicObjectCreation(created) => {
                     self.lag_compensation_cache.insert(created.id, DynamicObjectClientData{
-                        x: 0.0, y: 0.0, rotation: 0.0, vx: 0.0, vy: 0.0, angular_velocity: 0.0, object_type: 0});
+                        x: 0.0, y: 0.0, rotation: 0.0, vx: 0.0, vy: 0.0, angular_velocity: 0.0, object_type: ObjectType::NonWorld(), texture: None});
                 },
                 ServerClientMessage::DynamicObjectDestruction(deleted) => {
                     self.lag_compensation_cache.remove(&deleted.id);
@@ -44,7 +49,21 @@ impl FrontendViewport {
                     match self.lag_compensation_cache.entry(update.id) {
                         dashmap::mapref::entry::Entry::Vacant(_vacant) => (),
                         dashmap::mapref::entry::Entry::Occupied(has) => {
-                            has.replace_entry(DynamicObjectClientData{x: update.x, y: update.y, rotation: update.rotation, vx: update.vx, vy: update.vy, angular_velocity: update.angular_velocity, object_type: update.object_type});
+
+                            let texture = match &has.get().texture {
+                                Some(has) => {
+                                    if has.verify_type(&update.object_type) {
+                                        has.to_owned()
+                                    } else {
+                                        self.object_index.map_object_type_to_texture(&update.object_type)
+                                    }
+                                },
+                                None => {
+                                    self.object_index.map_object_type_to_texture(&update.object_type)
+                                }
+                            };
+
+                            has.replace_entry(DynamicObjectClientData{x: update.x, y: update.y, rotation: update.rotation, vx: update.vx, vy: update.vy, angular_velocity: update.angular_velocity, object_type: update.object_type, texture: Some(texture)});
                         }
                     }
                 }
@@ -57,8 +76,14 @@ impl FrontendViewport {
     async fn render(&self) {
         clear_background(BLACK);
 
-        for x in &self.lag_compensation_cache {
-            draw_circle((screen_width() / 2.0) + x.value().x as f32, (screen_height() / 2.0) + x.value().y as f32, 20.0, YELLOW);
+        for object in &self.lag_compensation_cache {
+            match &object.value().texture {
+                Some(texture) => {
+                    let texture = *texture.get_texture();
+                    draw_texture(texture, object.value().x as f32 - (texture.width() / 2.0), object.value().y as f32 - (texture.height() / 2.0), WHITE);
+                },
+                None => ()
+            };
         }
         next_frame().await;
     }

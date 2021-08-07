@@ -2,12 +2,6 @@ use super::collision_component::*;
 use super::motion_component::*;
 use super::super::shared_types::*;
 
-pub enum ObjectType {
-    NonWorld(),
-    Static(IdType),
-    Ship(IdType)
-}
-
 pub trait UniqueObject {
     fn get_id(&self) -> IdType;
     fn get_type(&self) -> ObjectType;
