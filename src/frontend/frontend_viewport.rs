@@ -79,8 +79,9 @@ impl FrontendViewport {
         for object in &self.lag_compensation_cache {
             match &object.value().texture {
                 Some(texture) => {
+                    let params = DrawTextureParams{dest_size: None, source: None, rotation: object.value().rotation, flip_x: false, flip_y: false, pivot: None};
                     let texture = *texture.get_texture();
-                    draw_texture(texture, object.value().x as f32 - (texture.width() / 2.0), object.value().y as f32 - (texture.height() / 2.0), WHITE);
+                    draw_texture_ex(texture, object.value().x as f32 - (texture.width() / 2.0), object.value().y as f32 - (texture.height() / 2.0), WHITE, params);
                 },
                 None => ()
             };

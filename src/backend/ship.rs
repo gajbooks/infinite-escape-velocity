@@ -5,19 +5,18 @@ use super::collision_component::*;
 use super::motion_component::*;
 use super::unique_id_allocator::*;
 use super::super::shared_types::*;
-use macroquad::prelude::*;
 use std::sync::Mutex;
 
 pub struct Ship {
     id: ReturnableId,
     collision_component: CollisionComponent,
-    motion_component: MotionComponent,
+    motion_component: MaximumSpeedMotionComponent,
     total_time: Mutex<DeltaT>
 }
 
 impl Ship {
     pub fn new(position: &CoordinatesRotation, id: ReturnableId) -> Ship {
-        return Ship {id: id, collision_component: CollisionComponent::new(Shape::Circle(CircleData{x: position.x, y: position.y, r: 1.0})), motion_component: MotionComponent::new_from_position(&position), total_time: Mutex::new(0.0)};
+        return Ship {id: id, collision_component: CollisionComponent::new(Shape::Circle(CircleData{x: position.x, y: position.y, r: 1.0})), motion_component: MaximumSpeedMotionComponent::new_from_position(&position, 100.0, 90.0), total_time: Mutex::new(0.0)};
     }
 }
 
@@ -42,7 +41,7 @@ impl UniqueObject for Ship {
         let t = (std::f32::consts::PI / 5.0) * *self.total_time.lock().unwrap();
         let new_x = t.cos() * 100.0;
         let new_y = t.sin() * 100.0;
-        self.motion_component.set_velocity(Some(new_x), Some(new_y), None);
+        self.motion_component.set_velocity(Some(new_x), Some(new_y), Some(std::f32::consts::PI / 10.0));
     }
 
     fn as_collision_component(&self) -> Option<&dyn CollidableObject> {
@@ -68,7 +67,7 @@ impl CollidableObject for Ship {
 }
 
 impl MobileObject for Ship {
-    fn get_motion_component(&self) -> &MotionComponent {
+    fn get_motion_component(&self) -> &dyn MotionComponent {
         return &self.motion_component;
     }
 }
