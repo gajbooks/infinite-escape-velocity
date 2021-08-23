@@ -54,7 +54,7 @@ async fn main() {
     storage.add(Arc::new(ship::Ship::new(&CoordinatesRotation{x: 0.0, y: 0.0, r: 1.0}, unique_id_generator.new_allocated_id())));
     storage.add(Arc::new(ServerViewport::new(Shape::Circle(CircleData{x: 0.0, y: 0.0, r: 1000.0}), unique_id_generator.new_allocated_id(), s, storage.clone())));
 
-    let viewport = FrontendViewport::new(r, object_index);
+    let mut viewport = FrontendViewport::new(r, object_index);
 
     let physics_update_rate: u64 = 20;
 
