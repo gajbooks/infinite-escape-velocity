@@ -10,4 +10,5 @@ pub mod spatial_hashmap;
 pub mod unique_id_allocator;
 pub mod unique_object_storage;
 pub mod unique_object;
+pub mod player_object_binding;
 #[macro_use] mod shrink_storage;

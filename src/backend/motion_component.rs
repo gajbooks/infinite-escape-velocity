@@ -34,6 +34,22 @@ impl UnboundedMotionComponent {
 }
 
 impl MotionComponent for UnboundedMotionComponent {
+    fn add_velocity(&self, ax: LocalCoordinateType, ay: LocalCoordinateType) {
+        {
+            let mut old = self.coordinates.lock().unwrap();
+
+            old.dx = old.dx + ax;
+            old.dy = old.dy + ay;
+        }
+    }
+
+    fn apply_acceleration(&self, delta_t: DeltaT, dx: LocalCoordinateType, dy: LocalCoordinateType) {
+        let dvx = delta_t * dx;
+        let dvy = delta_t * dy;
+
+        self.add_velocity(dvx, dvy)
+    }
+
     fn apply_velocity_tick(&self, delta_t: DeltaT) {
         let mut old = self.coordinates.lock().unwrap();
         let new_x = old.x + (old.dx * delta_t) as f64;
@@ -168,8 +184,10 @@ impl MaximumSpeedMotionComponent {
 
         self.cap_maximum_speed();
     }
+}
 
-    pub fn add_velocity(&self, ax: LocalCoordinateType, ay: LocalCoordinateType) {
+impl MotionComponent for MaximumSpeedMotionComponent {
+    fn add_velocity(&self, ax: LocalCoordinateType, ay: LocalCoordinateType) {
         {
             let mut old = self.coordinates.lock().unwrap();
 
@@ -181,9 +199,14 @@ impl MaximumSpeedMotionComponent {
 
         self.cap_maximum_speed();
     }
-}
 
-impl MotionComponent for MaximumSpeedMotionComponent {
+    fn apply_acceleration(&self, delta_t: DeltaT, dx: LocalCoordinateType, dy: LocalCoordinateType) {
+        let dvx = delta_t * dx;
+        let dvy = delta_t * dy;
+
+        self.add_velocity(dvx, dvy)
+    }
+
     fn apply_velocity_tick(&self, delta_t: DeltaT) {
         let mut old = self.coordinates.lock().unwrap();
         let new_x = old.x + (old.dx * delta_t) as f64;
@@ -248,6 +271,10 @@ impl MotionComponent for MaximumSpeedMotionComponent {
 }
 
 pub trait MotionComponent {
+    fn add_velocity(&self, ax: LocalCoordinateType, ay: LocalCoordinateType);
+
+    fn apply_acceleration(&self, delta_t: DeltaT, dx: LocalCoordinateType, dy: LocalCoordinateType);
+
     fn apply_velocity_tick(&self, delta_t: DeltaT);
 
     fn get_coordinates(&self) -> CoordinatesVelocity;
