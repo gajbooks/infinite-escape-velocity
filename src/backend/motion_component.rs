@@ -1,4 +1,5 @@
 use super::super::shared_types::*;
+use euclid::*;
 use std::sync::Mutex;
 
 pub struct UnboundedMotionComponent {
@@ -9,12 +10,10 @@ impl UnboundedMotionComponent {
     pub fn new() -> UnboundedMotionComponent {
         return UnboundedMotionComponent {
             coordinates: Mutex::new(CoordinatesVelocity {
-                x: 0.0,
-                y: 0.0,
-                r: 0.0,
-                dx: 0.0,
-                dy: 0.0,
-                dr: 0.0,
+                location: Coordinates::new(0.0, 0.0),
+                rotation: Rotation::radians(0.0),
+                velocity: Velocity::new(0.0, 0.0),
+                angular_velocity: AngularVelocity::radians(0.0)
             }),
         };
     }
@@ -22,46 +21,38 @@ impl UnboundedMotionComponent {
     pub fn new_from_position(position: &CoordinatesRotation) -> UnboundedMotionComponent {
         return UnboundedMotionComponent {
             coordinates: Mutex::new(CoordinatesVelocity {
-                x: position.x,
-                y: position.y,
-                r: position.r,
-                dx: 0.0,
-                dy: 0.0,
-                dr: 0.0,
+                location: position.location,
+                rotation: position.rotation,
+                velocity: Velocity::new(0.0, 0.0),
+                angular_velocity: AngularVelocity::radians(0.0)
             }),
         };
     }
 }
 
 impl MotionComponent for UnboundedMotionComponent {
-    fn add_velocity(&self, ax: LocalCoordinateType, ay: LocalCoordinateType) {
+    fn add_velocity(&self, added_velocity: Velocity) {
         {
             let mut old = self.coordinates.lock().unwrap();
-
-            old.dx = old.dx + ax;
-            old.dy = old.dy + ay;
+            old.velocity = old.velocity + added_velocity;
         }
     }
 
-    fn apply_acceleration(&self, delta_t: DeltaT, dx: LocalCoordinateType, dy: LocalCoordinateType) {
-        let dvx = delta_t * dx;
-        let dvy = delta_t * dy;
+    fn apply_acceleration(&self, delta_t: DeltaT, added_acceleration: Acceleration) {
+        let dv = added_acceleration * DeltaTA::new(delta_t.get());
 
-        self.add_velocity(dvx, dvy)
+        self.add_velocity(dv.into());
     }
 
     fn apply_velocity_tick(&self, delta_t: DeltaT) {
         let mut old = self.coordinates.lock().unwrap();
-        let new_x = old.x + (old.dx * delta_t) as f64;
-        let new_y = old.y + (old.dy * delta_t) as f64;
-        let new_r = old.r + (old.dr * delta_t);
+        let new_location = old.location + (old.velocity * delta_t).to_f64();
+        let new_rotation = old.rotation + (old.angular_velocity * delta_t.get());
         *old = CoordinatesVelocity {
-            x: new_x,
-            y: new_y,
-            r: new_r,
-            dx: old.dx,
-            dy: old.dy,
-            dr: old.dr,
+            location: new_location,
+            rotation: new_rotation,
+            velocity: old.velocity,
+            angular_velocity: old.angular_velocity
         };
     }
 
@@ -76,13 +67,14 @@ impl MotionComponent for UnboundedMotionComponent {
         dr: Option<LocalCoordinateType>,
     ) {
         let mut old = self.coordinates.lock().unwrap();
+        let new_velocity = Velocity::new(dx.unwrap_or(old.velocity.x), dy.unwrap_or(old.velocity.y));
+        let new_angular_velocity = AngularVelocity::radians(dr.unwrap_or(old.angular_velocity.get()));
+
         *old = CoordinatesVelocity {
-            x: old.x,
-            y: old.y,
-            r: old.r,
-            dx: dx.unwrap_or(old.dx),
-            dy: dy.unwrap_or(old.dy),
-            dr: dr.unwrap_or(old.dr),
+            location: old.location,
+            rotation: old.rotation,
+            velocity: new_velocity,
+            angular_velocity: new_angular_velocity
         };
     }
 
@@ -93,20 +85,22 @@ impl MotionComponent for UnboundedMotionComponent {
         r: Option<LocalCoordinateType>,
     ) {
         let mut old = self.coordinates.lock().unwrap();
+
+        let new_location = Coordinates::new(x.unwrap_or(old.location.x), y.unwrap_or(old.location.y));
+        let new_rotation = Rotation::radians(r.unwrap_or(old.rotation.get()));
+
         *old = CoordinatesVelocity {
-            x: x.unwrap_or(old.x),
-            y: y.unwrap_or(old.y),
-            r: r.unwrap_or(old.r),
-            dx: old.dx,
-            dy: old.dy,
-            dr: old.dr,
+            location: new_location,
+            rotation: new_rotation,
+            velocity: old.velocity,
+            angular_velocity: old.angular_velocity
         };
     }
 }
 
 pub struct MaximumSpeedMotionComponent {
     coordinates: Mutex<CoordinatesVelocity>,
-    maximum_speed_squared: Mutex<LocalCoordinateType>,
+    maximum_speed: Mutex<LocalCoordinateType>,
     maximum_angular_velocity: Mutex<LocalCoordinateType>,
 }
 
@@ -117,14 +111,12 @@ impl MaximumSpeedMotionComponent {
     ) -> MaximumSpeedMotionComponent {
         return MaximumSpeedMotionComponent {
             coordinates: Mutex::new(CoordinatesVelocity {
-                x: 0.0,
-                y: 0.0,
-                r: 0.0,
-                dx: 0.0,
-                dy: 0.0,
-                dr: 0.0,
+                location: Coordinates::new(0.0, 0.0),
+                rotation: Rotation::radians(0.0),
+                velocity: Velocity::new(0.0, 0.0),
+                angular_velocity: AngularVelocity::radians(0.0)
             }),
-            maximum_speed_squared: Mutex::new(maximum_speed.powi(2)),
+            maximum_speed: Mutex::new(maximum_speed),
             maximum_angular_velocity: Mutex::new(maximum_angular_velocity),
         };
     }
@@ -136,30 +128,20 @@ impl MaximumSpeedMotionComponent {
     ) -> MaximumSpeedMotionComponent {
         return MaximumSpeedMotionComponent {
             coordinates: Mutex::new(CoordinatesVelocity {
-                x: position.x,
-                y: position.y,
-                r: position.r,
-                dx: 0.0,
-                dy: 0.0,
-                dr: 0.0,
+                location: position.location,
+                rotation: position.rotation,
+                velocity: Velocity::new(0.0, 0.0),
+                angular_velocity: AngularVelocity::radians(0.0)
             }),
-            maximum_speed_squared: Mutex::new(maximum_speed.powi(2)),
+            maximum_speed: Mutex::new(maximum_speed.powi(2)),
             maximum_angular_velocity: Mutex::new(maximum_angular_velocity),
         };
     }
 
     fn cap_maximum_speed(&self) {
-        let locked_max_speed = self.maximum_speed_squared.lock().unwrap();
+        let locked_max_speed = self.maximum_speed.lock().unwrap();
         let mut speed = self.coordinates.lock().unwrap();
-        let speed_squared = speed.dx.powi(2) + speed.dy.powi(2);
-
-        {
-            if speed_squared > *locked_max_speed {
-                let velocity_ratio = locked_max_speed.sqrt() / speed_squared.sqrt();
-                speed.dx = velocity_ratio * speed.dx;
-                speed.dy = velocity_ratio * speed.dy;
-            }
-        }
+        speed.velocity = speed.velocity.clamp_length(0.0, *locked_max_speed);
     }
 
     fn cap_maximum_angular_velocity(&self) {
@@ -168,18 +150,18 @@ impl MaximumSpeedMotionComponent {
 
         {
             let locked = self.maximum_angular_velocity.lock().unwrap();
-            dr_ratio = (speed.dr / *locked).abs();
+            dr_ratio = (speed.angular_velocity.get() / *locked).abs();
         }
 
         if dr_ratio > 1.0 {
-            speed.dr = speed.dr / dr_ratio;
+            speed.angular_velocity = speed.angular_velocity / dr_ratio;
         }
     }
 
     pub fn set_maximum_speed(&self, maximum_speed: LocalCoordinateType) {
         {
-            let mut locked = self.maximum_speed_squared.lock().unwrap();
-            *locked = maximum_speed.powi(2);
+            let mut locked = self.maximum_speed.lock().unwrap();
+            *locked = maximum_speed;
         }
 
         self.cap_maximum_speed();
@@ -187,38 +169,30 @@ impl MaximumSpeedMotionComponent {
 }
 
 impl MotionComponent for MaximumSpeedMotionComponent {
-    fn add_velocity(&self, ax: LocalCoordinateType, ay: LocalCoordinateType) {
+    fn add_velocity(&self, added_velocity: Velocity) {
         {
             let mut old = self.coordinates.lock().unwrap();
-
-            let subtract_x = ax + old.dx - old.dy;
-            let subtract_y = old.dx - old.dy - ay;
-            old.dx = old.dx + ax - subtract_x;
-            old.dy = old.dy + ay - subtract_y;
+            old.velocity = old.velocity + added_velocity;
         }
 
         self.cap_maximum_speed();
     }
 
-    fn apply_acceleration(&self, delta_t: DeltaT, dx: LocalCoordinateType, dy: LocalCoordinateType) {
-        let dvx = delta_t * dx;
-        let dvy = delta_t * dy;
+    fn apply_acceleration(&self, delta_t: DeltaT, added_acceleration: Acceleration) {
+        let dv = added_acceleration * DeltaTA::new(delta_t.get());
 
-        self.add_velocity(dvx, dvy)
+        self.add_velocity(dv);
     }
 
     fn apply_velocity_tick(&self, delta_t: DeltaT) {
         let mut old = self.coordinates.lock().unwrap();
-        let new_x = old.x + (old.dx * delta_t) as f64;
-        let new_y = old.y + (old.dy * delta_t) as f64;
-        let new_r = old.r + (old.dr * delta_t);
+        let new_location = old.location + (old.velocity * delta_t).to_f64();
+        let new_rotation = old.rotation + (old.angular_velocity * delta_t.get());
         *old = CoordinatesVelocity {
-            x: new_x,
-            y: new_y,
-            r: new_r,
-            dx: old.dx,
-            dy: old.dy,
-            dr: old.dr,
+            location: new_location,
+            rotation: new_rotation,
+            velocity: old.velocity,
+            angular_velocity: old.angular_velocity
         };
     }
 
@@ -234,17 +208,14 @@ impl MotionComponent for MaximumSpeedMotionComponent {
     ) {
         {
             let mut old = self.coordinates.lock().unwrap();
-            let new_dx = dx.unwrap_or(old.dx);
-            let new_dy = dy.unwrap_or(old.dy);
-            let new_dr = dr.unwrap_or(old.dr);
-
+            let new_velocity = Velocity::new(dx.unwrap_or(old.velocity.x), dy.unwrap_or(old.velocity.y));
+            let new_angular_velocity = AngularVelocity::radians(dr.unwrap_or(old.angular_velocity.get()));
+    
             *old = CoordinatesVelocity {
-                x: old.x,
-                y: old.y,
-                r: old.r,
-                dx: new_dx,
-                dy: new_dy,
-                dr: new_dr,
+                location: old.location,
+                rotation: old.rotation,
+                velocity: new_velocity,
+                angular_velocity: new_angular_velocity
             };
         }
 
@@ -259,21 +230,30 @@ impl MotionComponent for MaximumSpeedMotionComponent {
         r: Option<LocalCoordinateType>,
     ) {
         let mut old = self.coordinates.lock().unwrap();
+
+        let new_location = Coordinates::new(x.unwrap_or(old.location.x), y.unwrap_or(old.location.y));
+        let new_rotation = Rotation::radians(r.unwrap_or(old.rotation.get()));
+
         *old = CoordinatesVelocity {
-            x: x.unwrap_or(old.x),
-            y: y.unwrap_or(old.y),
-            r: r.unwrap_or(old.r),
-            dx: old.dx,
-            dy: old.dy,
-            dr: old.dr,
+            location: new_location,
+            rotation: new_rotation,
+            velocity: old.velocity,
+            angular_velocity: old.angular_velocity
         };
     }
 }
 
 pub trait MotionComponent {
-    fn add_velocity(&self, ax: LocalCoordinateType, ay: LocalCoordinateType);
+    fn add_velocity(&self, added_velocity: Velocity);
 
-    fn apply_acceleration(&self, delta_t: DeltaT, dx: LocalCoordinateType, dy: LocalCoordinateType);
+    fn apply_acceleration(&self, delta_t: DeltaT, added_acceleration: Acceleration);
+
+    fn apply_acceleration_along_pointing_direction(&self, delta_t: DeltaT, acceleration: LocalCoordinateType) {
+        let coordinates = self.get_coordinates();
+        let coordinate_acceleration = Acceleration::from_angle_and_length(coordinates.rotation, acceleration);
+
+        self.apply_acceleration(delta_t, coordinate_acceleration);
+    }
 
     fn apply_velocity_tick(&self, delta_t: DeltaT);
 

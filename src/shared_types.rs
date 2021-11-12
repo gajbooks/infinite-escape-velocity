@@ -1,10 +1,16 @@
 use std::sync::atomic::*;
+use euclid::*;
 
 pub type IdType = u32;
 pub type AtomicIdType = AtomicU32;
 pub type GlobalCoordinateType = f64;
 pub type LocalCoordinateType = f32;
-pub type DeltaT = f32;
+pub type DeltaTimeType = f32;
+
+pub struct WorldCoordinates;
+pub struct RotationCoordinates;
+pub struct VelocityCoordinates;
+pub struct AccelerationCoordinates;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct ShipTypeData {
@@ -25,33 +31,28 @@ pub enum ObjectType {
     Ship(ShipTypeData)
 }
 
-#[derive(Clone)]
-pub struct AABB {
-    pub x1: GlobalCoordinateType,
-    pub y1: GlobalCoordinateType,
-    pub x2: GlobalCoordinateType,
-    pub y2: GlobalCoordinateType
-}
+pub type AABB = Box2D<GlobalCoordinateType, WorldCoordinates>;
 
-#[derive(Clone)]
-pub struct Coordinates {
-    pub x: GlobalCoordinateType,
-    pub y: GlobalCoordinateType
-}
+pub type Coordinates = Point2D<GlobalCoordinateType, WorldCoordinates>;
+pub type Velocity = Vector2D<LocalCoordinateType, VelocityCoordinates>;
+pub type Acceleration = Vector2D<LocalCoordinateType, AccelerationCoordinates>;
+pub type Rotation = Angle<LocalCoordinateType>;
+pub type AngularVelocity = Angle<LocalCoordinateType>;
+pub type Radius = Length<GlobalCoordinateType, WorldCoordinates>;
+
+pub type DeltaTA = Scale<DeltaTimeType, AccelerationCoordinates, VelocityCoordinates>;
+pub type DeltaT = Scale<DeltaTimeType, VelocityCoordinates, WorldCoordinates>;
 
 #[derive(Clone)]
 pub struct CoordinatesRotation {
-    pub x: GlobalCoordinateType,
-    pub y: GlobalCoordinateType,
-    pub r: LocalCoordinateType
+    pub location: Coordinates,
+    pub rotation: Rotation
 }
 
 #[derive(Clone)]
 pub struct CoordinatesVelocity {
-    pub x: GlobalCoordinateType,
-    pub y: GlobalCoordinateType,
-    pub r: LocalCoordinateType,
-    pub dx: LocalCoordinateType,
-    pub dy: LocalCoordinateType,
-    pub dr: LocalCoordinateType
+    pub location: Coordinates,
+    pub rotation: Rotation,
+    pub velocity: Velocity,
+    pub angular_velocity: AngularVelocity
 }

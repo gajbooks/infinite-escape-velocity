@@ -7,6 +7,7 @@ use rayon::prelude::*;
 use super::super::connectivity::server_client_message::*;
 use super::dynamic_object_client_data::*;
 use super::object_texture_mapping::*;
+use super::starfield_generator::*;
 
 enum CameraFollow {
     ObjectId(IdType),
@@ -19,11 +20,13 @@ pub struct FrontendViewport {
     object_index: ObjectIndex,
     camera_follow: CameraFollow,
     last_coordinates: Coordinates,
+    starfield_1: StarfieldGenerator
 }
 
 impl FrontendViewport {
     pub fn new(incoming_queue: crossbeam_channel::Receiver<ServerClientMessage>, object_index: ObjectIndex) -> FrontendViewport {
-        return FrontendViewport{incoming_messages: incoming_queue, lag_compensation_cache: DashMap::with_hasher(FxBuildHasher::default()), object_index: object_index, camera_follow: CameraFollow::Coordinates(Coordinates{x: 0.0, y: 0.0}), last_coordinates: Coordinates{x:0.0, y:0.0}}
+        return FrontendViewport{incoming_messages: incoming_queue, lag_compensation_cache: DashMap::with_hasher(FxBuildHasher::default()), object_index: object_index, camera_follow: CameraFollow::Coordinates(Coordinates::new(0.0, 0.0)), last_coordinates: Coordinates::new(0.0, 0.0),
+        starfield_1: StarfieldGenerator::new(2, 20.0, 0, 0.05)}
     }
 
     pub async fn tick(&mut self, delta_t: f32) {
@@ -91,7 +94,7 @@ impl FrontendViewport {
                     Some(has) => {
                         let center_x = has.x - (screen_width() / 2.0) as f64;
                         let center_y = has.y - (screen_height() / 2.0) as f64;
-                        self.last_coordinates = Coordinates{x: center_x, y: center_y};
+                        self.last_coordinates = Coordinates::new(center_x, center_y);
                         &self.last_coordinates
                     },
                     None => {
@@ -101,6 +104,9 @@ impl FrontendViewport {
                 }
             }
         };
+
+
+        self.starfield_1.generate_image(camera_coordinates.x, camera_coordinates.y, screen_width(), screen_height());
 
         for object in &self.lag_compensation_cache {
             match &object.value().texture {

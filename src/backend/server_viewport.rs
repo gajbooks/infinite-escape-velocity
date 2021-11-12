@@ -39,7 +39,7 @@ impl UniqueObject for ServerViewport {
         return ObjectType::NonWorld();
     }
 
-    fn tick(&self, _delta_t: f32) {
+    fn tick(&self, _delta_t: DeltaT) {
         let current_tick_list = self.collision_component.get_collision_tracker().get_list();
         let removed: Vec<IdType> = self.last_tick_ids.par_iter().map(|x| *x).filter(|x| !current_tick_list.contains(&x)).collect();
 
@@ -84,12 +84,12 @@ impl CollidableObject for ServerViewport {
             Some(motion) => {
                 let coordinates = motion.get_coordinates();
                 self.outgoing_messages.send(ServerClientMessage::DynamicObjectUpdate(DynamicObjectMessageData{id: id,
-                    x: coordinates.x,
-                    y: coordinates.y,
-                    rotation: coordinates.r,
-                    vx: coordinates.dx,
-                    vy: coordinates.dy,
-                    angular_velocity: coordinates.dr,
+                    x: coordinates.location.x,
+                    y: coordinates.location.y,
+                    rotation: coordinates.rotation.get(),
+                    vx: coordinates.velocity.x,
+                    vy: coordinates.velocity.y,
+                    angular_velocity: coordinates.angular_velocity.get(),
                     object_type: ship_type})).unwrap();
             },
             None => {

@@ -14,7 +14,7 @@ pub struct Ship {
 
 impl Ship {
     pub fn new(position: &CoordinatesRotation, id: ReturnableId) -> Ship {
-        return Ship {id: id, collision_component: CollisionComponent::new(Shape::Circle(CircleData{x: position.x, y: position.y, r: 1.0})), motion_component: MaximumSpeedMotionComponent::new_from_position(&position, 100.0, 90.0)};
+        return Ship {id: id, collision_component: CollisionComponent::new(Shape::Circle(CircleData{location: position.location, radius: Radius::new(1.0)})), motion_component: MaximumSpeedMotionComponent::new_from_position(&position, 100.0, 90.0)};
     }
 }
 
@@ -33,7 +33,7 @@ impl UniqueObject for Ship {
         self.collision_component.clear();
         self.motion_component.apply_velocity_tick(delta_t);
         let updated_pos = self.motion_component.get_coordinates();
-        self.collision_component.set_shape(Shape::Circle(CircleData{x: updated_pos.x, y: updated_pos.y, r: 1.0}));
+        self.collision_component.set_shape(Shape::Circle(CircleData{location: updated_pos.location, radius: Radius::new(1.0)}));
     }
 
     fn as_collision_component(&self) -> Option<&dyn CollidableObject> {

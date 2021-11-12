@@ -30,10 +30,10 @@ pub struct AABBIterator {
 impl AABBIterator {
     pub fn new(bb: AABB) -> AABBIterator {
         let max = HashCoordinateType::MAX as f64;
-        let start_x = (bb.x1 % max) as HashCoordinateType / SQUARE_SIZE;
-        let start_y = (bb.y2 % max) as HashCoordinateType / SQUARE_SIZE;
-        let end_x = (bb.x2 % max) as HashCoordinateType / SQUARE_SIZE;
-        let end_y = (bb.y1 % max) as HashCoordinateType / SQUARE_SIZE;
+        let start_x = (bb.min.x % max) as HashCoordinateType / SQUARE_SIZE;
+        let start_y = (bb.min.y % max) as HashCoordinateType / SQUARE_SIZE;
+        let end_x = (bb.max.x % max) as HashCoordinateType / SQUARE_SIZE;
+        let end_y = (bb.max.y % max) as HashCoordinateType / SQUARE_SIZE;
 
         let x_len = (end_x - start_x) + 1;
         return AABBIterator {x_len: x_len, end_x: end_x, end_y: end_y, current_x: start_x, current_y: start_y}

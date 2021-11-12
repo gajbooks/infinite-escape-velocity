@@ -5,7 +5,7 @@ use super::super::shared_types::*;
 pub trait UniqueObject {
     fn get_id(&self) -> IdType;
     fn get_type(&self) -> ObjectType;
-    fn tick(&self, delta_t: f32);
+    fn tick(&self, delta_t: DeltaT);
     fn as_collision_component(&self) -> Option<&dyn CollidableObject> {
         return None;
     }
