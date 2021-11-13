@@ -5,15 +5,18 @@ use super::unique_object_storage::*;
 use std::sync::*;
 use crossbeam_channel::TryRecvError;
 use super::super::shared_types::*;
-use super::motion_component::*;
+use super::server_viewport::*;
 use super::unique_object::*;
 use euclid::*;
+use super::collision_component::*;
+use super::shape::*;
 
 pub struct PlayerObjectBinding {
     incoming_messages: crossbeam_channel::Receiver<ClientServerMessage>,
     outgoing_messages: crossbeam_channel::Sender<ServerClientMessage>,
     currently_controlled_object: Option<IdType>,
     controllable_objects: Arc<UniqueObjectStorage>,
+    player_viewport_id: IdType,
     forward_already_pressed: bool,
     reverse_already_pressed: bool,
     left_already_pressed: bool,
@@ -21,8 +24,17 @@ pub struct PlayerObjectBinding {
 }
 
 impl PlayerObjectBinding {
-    pub fn new(incoming: crossbeam_channel::Receiver<ClientServerMessage>, outgoing: crossbeam_channel::Sender<ServerClientMessage>,  list: Arc<UniqueObjectStorage>) -> PlayerObjectBinding {
-        PlayerObjectBinding{incoming_messages: incoming, outgoing_messages: outgoing, currently_controlled_object: None, controllable_objects: list, forward_already_pressed: false, reverse_already_pressed: false, left_already_pressed: false, right_already_pressed: false}
+    pub fn new(incoming: crossbeam_channel::Receiver<ClientServerMessage>, outgoing: crossbeam_channel::Sender<ServerClientMessage>,  list: Arc<UniqueObjectStorage>, player_viewport_id: IdType) -> PlayerObjectBinding {
+        PlayerObjectBinding{
+            incoming_messages: incoming,
+            outgoing_messages: outgoing,
+            currently_controlled_object: None,
+            controllable_objects: list,
+            player_viewport_id: player_viewport_id,
+            forward_already_pressed: false,
+            reverse_already_pressed: false,
+            left_already_pressed: false,
+            right_already_pressed: false}
     }
     pub fn handle_updates(&mut self, delta_t: DeltaT) {
 
@@ -125,6 +137,28 @@ impl PlayerObjectBinding {
                 match has.as_motion_component() {
                     Some(motion) => {
                         let component = motion.get_motion_component();
+
+                        match self.controllable_objects.get_by_id(self.player_viewport_id) {
+                            Some(player_viewport) => {
+                                match player_viewport.as_collision_component() {
+                                    Some(viewport_collision_component) => {
+                                        match viewport_collision_component.get_shape() {
+                                            Shape::Circle(data) => {
+                                                let new_shape = Shape::Circle(CircleData{location: component.get_coordinates().location, radius: data.radius});
+                                                viewport_collision_component.set_shape(new_shape);
+                                            },
+                                            _ => {panic!("Why the heck is the viewport not a circle?")}
+                                        };
+                                    },
+                                    None => {
+                                        panic!("Viewport doesn't have a collision component?");
+                                    }
+                                }
+                            }, None => {
+                                panic!("Player viewport ded");
+                            }
+                        }
+
                         let mut rotational_velocity: f32 = 0.0;
                         if self.left_already_pressed {
                             rotational_velocity = -1.0;
@@ -137,7 +171,7 @@ impl PlayerObjectBinding {
                         component.set_velocity(None, None, Some(rotational_velocity));
 
                         if self.forward_already_pressed {
-                            component.apply_acceleration_along_pointing_direction(delta_t, 30.0);
+                            component.apply_acceleration_along_pointing_direction(delta_t, 60.0);
                         }
 
                         if self.reverse_already_pressed {
@@ -147,7 +181,7 @@ impl PlayerObjectBinding {
                             let direction_to_rotate = direction_to_reverse.angle_to(coordinates.rotation);
                             let float_angle = direction_to_rotate.to_degrees();
                             if float_angle.abs() < 1.0 {
-                                component.apply_acceleration_along_pointing_direction(delta_t, 30.0);
+                                component.apply_acceleration_along_pointing_direction(delta_t, 60.0);
                             } else {
                                 let mut rotational_velocity: f32 = 0.0;
                                 if float_angle < 0.0 {

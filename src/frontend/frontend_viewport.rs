@@ -26,12 +26,12 @@ pub struct FrontendViewport {
 impl FrontendViewport {
     pub fn new(incoming_queue: crossbeam_channel::Receiver<ServerClientMessage>, object_index: ObjectIndex) -> FrontendViewport {
         return FrontendViewport{incoming_messages: incoming_queue, lag_compensation_cache: DashMap::with_hasher(FxBuildHasher::default()), object_index: object_index, camera_follow: CameraFollow::Coordinates(Coordinates::new(0.0, 0.0)), last_coordinates: Coordinates::new(0.0, 0.0),
-        starfield_1: StarfieldGenerator::new(2, 20.0, 0, 0.05)}
+        starfield_1: StarfieldGenerator::new(8.0, 2.0, 50.0, 1.0, 2.0)}
     }
 
     pub async fn tick(&mut self, delta_t: f32) {
 
-        self.lag_compensation_cache.par_iter_mut().for_each(|mut x| {
+        self.lag_compensation_cache.iter_mut().for_each(|mut x| {
             let mut value = x.value_mut();
             value.x += (value.vx * delta_t) as f64;
             value.y += (value.vy * delta_t) as f64;
@@ -98,15 +98,13 @@ impl FrontendViewport {
                         &self.last_coordinates
                     },
                     None => {
-                        self.camera_follow = CameraFollow::Coordinates(self.last_coordinates.clone());
                         &self.last_coordinates
                     }
                 }
             }
         };
 
-
-        self.starfield_1.generate_image(camera_coordinates.x, camera_coordinates.y, screen_width(), screen_height());
+        self.starfield_1.draw_stars(camera_coordinates.x as f32, camera_coordinates.y as f32, screen_width(), screen_height());
 
         for object in &self.lag_compensation_cache {
             match &object.value().texture {

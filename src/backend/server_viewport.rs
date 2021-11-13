@@ -8,7 +8,6 @@ use super::super::connectivity::dynamic_object_message_data::*;
 use rayon::prelude::*;
 use dashmap::DashSet;
 use fxhash::FxBuildHasher;
-use macroquad::prelude::*;
 use std::sync::Arc;
 use super::unique_object_storage::*;
 
@@ -41,7 +40,7 @@ impl UniqueObject for ServerViewport {
 
     fn tick(&self, _delta_t: DeltaT) {
         let current_tick_list = self.collision_component.get_collision_tracker().get_list();
-        let removed: Vec<IdType> = self.last_tick_ids.par_iter().map(|x| *x).filter(|x| !current_tick_list.contains(&x)).collect();
+        let removed: Vec<IdType> = self.last_tick_ids.iter().map(|x| *x).filter(|x| !current_tick_list.contains(&x)).collect();
 
         for remove in removed {
             self.outgoing_messages.send(ServerClientMessage::DynamicObjectDestruction(DynamicObjectDestructionData{id: remove})).unwrap();

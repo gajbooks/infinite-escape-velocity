@@ -54,6 +54,6 @@ impl UniqueObjectStorage {
     }
 
     pub fn all_objects(&self) -> Vec<Arc<dyn UniqueObject + Sync + Send>> {
-        self.objects.par_iter().map(|x| x.clone()).collect()
+        self.objects.iter().map(|x| x.clone()).collect()
     }
 }

@@ -81,4 +81,8 @@ pub trait CollidableObject {
     fn get_shape(&self) -> Shape {
         return self.get_collision_component().get_shape();
     }
+
+    fn set_shape(&self, new_shape: Shape) -> () {
+        self.get_collision_component().set_shape(new_shape);
+    }
 }

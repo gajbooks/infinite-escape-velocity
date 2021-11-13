@@ -17,7 +17,7 @@
 use super::super::shared_types::*;
 use super::hash_coordinates::*;
 
-const SQUARE_SIZE: HashCoordinateType = 100;
+const SQUARE_SIZE: HashCoordinateType = 1000;
 
 pub struct AABBIterator {
     x_len: HashCoordinateType,

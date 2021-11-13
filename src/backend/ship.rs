@@ -14,7 +14,10 @@ pub struct Ship {
 
 impl Ship {
     pub fn new(position: &CoordinatesRotation, id: ReturnableId) -> Ship {
-        return Ship {id: id, collision_component: CollisionComponent::new(Shape::Circle(CircleData{location: position.location, radius: Radius::new(1.0)})), motion_component: MaximumSpeedMotionComponent::new_from_position(&position, 100.0, 90.0)};
+        return Ship {
+            id: id,
+            collision_component: CollisionComponent::new(Shape::Circle(CircleData{location: position.location, radius: Radius::new(1.0)})),
+            motion_component: MaximumSpeedMotionComponent::new_from_position(&position, 100.0, 1.0)};
     }
 }
 

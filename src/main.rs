@@ -48,28 +48,31 @@ async fn main() {
     let(server_sender, server_receiver) = unbounded();
     let(client_sender, client_receiver) = unbounded();
 
-    let mut client_controlled_object_handler = ControlledObjectHandler::new(client_sender);
-    let mut player_object = PlayerObjectBinding::new(client_receiver, server_sender.clone(), storage.clone());
+    let viewport_id = unique_id_generator.new_allocated_id();
 
-    storage.add(Arc::new(ship::Ship::new(&CoordinatesRotation{location: Coordinates::new(0.0, 0.0), rotation: Rotation::radians(0.0)}, unique_id_generator.new_allocated_id())));
-    storage.add(Arc::new(ServerViewport::new(Shape::Circle(CircleData{location: Coordinates::new(0.0, 0.0), radius: Radius::new(1000.0)}), unique_id_generator.new_allocated_id(), server_sender, storage.clone())));
+    let mut client_controlled_object_handler = ControlledObjectHandler::new(client_sender);
+    let mut player_object = PlayerObjectBinding::new(client_receiver, server_sender.clone(), storage.clone(), viewport_id.id);
+
+    storage.add(Arc::new(ServerViewport::new(Shape::Circle(CircleData{location: Coordinates::new(0.0, 0.0), radius: Radius::new(10000.0)}), viewport_id, server_sender, storage.clone())));
+
     storage.add(Arc::new(ship::Ship::new(&CoordinatesRotation{location: Coordinates::new(50.0, 0.0), rotation: Rotation::radians(0.0)}, unique_id_generator.new_allocated_id())));
+    storage.add(Arc::new(ship::Ship::new(&CoordinatesRotation{location: Coordinates::new(0.0, 0.0), rotation: Rotation::radians(0.0)}, unique_id_generator.new_allocated_id())));
 
     let mut viewport = FrontendViewport::new(server_receiver, object_index);
 
-    let physics_update_rate: u64 = 60;
+    let physics_update_rate: u64 = 20;
 
     let physics_thread = std::thread::spawn(move || {
         let mut engine_timestamp = std::time::Instant::now();
 
         loop {
-            let objects = storage.all_objects();
-            map.run_collisions(objects.as_slice());
             let engine_now = std::time::Instant::now();
             let engine_duration = engine_now.duration_since(engine_timestamp);
             if engine_duration > std::time::Duration::from_secs_f32(1.0/physics_update_rate as f32) {
+                let objects = storage.all_objects();
+                objects.iter().for_each(|x| x.tick(DeltaT::new(engine_duration.as_secs_f32())));
                 player_object.handle_updates(DeltaT::new(engine_duration.as_secs_f32()));
-                objects.par_iter().for_each(|x| x.tick(DeltaT::new(engine_duration.as_secs_f32())));
+                map.run_collisions(objects.as_slice());
                 engine_timestamp = engine_now;
             } else {
                 std::thread::sleep(std::time::Duration::from_secs_f32(0.5/physics_update_rate as f32));
@@ -77,22 +80,15 @@ async fn main() {
         }
     });
 
-    let maximum_framerate: u64 = 120;
-
         let mut viewport_timestamp = std::time::Instant::now();
 
         loop {
-
             let new_now = std::time::Instant::now();
             let duration = new_now.duration_since(viewport_timestamp);
-            if duration > std::time::Duration::from_secs_f32(1.0/maximum_framerate as f32) {
             viewport_timestamp = new_now;
             viewport.tick(duration.as_secs_f32()).await;
             client_controlled_object_handler.send_updates();
-            } else {
-                std::thread::sleep(std::time::Duration::from_secs_f32(0.5/maximum_framerate as f32));
-            }
-
+            next_frame();
         }
 
         physics_thread.join().unwrap();

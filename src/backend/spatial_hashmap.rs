@@ -42,7 +42,7 @@ impl SpatialHashmap {
 
         list.par_sort_unstable_by(|x, y| x.cell.cmp(&y.cell));
 
-        list.par_iter().enumerate().for_each(|range| {
+        list.iter().enumerate().for_each(|range| {
             let outer_object = &range.1;
 
             let mut inner_index = range.0 + 1;
