@@ -26,7 +26,7 @@ pub struct FrontendViewport {
 impl FrontendViewport {
     pub fn new(incoming_queue: crossbeam_channel::Receiver<ServerClientMessage>, object_index: ObjectIndex) -> FrontendViewport {
         return FrontendViewport{incoming_messages: incoming_queue, lag_compensation_cache: DashMap::with_hasher(FxBuildHasher::default()), object_index: object_index, camera_follow: CameraFollow::Coordinates(Coordinates::new(0.0, 0.0)), last_coordinates: Coordinates::new(0.0, 0.0),
-        starfield_1: StarfieldGenerator::new(8.0, 2.0, 50.0, 1.0, 2.0)}
+        starfield_1: StarfieldGenerator::new(16.0, 2.0, 30.0, 0.5, 2.0)}
     }
 
     pub async fn tick(&mut self, delta_t: f32) {

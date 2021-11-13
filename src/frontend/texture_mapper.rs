@@ -58,7 +58,22 @@ impl TextureMapper {
         let width = image.width() as u16;
         let height = image.width() as u16;
 
-        let new_texture = Texture2D::from_rgba8(width, height, &image);
+        let image_data: Vec<u8>;
+
+        // Do this idiotic test and conversion because Webp crate doesn't expose image type and crashes Macroquad
+        if image.len() == (image.width() * image.height() * 3) as usize {
+            // Convert RGB to RGBA
+            image_data = image.chunks_exact(3).map(|x| [x[0], x[1], x[2], u8::MAX]).flatten().collect::<Vec<_>>();
+        } else if image.len() == (image.width() * image.height() * 4) as usize {
+            // Convert RGBA out of reference
+            image_data = image.chunks_exact(4).map(|x| [x[0], x[1], x[2], x[3]]).flatten().collect::<Vec<_>>();
+        } else {
+            // Those are the only two options, so everything else is invalid
+            println!("WebP image is not RGB or RGBA: {}", filename);
+            return Err(());
+        }
+
+        let new_texture = Texture2D::from_rgba8(width, height, &image_data);
         self.insert_texture(name, new_texture);
         return Ok(());
     }
