@@ -32,7 +32,7 @@ impl ControlledObjectHandler {
 
         if is_key_down(KeyCode::Down) {
             if !self.reverse_already_pressed {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionForward(ControllableObjectMotionActionData{end_event: false}));
+                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionReverse(ControllableObjectMotionActionData{end_event: false}));
                 self.reverse_already_pressed = true;
             }
         } else {

@@ -17,6 +17,7 @@
 
 use super::aabb_iterator::*;
 use super::super::shared_types::*;
+use euclid::*;
 
 #[derive(Clone, Debug)]
 pub struct CircleData {
@@ -26,7 +27,8 @@ pub struct CircleData {
 
 #[derive(Clone, Debug)]
 pub struct RoundedTubeData {
-    pub location: AABB,
+    pub point_1: Coordinates,
+    pub point_2: Coordinates,
     pub radius: Radius
 }
 
@@ -37,11 +39,26 @@ pub enum Shape {
 }
 
 impl Shape {
+    pub fn move_center(&self, center: Coordinates) -> Shape {
+        match self {
+            Shape::Circle(circle) => Shape::Circle(CircleData{location: center, radius: circle.radius}),
+            Shape::RoundedTube(tube) => {
+                let old_center = self.center();
+                let center_offset = center - old_center;
+                Shape::RoundedTube(RoundedTubeData{point_1: tube.point_1 + center_offset, point_2: tube.point_2 + center_offset, radius: tube.radius}) 
+            }
+        }
+    }
+
     pub fn aabb(&self) -> AABB {
         match self {
             Shape::Circle(circle) => AABB::new(Coordinates::new(circle.location.x - circle.radius.get(), circle.location.y - circle.radius.get()), Coordinates::new(circle.location.x + circle.radius.get(), circle.location.y + circle.radius.get())),
             Shape::RoundedTube(tube) => {
-                AABB::new(Coordinates::new(tube.location.min.x - tube.radius.get(), tube.location.min.y - tube.radius.get()), Coordinates::new(tube.location.max.x + tube.radius.get(), tube.location.max.y + tube.radius.get()))
+                let min = tube.point_1.min(tube.point_2);
+                let max = tube.point_1.max(tube.point_2);
+                let radius = Vector2D::new(tube.radius.get(), tube.radius.get());
+
+                AABB::new(min - radius, max + radius)
             }
         }
     }
@@ -50,7 +67,7 @@ impl Shape {
         match self {
             Shape::Circle(circle) => circle.location,
             Shape::RoundedTube(tube) => {
-                tube.location.center()
+                tube.point_1.lerp(tube.point_2, 0.5)
             }
         }
     }
@@ -100,24 +117,24 @@ fn circle_circle(circle1: &CircleData, circle2: &CircleData) -> bool {
 }
 
 fn circle_rounded_tube(circle: &CircleData, tube: &RoundedTubeData) -> bool {
-    let line_length_squared = dist_squared((tube.location.min.x, tube.location.min.y), (tube.location.max.x, tube.location.max.y));
+    let line_length_squared = dist_squared(tube.point_1.to_tuple(), tube.point_2.to_tuple());
 
     if line_length_squared <= 0.0 {
-        return dist((circle.location.x, circle.location.y), (tube.location.min.x, tube.location.min.y)) <= (circle.radius + tube.radius).get();
+        return dist(circle.location.to_tuple(), tube.point_1.to_tuple()) <= (circle.radius + tube.radius).get();
     }
 
-    let t = ((circle.location.x - tube.location.min.x) * (tube.location.max.x - tube.location.min.x) + (circle.location.y - tube.location.min.y) * (tube.location.max.y - tube.location.min.y)) / line_length_squared;
-    let t = t.min(1.0).max(0.0);
+    let t = ((circle.location.x - tube.point_1.x) * (tube.point_2.x - tube.point_1.x) + (circle.location.y - tube.point_1.y) * (tube.point_2.y - tube.point_1.y)) / line_length_squared;
+    let t = t.clamp(0.0, 1.0);
 
-    let k = (tube.location.min.x + t * (tube.location.max.x - tube.location.min.x), tube.location.min.y + t * (tube.location.max.y - tube.location.min.y));
+    let k = (tube.point_1.x + t * (tube.point_2.x - tube.point_1.x), tube.point_1.y + t * (tube.point_2.y - tube.point_1.y));
     return dist((circle.location.x, circle.location.y), k) <= (circle.radius + tube.radius).get();
 }
 
 fn tube_tube(tube1: &RoundedTubeData, tube2: &RoundedTubeData) -> bool {
-    let t1p1_to_t2 = circle_rounded_tube(&CircleData{location: tube1.location.min, radius: tube1.radius}, tube2);
-    let t1p2_to_t2 = circle_rounded_tube(&CircleData{location: tube1.location.max, radius: tube1.radius}, tube2);
-    let t2p1_to_t1 = circle_rounded_tube(&CircleData{location: tube2.location.min, radius: tube2.radius}, tube1);
-    let t2p2_to_t1 = circle_rounded_tube(&CircleData{location: tube2.location.max, radius: tube2.radius}, tube1);
+    let t1p1_to_t2 = circle_rounded_tube(&CircleData{location: tube1.point_1, radius: tube1.radius}, tube2);
+    let t1p2_to_t2 = circle_rounded_tube(&CircleData{location: tube1.point_2, radius: tube1.radius}, tube2);
+    let t2p1_to_t1 = circle_rounded_tube(&CircleData{location: tube2.point_1, radius: tube2.radius}, tube1);
+    let t2p2_to_t1 = circle_rounded_tube(&CircleData{location: tube2.point_2, radius: tube2.radius}, tube1);
 
     return t1p1_to_t2 || t1p2_to_t2 || t2p1_to_t1 || t2p2_to_t1;
 }

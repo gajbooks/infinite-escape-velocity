@@ -55,12 +55,14 @@ async fn main() {
 
     storage.add(Arc::new(ServerViewport::new(Shape::Circle(CircleData{location: Coordinates::new(0.0, 0.0), radius: Radius::new(10000.0)}), viewport_id, server_sender, storage.clone())));
 
-    storage.add(Arc::new(ship::Ship::new(&CoordinatesRotation{location: Coordinates::new(50.0, 0.0), rotation: Rotation::radians(0.0)}, unique_id_generator.new_allocated_id())));
-    storage.add(Arc::new(ship::Ship::new(&CoordinatesRotation{location: Coordinates::new(0.0, 0.0), rotation: Rotation::radians(0.0)}, unique_id_generator.new_allocated_id())));
+    storage.add(Arc::new(ship::Ship::new(CoordinatesRotation{location: Coordinates::new(50.0, 0.0), rotation: Rotation::radians(0.0)}, unique_id_generator.new_allocated_id())));
+    storage.add(Arc::new(ship::Ship::new(CoordinatesRotation{location: Coordinates::new(0.0, 0.0), rotation: Rotation::radians(0.0)}, unique_id_generator.new_allocated_id())));
 
     let mut viewport = FrontendViewport::new(server_receiver, object_index);
 
     let physics_update_rate: u64 = 20;
+
+    let physics_tick_duration = 1.0 / physics_update_rate as f32;
 
     let physics_thread = std::thread::spawn(move || {
         let mut engine_timestamp = std::time::Instant::now();
@@ -68,14 +70,15 @@ async fn main() {
         loop {
             let engine_now = std::time::Instant::now();
             let engine_duration = engine_now.duration_since(engine_timestamp);
-            if engine_duration > std::time::Duration::from_secs_f32(1.0/physics_update_rate as f32) {
+            if engine_duration > std::time::Duration::from_secs_f32(physics_tick_duration) {
+
                 let objects = storage.all_objects();
-                objects.iter().for_each(|x| x.tick(DeltaT::new(engine_duration.as_secs_f32())));
-                player_object.handle_updates(DeltaT::new(engine_duration.as_secs_f32()));
+                objects.iter().for_each(|x| x.tick(DeltaT::new(physics_tick_duration)));
+                player_object.handle_updates(DeltaT::new(physics_tick_duration));
                 map.run_collisions(objects.as_slice());
                 engine_timestamp = engine_now;
             } else {
-                std::thread::sleep(std::time::Duration::from_secs_f32(0.5/physics_update_rate as f32));
+                std::thread::sleep(std::time::Duration::from_secs_f32(physics_tick_duration / 2.0));
             }
         }
     });

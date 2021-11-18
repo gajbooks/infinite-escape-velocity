@@ -1,5 +1,6 @@
 use super::collision_component::*;
 use super::motion_component::*;
+use super::controllable_component::*;
 use super::super::shared_types::*;
 
 pub trait UniqueObject {
@@ -10,6 +11,9 @@ pub trait UniqueObject {
         return None;
     }
     fn as_motion_component(&self) -> Option<&dyn MobileObject> {
+        return None;
+    }
+    fn as_controllable_component(&self) -> Option<&dyn ControllableObject> {
         return None;
     }
 }

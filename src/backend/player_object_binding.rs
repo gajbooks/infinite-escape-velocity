@@ -135,20 +135,12 @@ impl PlayerObjectBinding {
         match controlled {
             Some(has) => {
                 match has.as_motion_component() {
-                    Some(motion) => {
-                        let component = motion.get_motion_component();
-
+                    Some(motion_component) => {
                         match self.controllable_objects.get_by_id(self.player_viewport_id) {
                             Some(player_viewport) => {
                                 match player_viewport.as_collision_component() {
                                     Some(viewport_collision_component) => {
-                                        match viewport_collision_component.get_shape() {
-                                            Shape::Circle(data) => {
-                                                let new_shape = Shape::Circle(CircleData{location: component.get_coordinates().location, radius: data.radius});
-                                                viewport_collision_component.set_shape(new_shape);
-                                            },
-                                            _ => {panic!("Why the heck is the viewport not a circle?")}
-                                        };
+                                        viewport_collision_component.move_center(motion_component.get_coordinates().location);
                                     },
                                     None => {
                                         panic!("Viewport doesn't have a collision component?");
@@ -159,42 +151,54 @@ impl PlayerObjectBinding {
                             }
                         }
 
-                        let mut rotational_velocity: f32 = 0.0;
-                        if self.left_already_pressed {
-                            rotational_velocity = -1.0;
-                        }
-
-                        if self.right_already_pressed {
-                            rotational_velocity = 1.0;
-                        }
-
-                        component.set_velocity(None, None, Some(rotational_velocity));
-
-                        if self.forward_already_pressed {
-                            component.apply_acceleration_along_pointing_direction(delta_t, 60.0);
-                        }
-
-                        if self.reverse_already_pressed {
-                            let coordinates = component.get_coordinates();
-                            let direction_of_velocity = coordinates.velocity.angle_from_x_axis();
-                            let direction_to_reverse = direction_of_velocity + Angle::pi();
-                            let direction_to_rotate = direction_to_reverse.angle_to(coordinates.rotation);
-                            let float_angle = direction_to_rotate.to_degrees();
-                            if float_angle.abs() < 1.0 {
-                                component.apply_acceleration_along_pointing_direction(delta_t, 60.0);
-                            } else {
-                                let mut rotational_velocity: f32 = 0.0;
-                                if float_angle < 0.0 {
-                                    rotational_velocity = -1.0;
+                        match has.as_controllable_component() {
+                            Some(controllable_component) => {
+                                if self.left_already_pressed {
+                                    controllable_component.turn_left_for_tick();
                                 }
         
-                                if float_angle > 0.0 {
-                                    rotational_velocity = 1.0;
+                                if self.right_already_pressed {
+                                    controllable_component.turn_right_for_tick();
                                 }
-
-                                component.set_velocity(None, None, Some(rotational_velocity));
+        
+                                if self.forward_already_pressed {
+                                    controllable_component.accelerate_forward_for_tick();
+                                }
+        
+                                if self.reverse_already_pressed {
+                                    let coordinates = motion_component.get_coordinates();
+                                    let speed = coordinates.velocity.length();
+        
+                                    let direction_of_velocity = coordinates.velocity.angle_from_x_axis();
+                                    let direction_to_reverse = direction_of_velocity + Angle::pi();
+                                    let direction_to_rotate = direction_to_reverse.angle_to(coordinates.rotation);
+                                    let float_angle_in_degrees = direction_to_rotate.to_degrees();
+        
+                                    let angular_veolcity_multiplier = ((2.0*float_angle_in_degrees.atan())/std::f32::consts::PI).abs() * 1.0;
+        
+                                    if float_angle_in_degrees < 0.0 {
+                                        controllable_component.turn_right_for_tick_with_multiplier(angular_veolcity_multiplier);
+                                    }
+            
+                                    if float_angle_in_degrees > 0.0 {
+                                        controllable_component.turn_left_for_tick_with_multiplier(angular_veolcity_multiplier);
+                                    }
+        
+                                    if float_angle_in_degrees.abs() < 1.0 {
+                                        if (speed/100.0) > 0.1 {
+                                            controllable_component.accelerate_forward_for_tick();
+                                        }
+                                        else {
+                                            motion_component.set_position(None, None, Some(direction_to_reverse.get()));
+                                            controllable_component.stop_lateral_motion();
+                                        }
+                                    }
+                                }
                             }
+                            , None => {}
                         }
+
+
                     },
                     None => {}
                 }

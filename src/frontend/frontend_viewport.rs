@@ -48,7 +48,7 @@ impl FrontendViewport {
             match message {
                 ServerClientMessage::DynamicObjectCreation(created) => {
                     self.lag_compensation_cache.insert(created.id, DynamicObjectClientData{
-                        x: 0.0, y: 0.0, rotation: 0.0, vx: 0.0, vy: 0.0, angular_velocity: 0.0, object_type: ObjectType::NonWorld(), texture: None});
+                        x: 0.0, y: 0.0, rotation: 0.0, vx: 0.0, vy: 0.0, angular_velocity: 0.0, object_type: ObjectType::Unknown(), texture: None});
                 },
                 ServerClientMessage::DynamicObjectDestruction(deleted) => {
                     self.lag_compensation_cache.remove(&deleted.id);

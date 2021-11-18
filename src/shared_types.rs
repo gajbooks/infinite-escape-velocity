@@ -26,7 +26,10 @@ pub struct StaticTypeData {
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub enum ObjectType {
-    NonWorld(),
+    Unknown(),
+    Viewport(),
+    AIViewport(),
+    WorldBoundaryViewport(),
     Static(StaticTypeData),
     Ship(ShipTypeData)
 }
@@ -42,6 +45,10 @@ pub type Radius = Length<GlobalCoordinateType, WorldCoordinates>;
 
 pub type DeltaTA = Scale<DeltaTimeType, AccelerationCoordinates, VelocityCoordinates>;
 pub type DeltaT = Scale<DeltaTimeType, VelocityCoordinates, WorldCoordinates>;
+
+pub fn delta_t_to_delta_t_a(delta_t: DeltaT) -> DeltaTA {
+    return DeltaTA::new(delta_t.get());
+}
 
 #[derive(Clone)]
 pub struct CoordinatesRotation {

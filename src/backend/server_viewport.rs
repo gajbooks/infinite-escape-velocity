@@ -5,27 +5,20 @@ use super::unique_id_allocator::*;
 use super::super::shared_types::*;
 use super::super::connectivity::server_client_message::*;
 use super::super::connectivity::dynamic_object_message_data::*;
-use rayon::prelude::*;
 use dashmap::DashSet;
 use fxhash::FxBuildHasher;
 use std::sync::Arc;
 use super::unique_object_storage::*;
+use std::sync::*;
 
 pub struct ServerViewport {
     id: ReturnableId,
-    collision_component: CollisionComponent,
-    outgoing_messages: crossbeam_channel::Sender<ServerClientMessage>,
-    last_tick_ids: DashSet<IdType, FxBuildHasher>,
-    unique_object_storage: Arc<UniqueObjectStorage>
+    collision_component: CollisionComponentViewport,
 }
 
 impl ServerViewport {
     pub fn new(position: Shape, id: ReturnableId, outgoing_queue: crossbeam_channel::Sender<ServerClientMessage>, storage: Arc<UniqueObjectStorage>) -> ServerViewport {
-        return ServerViewport{id: id,
-            collision_component: CollisionComponent::new(position),
-            outgoing_messages: outgoing_queue,
-            last_tick_ids: DashSet::with_hasher(FxBuildHasher::default()),
-            unique_object_storage: storage}
+        return ServerViewport{id: id, collision_component: CollisionComponentViewport::new(position, outgoing_queue, storage)};
     }
 }
 
@@ -35,12 +28,41 @@ impl UniqueObject for ServerViewport {
     }
 
     fn get_type(&self) -> ObjectType {
-        return ObjectType::NonWorld();
+        return ObjectType::Viewport();
     }
 
     fn tick(&self, _delta_t: DeltaT) {
-        let current_tick_list = self.collision_component.get_collision_tracker().get_list();
-        let removed: Vec<IdType> = self.last_tick_ids.iter().map(|x| *x).filter(|x| !current_tick_list.contains(&x)).collect();
+        self.collision_component.tick();
+    }
+
+    fn as_collision_component(&self) -> Option<&dyn CollidableObject> {
+        return Some(&self.collision_component);
+    }
+}
+
+pub struct CollisionComponentViewport {
+    shape: Mutex<Shape>,
+    already_collided: AlreadyCollidedTracker,
+    outgoing_messages: crossbeam_channel::Sender<ServerClientMessage>,
+    last_tick_ids: DashSet<IdType, FxBuildHasher>,
+    unique_object_storage: Arc<UniqueObjectStorage>
+}
+
+impl CollisionComponentViewport {
+    pub fn new(shape: Shape,
+        outgoing_messages: crossbeam_channel::Sender<ServerClientMessage>,
+        unique_object_storage: Arc<UniqueObjectStorage>) -> CollisionComponentViewport {
+        return CollisionComponentViewport{
+            shape: Mutex::new(shape),
+            already_collided: AlreadyCollidedTracker::new(),
+            last_tick_ids: DashSet::with_hasher(FxBuildHasher::default()),
+            outgoing_messages: outgoing_messages,
+            unique_object_storage: unique_object_storage};
+    }
+
+    pub fn tick(&self) {
+        let current_tick_list = self.already_collided.get_list();
+        let removed = self.last_tick_ids.iter().map(|x| *x).filter(|x| !current_tick_list.contains(&x));
 
         for remove in removed {
             self.outgoing_messages.send(ServerClientMessage::DynamicObjectDestruction(DynamicObjectDestructionData{id: remove})).unwrap();
@@ -54,15 +76,11 @@ impl UniqueObject for ServerViewport {
 
         crate::shrink_storage!(self.last_tick_ids);
 
-        self.collision_component.clear();
-    }
-
-    fn as_collision_component(&self) -> Option<&dyn CollidableObject> {
-        return Some(self);
+        self.clear();
     }
 }
 
-impl CollidableObject for ServerViewport {
+impl CollidableObject for CollisionComponentViewport {
     fn do_collision(&self, _shape: &Shape, id: IdType) {
         let collided_object = match self.unique_object_storage.get_by_id(id) {
             Some(has) => has,
@@ -110,11 +128,15 @@ impl CollidableObject for ServerViewport {
         }
     }
 
-    fn get_collision_component(&self) -> &CollisionComponent {
-        return &self.collision_component;
+    fn get_already_collided(&self) -> &AlreadyCollidedTracker {
+        return &self.already_collided;
     }
 
-    fn as_dyn_collidable_object(&self) -> &dyn CollidableObject {
-        return self;
+    fn get_shape(&self) -> Shape {
+        return self.shape.lock().unwrap().clone();
+    }
+
+    fn set_shape(&self, new_shape: Shape) {
+        *self.shape.lock().unwrap() = new_shape;
     }
 }
