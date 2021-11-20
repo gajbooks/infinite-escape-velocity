@@ -13,7 +13,7 @@ pub struct VelocityCoordinates;
 pub struct AccelerationCoordinates;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
-pub struct ShipTypeData {
+pub struct DynamicObjectData {
     pub namespace: IdType,
     pub id: IdType
 }
@@ -29,9 +29,9 @@ pub enum ObjectType {
     Unknown(),
     Viewport(),
     AIViewport(),
-    WorldBoundaryViewport(),
-    Static(StaticTypeData),
-    Ship(ShipTypeData)
+    AreaViewport(),
+    StaticObject(StaticTypeData),
+    DynamicObject(DynamicObjectData)
 }
 
 pub type AABB = Box2D<GlobalCoordinateType, WorldCoordinates>;

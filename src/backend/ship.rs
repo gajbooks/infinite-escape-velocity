@@ -34,7 +34,7 @@ impl UniqueObject for Ship {
     }
 
     fn get_type(&self) -> ObjectType {
-        return ObjectType::Ship(ShipTypeData{namespace: 0, id: 0});
+        return ObjectType::DynamicObject(DynamicObjectData{namespace: 0, id: 0});
     }
 
     fn tick(&self, delta_t: DeltaT) {
