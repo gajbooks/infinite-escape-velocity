@@ -44,7 +44,7 @@ impl PlayerObjectBinding {
                 let list = self.controllable_objects.all_objects();
                 match list.iter().find(|x|
                     match x.get_type() {
-                        ObjectType::DynamicObject(_ignored) => true,
+                        ObjectType::WorldObject(_ignored) => true,
                         _ => false
                     }
                 ) {
@@ -116,7 +116,7 @@ impl PlayerObjectBinding {
                 match self.controllable_objects.get_by_id(has) {
                     Some(object_exists) => {
                         match object_exists.get_type() {
-                            ObjectType::DynamicObject(_dynamic_object) => Some(object_exists),
+                            ObjectType::WorldObject(_dynamic_object) => Some(object_exists),
                             _ => {
                                 self.currently_controlled_object = None;
                                 None

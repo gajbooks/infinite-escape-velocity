@@ -13,25 +13,12 @@ pub struct VelocityCoordinates;
 pub struct AccelerationCoordinates;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
-pub struct DynamicObjectData {
-    pub namespace: IdType,
-    pub id: IdType
-}
-
-#[derive(Clone, Hash, PartialEq, Eq)]
-pub struct StaticTypeData {
-    pub namespace: IdType,
-    pub id: IdType
-}
-
-#[derive(Clone, Hash, PartialEq, Eq)]
 pub enum ObjectType {
     Unknown(),
     Viewport(),
     AIViewport(),
     AreaViewport(),
-    StaticObject(StaticTypeData),
-    DynamicObject(DynamicObjectData)
+    WorldObject(IdType)
 }
 
 pub type AABB = Box2D<GlobalCoordinateType, WorldCoordinates>;

@@ -11,11 +11,12 @@ pub struct Ship {
     id: ReturnableId,
     collision_component: Arc<CollisionComponentShip>,
     motion_component: Arc<MaximumSpeedMotionComponent>,
-    controllable_component: Arc<ControllableComponentShip>
+    controllable_component: Arc<ControllableComponentShip>,
+    object_type: ObjectType
 }
 
 impl Ship {
-    pub fn new(position: CoordinatesRotation, id: ReturnableId) -> Ship {
+    pub fn new(position: CoordinatesRotation, object_type: ObjectType, id: ReturnableId) -> Ship {
         let collision_component = Arc::new(CollisionComponentShip::new(Shape::Circle(CircleData{location: position.location, radius: Radius::new(1.0)})));
         let motion_component = Arc::new(MaximumSpeedMotionComponent::new_from_position(&position, 100.0, 50.0, 1.0));
         let controllable_component = Arc::new(ControllableComponentShip::new(10000.0, 100.0, 2.0, motion_component.clone()));
@@ -23,7 +24,8 @@ impl Ship {
             id: id,
             collision_component: collision_component,
             motion_component: motion_component,
-            controllable_component: controllable_component
+            controllable_component: controllable_component,
+            object_type: object_type
         }
     }
 }
@@ -34,7 +36,7 @@ impl UniqueObject for Ship {
     }
 
     fn get_type(&self) -> ObjectType {
-        return ObjectType::DynamicObject(DynamicObjectData{namespace: 0, id: 0});
+        return self.object_type.clone();
     }
 
     fn tick(&self, delta_t: DeltaT) {

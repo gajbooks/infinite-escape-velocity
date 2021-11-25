@@ -4,6 +4,7 @@ use webp::*;
 use std::sync::Arc;
 use macroquad::texture::*;
 use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
 pub struct TextureReference {
@@ -21,7 +22,7 @@ impl TextureReference {
 }
 
 pub struct TextureMapper {
-    texture_map: DashMap<String, Arc<Texture2D>, FxBuildHasher>
+    texture_map: DashMap<Arc<PathBuf>, Arc<Texture2D>, FxBuildHasher>
 }
 
 impl TextureMapper {
@@ -29,12 +30,16 @@ impl TextureMapper {
         TextureMapper{texture_map: DashMap::with_hasher(FxBuildHasher::default())}
     }
 
-    fn insert_texture(&self, name: &str, texture: Texture2D) {
-        self.texture_map.insert(name.to_owned(), Arc::new(texture));
-    }
-
-    pub fn get_texture_reference(&self, name: &str) -> Option<TextureReference> {
-        let texture = match self.texture_map.get(name) {
+    pub fn get_texture_reference(&self, full_path: &Path) -> Option<TextureReference> {
+        let canonicalized = match fs::canonicalize(full_path) {
+            Ok(valid_path) => Arc::new(valid_path),
+            Err(path_error) => {
+                println!("Error getting full path for file {:?} with error {}", full_path, path_error);
+                return None;
+            }
+        };
+        
+        let texture = match self.texture_map.get(&canonicalized) {
             Some(texture) => texture.clone(),
             None => {return None}
         };
@@ -42,10 +47,18 @@ impl TextureMapper {
         return Some(TextureReference::new(texture));
     }
 
-    pub fn load_texture(&self, name: &str, filename: &str) -> Result<(), ()>{
-        let file_data = match fs::read(filename) {
+    pub fn load_texture(&self, filename: &str) -> Result<Arc<PathBuf>, ()>{
+        let full_path = match fs::canonicalize(filename) {
+            Ok(valid_path) => Arc::new(valid_path),
+            Err(path_error) => {
+                println!("Error getting full path for file {} with error {}", filename, path_error);
+                return Err(());
+            }
+        };
+
+        let file_data = match fs::read(&*full_path) {
             Ok(data) => data,
-            Err(e) => {println!("Error loading texture {} with error: {}", filename, e); return Err(())}
+            Err(e) => {println!("Error loading texture {:?} with error: {}", full_path, e); return Err(())}
         };
 
         let webp_decoder = Decoder::new(&file_data);
@@ -74,8 +87,8 @@ impl TextureMapper {
         }
 
         let new_texture = Texture2D::from_rgba8(width, height, &image_data);
-        self.insert_texture(name, new_texture);
-        return Ok(());
+        self.texture_map.insert(full_path.clone(), Arc::new(new_texture));
+        return Ok(full_path);
     }
 
     pub fn atlasize_textures() {
