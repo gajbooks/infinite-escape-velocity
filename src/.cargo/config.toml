@@ -1,0 +1,2 @@
+[target.*]
+rustflags = ["target-cpu=native"]

@@ -27,29 +27,28 @@ use backend::unique_id_allocator::*;
 use backend::unique_object_storage::*;
 use backend::player_object_binding::*;
 use crossbeam_channel::unbounded;
+use crossbeam_channel::*;
 use macroquad::prelude::*;
 use backend::server_viewport::*;
 use backend::spatial_hashmap;
 use backend::ship;
+use connectivity::client_server_message::*;
+use connectivity::server_client_message::*;
+use backend::world_object_constructor::*;
 use frontend::{frontend_viewport::*, texture_mapper::*, controlled_object_handler::*, object_texture_mapping::*};
 use configuration_loaders::{dynamic_object_record::*, dynamic_object_configuration::*, object_type_map::*};
+use backend::ship::*;
 
-#[macroquad::main("Infinite Escape Velocity")]
-async fn main() {
-    let map = spatial_hashmap::SpatialHashmap::new();
-    let storage = Arc::new(UniqueObjectStorage::new());
-    let unique_id_generator = UniqueIdAllocator::new();
+const DEFAULT_OBJECT_FILE: &str = "../game_data/objects.json";
+const DEFAULT_TEXTURE: &str = "../game_data/images/starbridge.webp";
 
-    let dynamic_object_configuration = match DynamicObjectConfiguration::from_file("../objects.json") {
+async fn initialize_client_data(client_sender: Sender<ClientServerMessage>, server_receiver: Receiver<ServerClientMessage>) {
+    let dynamic_object_configuration = match DynamicObjectConfiguration::from_file(DEFAULT_OBJECT_FILE) {
         Ok(loaded) => Arc::new(loaded),
         Err(()) => {
             panic!("Could not load object definition file");
         }
     };
-
-    let texture_mapper = Arc::new(TextureMapper::new());
-    let default_texture = texture_mapper.load_texture("../starbridge.webp").unwrap();
-    TextureMapper::atlasize_textures();
 
     let type_mapper = Arc::new(ObjectTypeMap::new());
 
@@ -57,30 +56,68 @@ async fn main() {
         type_mapper.add_object_type(&i.object_type);
     }
 
-    let default_type = type_mapper.object_type_parameters_to_object_type(&DynamicObjectTypeParameters{author: "default".to_string(), object_type: "default".to_string()}).unwrap();
+    let texture_mapper = Arc::new(TextureMapper::new());
+    let default_texture = texture_mapper.load_texture(DEFAULT_TEXTURE).unwrap();
+    TextureMapper::atlasize_textures();
 
     let object_index = ObjectToTextureIndex::new(texture_mapper, type_mapper, dynamic_object_configuration, default_texture);
+    let mut viewport = FrontendViewport::new(server_receiver, object_index);
+    let mut client_controlled_object_handler = ControlledObjectHandler::new(client_sender);
 
-    let(server_sender, server_receiver) = unbounded();
-    let(client_sender, client_receiver) = unbounded();
 
+    let mut viewport_timestamp = std::time::Instant::now();
+
+    loop {
+        let new_now = std::time::Instant::now();
+        let duration = new_now.duration_since(viewport_timestamp);
+        viewport_timestamp = new_now;
+        viewport.tick(duration.as_secs_f32()).await;
+        client_controlled_object_handler.send_updates();
+        next_frame();
+    }
+}
+
+async fn initialize_server_data(client_receiver: Receiver<ClientServerMessage>, server_sender: Sender<ServerClientMessage>) -> std::thread::JoinHandle<()> {
+    let map = spatial_hashmap::SpatialHashmap::new();
+    let storage = Arc::new(UniqueObjectStorage::new());
+    let unique_id_generator = Arc::new(UniqueIdAllocator::new());
+
+    let dynamic_object_configuration = match DynamicObjectConfiguration::from_file(DEFAULT_OBJECT_FILE) {
+        Ok(loaded) => Arc::new(loaded),
+        Err(()) => {
+            panic!("Could not load object definition file");
+        }
+    };
+
+    let type_mapper = Arc::new(ObjectTypeMap::new());
+
+    for i in dynamic_object_configuration.get_all() {
+        type_mapper.add_object_type(&i.object_type);
+    }
+
+    let default_type = DynamicObjectTypeParameters{author: "default".to_string(), object_type: "default".to_string()};
+
+    let world_object_constructor = WorldObjectConstructor::new(type_mapper.clone(), dynamic_object_configuration.clone(), unique_id_generator.clone());
+
+    storage.add(world_object_constructor.construct_from_type::<Ship>(
+        &default_type,
+        CoordinatesRotation{location: Coordinates::new(50.0, 0.0), rotation: Rotation::radians(0.0)}).unwrap());
+    
+    storage.add(world_object_constructor.construct_from_type::<Ship>(
+        &default_type,
+        CoordinatesRotation{location: Coordinates::new(0.0, 0.0), rotation: Rotation::radians(0.0)}).unwrap());
+    
     let viewport_id = unique_id_generator.new_allocated_id();
 
-    let mut client_controlled_object_handler = ControlledObjectHandler::new(client_sender);
     let mut player_object = PlayerObjectBinding::new(client_receiver, server_sender.clone(), storage.clone(), viewport_id.id);
 
     storage.add(Arc::new(ServerViewport::new(Shape::Circle(CircleData{location: Coordinates::new(0.0, 0.0), radius: Radius::new(10000.0)}), viewport_id, server_sender, storage.clone())));
-
-    storage.add(Arc::new(ship::Ship::new(CoordinatesRotation{location: Coordinates::new(50.0, 0.0), rotation: Rotation::radians(0.0)}, default_type.clone(), unique_id_generator.new_allocated_id())));
-    storage.add(Arc::new(ship::Ship::new(CoordinatesRotation{location: Coordinates::new(0.0, 0.0), rotation: Rotation::radians(0.0)}, default_type.clone(), unique_id_generator.new_allocated_id())));
-
-    let mut viewport = FrontendViewport::new(server_receiver, object_index);
 
     let physics_update_rate: u64 = 20;
 
     let physics_tick_duration = 1.0 / physics_update_rate as f32;
 
-    let physics_thread = std::thread::spawn(move || {
+    std::thread::spawn(move || {
         let mut engine_timestamp = std::time::Instant::now();
 
         loop {
@@ -97,20 +134,19 @@ async fn main() {
                 std::thread::sleep(std::time::Duration::from_secs_f32(physics_tick_duration / 2.0));
             }
         }
-    });
+    })
+}
 
-        let mut viewport_timestamp = std::time::Instant::now();
+#[macroquad::main("Infinite Escape Velocity")]
+async fn main() {
+    let(server_sender, server_receiver) = unbounded();
+    let(client_sender, client_receiver) = unbounded();
 
-        loop {
-            let new_now = std::time::Instant::now();
-            let duration = new_now.duration_since(viewport_timestamp);
-            viewport_timestamp = new_now;
-            viewport.tick(duration.as_secs_f32()).await;
-            client_controlled_object_handler.send_updates();
-            next_frame();
-        }
+    let physics_thread = initialize_server_data(client_receiver, server_sender).await;
 
-        physics_thread.join().unwrap();
+    initialize_client_data(client_sender, server_receiver).await;
+
+    physics_thread.join().unwrap();
 
 
 }

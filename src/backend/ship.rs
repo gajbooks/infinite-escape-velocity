@@ -6,6 +6,8 @@ use super::unique_id_allocator::*;
 use super::super::shared_types::*;
 use super::controllable_component::*;
 use std::sync::*;
+use super::world_object_constructor::*;
+use super::super::configuration_loaders::dynamic_object_record::*;
 
 pub struct Ship {
     id: ReturnableId,
@@ -15,18 +17,76 @@ pub struct Ship {
     object_type: ObjectType
 }
 
-impl Ship {
-    pub fn new(position: CoordinatesRotation, object_type: ObjectType, id: ReturnableId) -> Ship {
-        let collision_component = Arc::new(CollisionComponentShip::new(Shape::Circle(CircleData{location: position.location, radius: Radius::new(1.0)})));
-        let motion_component = Arc::new(MaximumSpeedMotionComponent::new_from_position(&position, 100.0, 50.0, 1.0));
-        let controllable_component = Arc::new(ControllableComponentShip::new(10000.0, 100.0, 2.0, motion_component.clone()));
-        return Ship {
+impl FromPrototype for Ship {
+    fn from_prototype(object_record: &DynamicObjectRecord, object_type: ObjectType, position: CoordinatesRotation, id: ReturnableId) -> Result<Arc<dyn UniqueObject + Send + Sync>, ()> {
+        let movement_parameters = match &object_record.movement_parameters {
+            Some(movement) => movement,
+            None => {
+                return Err(());
+            }
+        };
+
+        let collision_parameters = match &object_record.collision_parameters {
+            Some(collision) => {
+                collision
+            },
+            None => {
+                return Err(());
+            }
+        };
+
+        let shape = match &collision_parameters.circle {
+            Some(circle) => {
+                Shape::Circle(
+                    CircleData{
+                        location: position.location,
+                        radius: Radius::new(circle.radius.into())
+                    }
+                )
+            },
+            None => {
+                match &collision_parameters.rounded_tube {
+                    Some(tube) => {
+                        let distance = Distance::new(tube.length.into());
+                        let point_2 = position.location + Offset::from_lengths(distance, Distance::new(0.0));
+                        Shape::RoundedTube(
+                            RoundedTubeData{
+                                point_1: position.location,
+                                point_2: point_2,
+                                radius: Radius::new(tube.radius.into())
+                            }
+                        )
+                    },
+                    None => {
+                        return Err(());
+                    }
+                }
+            }
+        };
+
+        let collision_component = Arc::new(
+            CollisionComponentShip::new(shape)
+        );
+
+        let motion_component = Arc::new(MaximumSpeedMotionComponent::new_from_position(
+            &position,
+            movement_parameters.maximum_speed,
+            movement_parameters.maximum_acceleration,
+            movement_parameters.maximum_angular_velocity));
+
+        let controllable_component = Arc::new(ControllableComponentShip::new(
+            movement_parameters.maximum_speed,
+            movement_parameters.maximum_acceleration,
+            movement_parameters.maximum_angular_velocity,
+            motion_component.clone()));
+
+        return Ok(Arc::new(Ship {
             id: id,
             collision_component: collision_component,
             motion_component: motion_component,
             controllable_component: controllable_component,
             object_type: object_type
-        }
+        }))
     }
 }
 

@@ -29,6 +29,8 @@ pub type Acceleration = Vector2D<LocalCoordinateType, AccelerationCoordinates>;
 pub type Rotation = Angle<LocalCoordinateType>;
 pub type AngularVelocity = Angle<LocalCoordinateType>;
 pub type Radius = Length<GlobalCoordinateType, WorldCoordinates>;
+pub type Distance = Length<GlobalCoordinateType, WorldCoordinates>;
+pub type Offset = Size2D<GlobalCoordinateType, WorldCoordinates>;
 
 pub type DeltaTA = Scale<DeltaTimeType, AccelerationCoordinates, VelocityCoordinates>;
 pub type DeltaT = Scale<DeltaTimeType, VelocityCoordinates, WorldCoordinates>;

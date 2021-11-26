@@ -11,4 +11,5 @@ pub mod unique_object_storage;
 pub mod unique_object;
 pub mod player_object_binding;
 pub mod controllable_component;
+pub mod world_object_constructor;
 #[macro_use] mod shrink_storage;

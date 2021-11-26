@@ -174,7 +174,7 @@ impl PlayerObjectBinding {
                                     let direction_to_rotate = direction_to_reverse.angle_to(coordinates.rotation);
                                     let float_angle_in_degrees = direction_to_rotate.to_degrees();
         
-                                    let angular_veolcity_multiplier = ((2.0*float_angle_in_degrees.atan())/std::f32::consts::PI).abs() * 1.0;
+                                    let angular_veolcity_multiplier = (float_angle_in_degrees.atan()/std::f32::consts::PI).abs() * 1.0;
         
                                     if float_angle_in_degrees < 0.0 {
                                         controllable_component.turn_right_for_tick_with_multiplier(angular_veolcity_multiplier);
