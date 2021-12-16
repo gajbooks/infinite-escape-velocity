@@ -12,4 +12,5 @@ pub mod unique_object;
 pub mod player_object_binding;
 pub mod controllable_component;
 pub mod world_object_constructor;
+pub mod world_interaction_event;
 #[macro_use] mod shrink_storage;

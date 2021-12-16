@@ -8,12 +8,19 @@ pub struct ControlledObjectHandler {
     reverse_already_pressed: bool,
     left_already_pressed: bool,
     right_already_pressed: bool,
+    fire_already_pressed: bool
 }
 
 impl ControlledObjectHandler {
 
     pub fn new(message_queue: crossbeam_channel::Sender<ClientServerMessage>) -> ControlledObjectHandler {
-        ControlledObjectHandler{outgoing_messages: message_queue, forward_already_pressed: false, reverse_already_pressed: false, left_already_pressed: false, right_already_pressed: false}
+        ControlledObjectHandler{
+            outgoing_messages: message_queue,
+            forward_already_pressed: false,
+            reverse_already_pressed: false,
+            left_already_pressed: false,
+            right_already_pressed: false,
+            fire_already_pressed: false}
     }
 
     pub fn send_updates(&mut self) {
@@ -65,6 +72,19 @@ impl ControlledObjectHandler {
             if self.right_already_pressed {
                 self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionRight(ControllableObjectMotionActionData{end_event: true}));
                 self.right_already_pressed = false;
+            }
+        }
+
+        if is_key_down(KeyCode::Space) {
+            if !self.fire_already_pressed
+            {
+                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionFire(ControllableObjectMotionActionData{end_event: false}));
+                self.fire_already_pressed = true;
+            }
+        } else {
+            if self.fire_already_pressed {
+                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionFire(ControllableObjectMotionActionData{end_event: true}));
+                self.fire_already_pressed = false;
             }
         }
     }

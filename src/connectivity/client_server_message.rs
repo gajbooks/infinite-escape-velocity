@@ -4,5 +4,6 @@ pub enum ClientServerMessage {
     ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
     ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
     ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionRight(ControllableObjectMotionActionData)
+    ControllableObjectMotionActionRight(ControllableObjectMotionActionData),
+    ControllableObjectMotionActionFire(ControllableObjectMotionActionData)
 }

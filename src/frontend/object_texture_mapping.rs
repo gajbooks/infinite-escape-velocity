@@ -25,7 +25,7 @@ pub struct ObjectToTextureIndex {
     texture_mapper: Arc<TextureMapper>,
     type_mapper: Arc<ObjectTypeMap>,
     loaded_configuration: Arc<DynamicObjectConfiguration>,
-    default_texture: Arc<PathBuf>
+    default_texture: TextureReference
 }
 
 impl ObjectToTextureIndex {
@@ -33,7 +33,7 @@ impl ObjectToTextureIndex {
         texture_mapper: Arc<TextureMapper>,
         type_mapper: Arc<ObjectTypeMap>,
         loaded_configuration: Arc<DynamicObjectConfiguration>,
-        default_texture: Arc<PathBuf>) -> ObjectToTextureIndex {
+        default_texture: TextureReference) -> ObjectToTextureIndex {
         ObjectToTextureIndex{texture_mapper: texture_mapper, type_mapper: type_mapper, loaded_configuration: loaded_configuration, default_texture: default_texture}
     }
 
@@ -76,11 +76,11 @@ impl ObjectToTextureIndex {
                         Some(MappedTexture{object_type: object_type.clone(), texture: texture})
                     },
                     None => {
-                        Some(MappedTexture{object_type: object_type.clone(), texture: self.texture_mapper.get_texture_reference(&self.default_texture).unwrap()})
+                        Some(MappedTexture{object_type: object_type.clone(), texture: self.default_texture.clone()})
                     }
                 }
             },
-            None => Some(MappedTexture{object_type: object_type.clone(), texture: self.texture_mapper.get_texture_reference(&self.default_texture).unwrap()})
+            None => Some(MappedTexture{object_type: object_type.clone(), texture: self.default_texture.clone()})
         }
     }
 }

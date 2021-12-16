@@ -15,6 +15,8 @@ pub trait ControllableObject {
         self.accelerate_forward_for_tick_with_multiplier(1.0);
     }
 
+    fn fire_for_tick(&self);
+
     fn turn_left_for_tick_with_multiplier(&self, multiplier: f32);
     fn turn_right_for_tick_with_multiplier(&self, multiplier: f32);
     fn accelerate_forward_for_tick_with_multiplier(&self, multiplier: f32);
@@ -61,6 +63,10 @@ impl ControllableObject for ControllableComponentShip {
     fn accelerate_forward_for_tick_with_multiplier(&self, multiplier: f32) {
         let multiplier = multiplier.clamp(0.0, 1.0);
         self.motion_component.add_acceleration_along_pointing_direction(self.maximum_acceleration * multiplier);
+    }
+
+    fn fire_for_tick(&self) {
+        
     }
 
     fn stop_lateral_motion(&self) {

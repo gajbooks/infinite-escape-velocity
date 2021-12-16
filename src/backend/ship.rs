@@ -8,6 +8,7 @@ use super::controllable_component::*;
 use std::sync::*;
 use super::world_object_constructor::*;
 use super::super::configuration_loaders::dynamic_object_record::*;
+use super::world_interaction_event::*;
 
 pub struct Ship {
     id: ReturnableId,
@@ -99,13 +100,14 @@ impl UniqueObject for Ship {
         return self.object_type.clone();
     }
 
-    fn tick(&self, delta_t: DeltaT) {
+    fn tick(&self, delta_t: DeltaT) -> Vec<WorldInteractionEvent> {
         self.collision_component.clear();
         self.motion_component.apply_velocity_tick(delta_t);
         self.controllable_component.tick();
 
         let updated_pos = self.motion_component.get_coordinates();
         self.collision_component.move_center(updated_pos.location);
+        return Vec::new();
     }
 
     fn as_collision_component(&self) -> Option<&dyn CollidableObject> {

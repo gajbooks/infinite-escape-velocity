@@ -21,6 +21,7 @@ pub struct PlayerObjectBinding {
     reverse_already_pressed: bool,
     left_already_pressed: bool,
     right_already_pressed: bool,
+    fire_already_pressed: bool
 }
 
 impl PlayerObjectBinding {
@@ -34,7 +35,8 @@ impl PlayerObjectBinding {
             forward_already_pressed: false,
             reverse_already_pressed: false,
             left_already_pressed: false,
-            right_already_pressed: false}
+            right_already_pressed: false,
+            fire_already_pressed: false}
     }
     pub fn handle_updates(&mut self, delta_t: DeltaT) {
 
@@ -106,6 +108,13 @@ impl PlayerObjectBinding {
                         }
                     } else {
                         self.right_already_pressed = false;
+                    }
+                },
+                ClientServerMessage::ControllableObjectMotionActionFire(data) => {
+                    if !data.end_event {
+                        self.fire_already_pressed = true;
+                    } else {
+                        self.fire_already_pressed = true;
                     }
                 }
             };

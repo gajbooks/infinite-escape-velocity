@@ -3,14 +3,15 @@ use dashmap::DashMap;
 use super::dynamic_object_record::*;
 use super::dynamic_object_file::*;
 use std::fs::File;
+use std::path::Path;
 
 pub struct DynamicObjectConfiguration {
     object_prototypes: DashMap<DynamicObjectTypeParameters, DynamicObjectRecord, FxBuildHasher>
 }
 
 impl DynamicObjectConfiguration {
-    pub fn from_file(filename: &str) -> Result<DynamicObjectConfiguration, ()> {
-        let configuration_file = match File::open(filename) {
+    pub fn from_file(base_directory: &Path, filename: &Path) -> Result<DynamicObjectConfiguration, ()> {
+        let configuration_file = match File::open(base_directory.join(filename)) {
             Ok(opened) => opened,
             Err(error) => {
                 println!("Error opening dynamic object configuration file: {}", error);

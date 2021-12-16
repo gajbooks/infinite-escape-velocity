@@ -10,6 +10,7 @@ use fxhash::FxBuildHasher;
 use std::sync::Arc;
 use super::unique_object_storage::*;
 use std::sync::*;
+use super::world_interaction_event::*;
 
 pub struct ServerViewport {
     id: ReturnableId,
@@ -31,8 +32,9 @@ impl UniqueObject for ServerViewport {
         return ObjectType::Viewport();
     }
 
-    fn tick(&self, _delta_t: DeltaT) {
+    fn tick(&self, _delta_t: DeltaT) -> Vec<WorldInteractionEvent> {
         self.collision_component.tick();
+        return Vec::new();
     }
 
     fn as_collision_component(&self) -> Option<&dyn CollidableObject> {
