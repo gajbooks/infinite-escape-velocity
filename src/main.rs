@@ -186,11 +186,11 @@ async fn initialize_server_data(
         object_type: "default".to_string(),
     };
 
-    let world_object_constructor = WorldObjectConstructor::new(
+    let world_object_constructor = Arc::new(WorldObjectConstructor::new(
         type_mapper.clone(),
         dynamic_object_configuration.clone(),
         unique_id_generator.clone(),
-    );
+    ));
 
     storage.add(
         world_object_constructor
@@ -235,11 +235,12 @@ async fn initialize_server_data(
     )));
 
     std::thread::spawn(move || {
-        server_loop(storage, player_object, map);
+        server_loop(storage, player_object, map, world_object_constructor);
     })
 }
 
-fn server_loop(storage: Arc<UniqueObjectStorage>, mut player_object: PlayerObjectBinding, map: spatial_hashmap::SpatialHashmap) {
+fn server_loop(storage: Arc<UniqueObjectStorage>, mut player_object: PlayerObjectBinding, map: spatial_hashmap::SpatialHashmap, constructor: Arc<WorldObjectConstructor>) {
+    let intraction_handler = backend::world_interaction_handler::WorldInteractionHandler::new(storage.clone(), constructor.clone());
     let physics_update_rate: u64 = 20;
 
     let physics_tick_duration = 1.0 / physics_update_rate as f32;
@@ -254,7 +255,9 @@ fn server_loop(storage: Arc<UniqueObjectStorage>, mut player_object: PlayerObjec
             let events: Vec<_> = objects
                 .iter()
                 .map(|x| x.tick(DeltaT::new(physics_tick_duration)))
+                .flatten()
                 .collect();
+            intraction_handler.process_set(events);
             player_object.handle_updates(DeltaT::new(physics_tick_duration));
             map.run_collisions(objects.as_slice());
             engine_timestamp = engine_now;

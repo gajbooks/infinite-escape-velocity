@@ -203,6 +203,10 @@ impl PlayerObjectBinding {
                                         }
                                     }
                                 }
+
+                                if self.fire_already_pressed {
+                                    controllable_component.fire_for_tick();
+                                }
                             }
                             , None => {}
                         }

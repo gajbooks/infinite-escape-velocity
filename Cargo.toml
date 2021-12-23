@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 fxhash = "0.2.1"
-dashmap = { version = "4.0.2", features= ["rayon"] }
+dashmap = { version = "5.0", features= ["rayon"] }
 crossbeam-channel = "0.5.1"
 rayon = "1.5"
 macroquad = "0.3"

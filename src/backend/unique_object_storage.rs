@@ -41,9 +41,10 @@ impl UniqueObjectStorage {
         };
     }
 
-    pub fn remove(&self, del: IdType) {
-        self.objects.remove(&del);
+    pub fn remove(&self, del: IdType) -> bool {
+        let existed = self.objects.remove(&del).is_some();
         crate::shrink_storage!(self.objects);
+        return existed;
     }
 
     pub fn get_by_id(&self, id: IdType) -> Option<Arc<dyn UniqueObject + Sync + Send>>{

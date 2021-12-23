@@ -1,6 +1,7 @@
 use super::super::shared_types::*;
 use super::motion_component::*;
 use std::sync::*;
+use std::sync::atomic::*;
 
 pub trait ControllableObject {
     fn turn_left_for_tick(&self) {
@@ -16,6 +17,7 @@ pub trait ControllableObject {
     }
 
     fn fire_for_tick(&self);
+    fn is_firing(&self) -> bool;
 
     fn turn_left_for_tick_with_multiplier(&self, multiplier: f32);
     fn turn_right_for_tick_with_multiplier(&self, multiplier: f32);
@@ -31,7 +33,8 @@ pub struct ControllableComponentShip {
     maximum_speed: LocalCoordinateType,
     maximum_acceleration: LocalCoordinateType,
     maximum_angular_velocity: LocalCoordinateType,
-    motion_component: Arc<MaximumSpeedMotionComponent>
+    motion_component: Arc<MaximumSpeedMotionComponent>,
+    firing: AtomicBool
 }
 
 impl ControllableComponentShip {
@@ -45,7 +48,8 @@ impl ControllableComponentShip {
                 maximum_speed: maximum_speed,
                 maximum_acceleration: maximum_acceleration,
                 maximum_angular_velocity: maximum_angular_velocity,
-                motion_component: motion_component};
+                motion_component: motion_component,
+                firing: AtomicBool::from(false)};
         }
 }
 
@@ -66,7 +70,11 @@ impl ControllableObject for ControllableComponentShip {
     }
 
     fn fire_for_tick(&self) {
-        
+        self.firing.store(true, Ordering::Relaxed);
+    }
+
+    fn is_firing(&self) -> bool {
+        return self.firing.load(Ordering::Relaxed);
     }
 
     fn stop_lateral_motion(&self) {
@@ -81,5 +89,6 @@ impl ControllableObject for ControllableComponentShip {
         self.motion_component.set_maximum_speed(self.maximum_speed);
         self.motion_component.set_maximum_acceleration(self.maximum_acceleration);
         self.stop_rotational_motion();
+        self.firing.store(false, Ordering::Relaxed);
     }
 }
