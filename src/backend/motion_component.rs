@@ -1,5 +1,4 @@
 use super::super::shared_types::*;
-use euclid::*;
 use std::sync::Mutex;
 
 pub struct MaximumSpeedMotionComponent {
@@ -133,7 +132,7 @@ impl MobileObject for MaximumSpeedMotionComponent {
         *acceleration = Acceleration::default();
     }
 
-    fn get_coordinates(&self) -> CoordinatesVelocity {
+    fn get_coordinates_and_velocity(&self) -> CoordinatesVelocity {
         return self.coordinates.lock().unwrap().clone();
     }
 
@@ -194,7 +193,12 @@ pub trait MobileObject: Sync + Send {
 
     fn apply_velocity_tick(&self, delta_t: DeltaT);
 
-    fn get_coordinates(&self) -> CoordinatesVelocity;
+    fn get_coordinates_and_velocity(&self) -> CoordinatesVelocity;
+
+    fn get_coordinates(&self) -> CoordinatesRotation {
+        let full_coordinates = self.get_coordinates_and_velocity();
+        return CoordinatesRotation {location: full_coordinates.location, rotation: full_coordinates.rotation};
+    }
 
     fn set_velocity(
         &self,

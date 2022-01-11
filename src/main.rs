@@ -23,7 +23,6 @@ mod shared_types;
 use backend::player_object_binding::*;
 use backend::server_viewport::*;
 use backend::shape::*;
-use backend::ship;
 use backend::ship::*;
 use backend::spatial_hashmap;
 use backend::unique_id_allocator::*;

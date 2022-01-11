@@ -101,7 +101,7 @@ impl CollidableObject for CollisionComponentViewport {
 
         match collided_object.as_motion_component() {
             Some(motion) => {
-                let coordinates = motion.get_coordinates();
+                let coordinates = motion.get_coordinates_and_velocity();
                 self.outgoing_messages.send(ServerClientMessage::DynamicObjectUpdate(DynamicObjectMessageData{id: id,
                     x: coordinates.location.x,
                     y: coordinates.location.y,

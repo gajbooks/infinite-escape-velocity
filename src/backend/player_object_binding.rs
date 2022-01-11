@@ -5,11 +5,8 @@ use super::unique_object_storage::*;
 use std::sync::*;
 use crossbeam_channel::TryRecvError;
 use super::super::shared_types::*;
-use super::server_viewport::*;
 use super::unique_object::*;
 use euclid::*;
-use super::collision_component::*;
-use super::shape::*;
 
 pub struct PlayerObjectBinding {
     incoming_messages: crossbeam_channel::Receiver<ClientServerMessage>,
@@ -114,7 +111,7 @@ impl PlayerObjectBinding {
                     if !data.end_event {
                         self.fire_already_pressed = true;
                     } else {
-                        self.fire_already_pressed = true;
+                        self.fire_already_pressed = false;
                     }
                 }
             };
@@ -175,7 +172,7 @@ impl PlayerObjectBinding {
                                 }
         
                                 if self.reverse_already_pressed {
-                                    let coordinates = motion_component.get_coordinates();
+                                    let coordinates = motion_component.get_coordinates_and_velocity();
                                     let speed = coordinates.velocity.length();
         
                                     let direction_of_velocity = coordinates.velocity.angle_from_x_axis();

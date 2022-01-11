@@ -103,11 +103,15 @@ impl UniqueObject for Ship {
     fn tick(&self, delta_t: DeltaT) -> Vec<WorldInteractionEvent> {
         self.collision_component.clear();
         self.motion_component.apply_velocity_tick(delta_t);
+
         self.controllable_component.tick();
 
         let updated_pos = self.motion_component.get_coordinates();
         self.collision_component.move_center(updated_pos.location);
-        return Vec::new();
+
+        let events = Vec::new();
+
+        return events;
     }
 
     fn as_collision_component(&self) -> Option<&dyn CollidableObject> {
