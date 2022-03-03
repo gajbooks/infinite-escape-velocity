@@ -15,12 +15,11 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::controllable_object_message_data::*;
+use super::object_configuration_record::*;
+use serde::Deserialize;
 
-pub enum ClientServerMessage {
-    ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionRight(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionFire(ControllableObjectMotionActionData)
+#[derive(Deserialize)]
+pub struct ObjectConfigurationFile {
+    pub version: u32,
+    pub definitions: Vec<ObjectConfigurationRecord>
 }

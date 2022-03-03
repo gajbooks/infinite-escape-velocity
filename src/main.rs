@@ -25,11 +25,10 @@ use backend::server_viewport::*;
 use backend::shape::*;
 use backend::ship::*;
 use backend::spatial_hashmap;
-use backend::unique_id_allocator::*;
-use backend::unique_object_storage::*;
+use backend::unique_object_storage::{unique_id_allocator::*, unique_object_storage::*};
 use backend::world_object_constructor::*;
 use configuration_loaders::{
-    dynamic_object_configuration::*, dynamic_object_record::*, object_type_map::*,
+    object_configuration::*, object_configuration_record::*, object_type_map::*,
 };
 use connectivity::client_server_message::*;
 use connectivity::server_client_message::*;
@@ -96,7 +95,7 @@ async fn initialize_client_data(
     let object_file_path = Path::new(DEFAULT_OBJECT_FILE);
 
     let dynamic_object_configuration =
-        match DynamicObjectConfiguration::from_file(&base_directory, &object_file_path) {
+        match ObjectConfigurationMap::from_file(&base_directory, &object_file_path) {
             Ok(loaded) => Arc::new(loaded),
             Err(()) => {
                 panic!("Could not load object definition file");
@@ -112,7 +111,7 @@ async fn initialize_client_data(
     for i in dynamic_object_configuration.get_all() {
         type_mapper.add_object_type(&i.object_type);
 
-        match &i.graphics_parameters {
+        match &i.object.get_graphics_parameters() {
             Some(graphics) => {
                 match &graphics.simple {
                     Some(simple_texture) => {
@@ -162,12 +161,12 @@ async fn initialize_server_data(
 
     let object_file_path = Path::new(DEFAULT_OBJECT_FILE);
 
-    let map = spatial_hashmap::SpatialHashmap::new();
+    let map = spatial_hashmap::spatial_hashmap::SpatialHashmap::new();
     let storage = Arc::new(UniqueObjectStorage::new());
     let unique_id_generator = Arc::new(UniqueIdAllocator::new());
 
     let dynamic_object_configuration =
-        match DynamicObjectConfiguration::from_file(&base_directory, &object_file_path) {
+        match ObjectConfigurationMap::from_file(&base_directory, &object_file_path) {
             Ok(loaded) => Arc::new(loaded),
             Err(()) => {
                 panic!("Could not load object definition file");
@@ -180,7 +179,7 @@ async fn initialize_server_data(
         type_mapper.add_object_type(&i.object_type);
     }
 
-    let default_type = DynamicObjectTypeParameters {
+    let default_type = ObjectTypeParameters {
         author: "default".to_string(),
         object_type: "default".to_string(),
     };
@@ -238,7 +237,7 @@ async fn initialize_server_data(
     })
 }
 
-fn server_loop(storage: Arc<UniqueObjectStorage>, mut player_object: PlayerObjectBinding, map: spatial_hashmap::SpatialHashmap, constructor: Arc<WorldObjectConstructor>) {
+fn server_loop(storage: Arc<UniqueObjectStorage>, mut player_object: PlayerObjectBinding, map: spatial_hashmap::spatial_hashmap::SpatialHashmap, constructor: Arc<WorldObjectConstructor>) {
     let intraction_handler = backend::world_interaction_handler::WorldInteractionHandler::new(storage.clone(), constructor.clone());
     let physics_update_rate: u64 = 20;
 

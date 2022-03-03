@@ -15,12 +15,14 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::controllable_object_message_data::*;
+use serde::Deserialize;
 
-pub enum ClientServerMessage {
-    ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionRight(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionFire(ControllableObjectMotionActionData)
+#[derive(Clone, Debug, Deserialize)]
+pub struct GraphicsParameters {
+    pub simple: Option<SimpleTextureGraphic>
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SimpleTextureGraphic {
+    pub filename: String
 }

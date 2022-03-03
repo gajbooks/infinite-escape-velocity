@@ -15,7 +15,7 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::aabb_iterator::*;
+use super::spatial_hashmap::aabb_iterator::*;
 use super::super::shared_types::*;
 use euclid::*;
 

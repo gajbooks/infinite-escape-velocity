@@ -18,7 +18,7 @@
 use super::hash_coordinates::*;
 use rayon::prelude::*;
 use std::sync::Arc;
-use super::unique_object::*;
+use super::super::unique_object_storage::unique_object::*;
 
 struct ObjectWithinCell<'a> {
     pub cell: HashCoordinates,

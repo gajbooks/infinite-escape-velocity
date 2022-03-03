@@ -19,7 +19,7 @@ use fxhash::FxBuildHasher;
 use dashmap::DashMap;
 use std::sync::Arc;
 use rayon::prelude::*;
-use super::super::shared_types::*;
+use super::super::super::shared_types::*;
 use super::unique_object::*;
 
 pub struct UniqueObjectStorage {

@@ -1,21 +1,37 @@
+/*
+    This file is part of Infinite Escape Velocity.
+
+    Infinite Escape Velocity is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Infinite Escape Velocity is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 use super::super::configuration_loaders::object_type_map::*;
-use super::super::configuration_loaders::dynamic_object_record::*;
-use super::super::configuration_loaders::dynamic_object_configuration::*;
+use super::super::configuration_loaders::object_configuration_record::*;
+use super::super::configuration_loaders::object_configuration::*;
 use std::sync::*;
-use super::unique_object::*;
-use super::unique_id_allocator::*;
+use super::unique_object_storage::{unique_object::*, unique_id_allocator::*};
 use super::super::shared_types::*;
 
 pub struct WorldObjectConstructor {
     object_type_map: Arc<ObjectTypeMap>,
-    dynamic_object_configuration: Arc<DynamicObjectConfiguration>,
+    dynamic_object_configuration: Arc<ObjectConfigurationMap>,
     unique_id_allocator: Arc<UniqueIdAllocator>
 }
 
 impl WorldObjectConstructor {
     pub fn new(
         object_type_map: Arc<ObjectTypeMap>,
-        dynamic_object_configuration: Arc<DynamicObjectConfiguration>,
+        dynamic_object_configuration: Arc<ObjectConfigurationMap>,
         unique_id_allocator: Arc<UniqueIdAllocator>
         ) -> WorldObjectConstructor {
             WorldObjectConstructor {
@@ -25,7 +41,7 @@ impl WorldObjectConstructor {
             }
     }
 
-    pub fn construct_from_type<T: FromPrototype>(&self, object_type: &DynamicObjectTypeParameters, position: CoordinatesRotation) -> Option<Arc<dyn UniqueObject + Send + Sync>> {
+    pub fn construct_from_type<T: FromPrototype>(&self, object_type: &ObjectTypeParameters, position: CoordinatesRotation) -> Option<Arc<dyn UniqueObject + Send + Sync>> {
         let unique_id = self.unique_id_allocator.new_allocated_id();
         let mapped_type = match self.object_type_map.object_type_parameters_to_object_type(object_type) {
             Ok(has) => has,
@@ -54,5 +70,5 @@ impl WorldObjectConstructor {
 }
 
 pub trait FromPrototype: UniqueObject + Send + Sync {
-    fn from_prototype(object_record: &DynamicObjectRecord, object_type: ObjectType, position: CoordinatesRotation, id: ReturnableId) -> Result<Arc<dyn UniqueObject + Send + Sync>, ()>;
+    fn from_prototype(object_record: &ObjectConfigurationRecord, object_type: ObjectType, position: CoordinatesRotation, id: ReturnableId) -> Result<Arc<dyn UniqueObject + Send + Sync>, ()>;
 }

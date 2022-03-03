@@ -15,12 +15,23 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::controllable_object_message_data::*;
+use super::super::collision_component::*;
+use super::super::motion_component::*;
+use super::super::controllable_component::*;
+use super::super::super::shared_types::*;
+use super::super::world_interaction_event::*;
 
-pub enum ClientServerMessage {
-    ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionRight(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionFire(ControllableObjectMotionActionData)
+pub trait UniqueObject {
+    fn get_id(&self) -> IdType;
+    fn get_type(&self) -> ObjectType;
+    fn tick(&self, delta_t: DeltaT) -> Vec<WorldInteractionEvent>;
+    fn as_collision_component(&self) -> Option<&dyn CollidableObject> {
+        return None;
+    }
+    fn as_motion_component(&self) -> Option<&dyn MobileObject> {
+        return None;
+    }
+    fn as_controllable_component(&self) -> Option<&dyn ControllableObject> {
+        return None;
+    }
 }

@@ -15,12 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::controllable_object_message_data::*;
-
-pub enum ClientServerMessage {
-    ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionRight(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionFire(ControllableObjectMotionActionData)
-}
+pub mod aabb_iterator;
+pub mod hash_coordinates;
+pub mod spatial_hashmap;
