@@ -15,8 +15,8 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::super::shared_types::*;
-use super::shape::*;
+use crate::shared_types::*;
+use crate::backend::shape::*;
 use std::sync::Mutex;
 
 pub struct AlreadyCollidedTracker {
@@ -52,26 +52,16 @@ impl AlreadyCollidedTracker {
     }
 }
 
-pub trait CollidableObject {
-    fn do_collision(&self, shape: &Shape, id: IdType);
-
-    fn get_already_collided(&self) -> &AlreadyCollidedTracker;
-
-    fn get_shape(&self) -> Shape;
-
-    fn set_shape(&self, new_shape: Shape);
-
-    fn move_center(&self, new_center: Coordinates) {
-        self.set_shape(self.get_shape().move_center(new_center));
-    }
-
+pub trait CollidableObject: Send + Sync {
     fn collide_with(&self, shape: &Shape, id: IdType) {
         if self.get_already_collided().not_collided(id) {
             self.do_collision(shape, id);
         }
     }
 
-    fn clear(&self) -> () {
-        self.get_already_collided().clear();
-    }
+    fn do_collision(&self, shape: &Shape, id: IdType);
+
+    fn get_already_collided(&self) -> &AlreadyCollidedTracker;
+
+    fn get_shape(&self) -> Shape;
 }

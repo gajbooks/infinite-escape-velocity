@@ -15,9 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod dynamic_object_client_data;
-pub mod frontend_viewport;
-pub mod texture_mapper;
-pub mod object_texture_mapping;
-pub mod controlled_object_handler;
-pub mod starfield_generator;
+pub mod aabb_iterator;
+pub mod hash_coordinates;
+pub mod collision_optimizer;

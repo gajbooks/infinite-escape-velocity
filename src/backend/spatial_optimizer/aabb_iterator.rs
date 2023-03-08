@@ -14,10 +14,10 @@
     You should have received a copy of the GNU General Public License
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
-use super::super::super::shared_types::*;
+use crate::shared_types::*;
 use super::hash_coordinates::*;
 
-const SQUARE_SIZE: HashCoordinateType = 1000;
+const SQUARE_SIZE: HashCoordinateType = 1024;
 
 pub struct AABBIterator {
     x_len: HashCoordinateType,

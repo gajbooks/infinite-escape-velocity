@@ -16,10 +16,9 @@
 */
 
 use std::sync::atomic::*;
-use dashmap::DashSet;
 use std::sync::*;
-use super::super::super::shared_types::*;
-use fxhash::FxBuildHasher;
+use crate::shared_types::*;
+use dashmap::DashSet;
 
 impl Drop for ReturnableId {
     fn drop(&mut self) {
@@ -54,7 +53,7 @@ impl UniqueIdAllocator {
 
 pub struct UniqueIdInternal {
     id_tracker: AtomicIdType,
-    allocated_ids: DashSet<IdType, FxBuildHasher>
+    allocated_ids: DashSet<IdType>
 }
 
 impl UniqueIdInternal {
@@ -74,6 +73,6 @@ impl UniqueIdInternal {
     }
 
     fn new() -> UniqueIdInternal {
-        UniqueIdInternal{id_tracker: AtomicIdType::new(0), allocated_ids: DashSet::with_hasher(FxBuildHasher::default())}
+        UniqueIdInternal{id_tracker: AtomicIdType::new(0), allocated_ids: DashSet::new()}
     }
 }

@@ -15,12 +15,14 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::super::shared_types::*;
+use crate::shared_types::*;
 
+#[derive(Debug)]
 pub struct AssignControllableObjectData {
     pub id: IdType
 }
 
+#[derive(Debug)]
 pub struct ControllableObjectMotionActionData {
     pub end_event: bool
 }

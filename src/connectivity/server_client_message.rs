@@ -18,6 +18,7 @@
 use super::dynamic_object_message_data::*;
 use super::controllable_object_message_data::*;
 
+#[derive(Debug)]
 pub enum ServerClientMessage {
     DynamicObjectUpdate(DynamicObjectMessageData),
     DynamicObjectCreation(DynamicObjectCreationData),

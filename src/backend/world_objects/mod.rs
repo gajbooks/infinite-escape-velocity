@@ -15,6 +15,5 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod aabb_iterator;
-pub mod hash_coordinates;
-pub mod spatial_hashmap;
+pub mod server_viewport;
+pub mod object_properties;

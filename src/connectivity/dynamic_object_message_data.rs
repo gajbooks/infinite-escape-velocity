@@ -15,8 +15,9 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::super::shared_types::*;
+use crate::shared_types::*;
 
+#[derive(Debug)]
 pub struct DynamicObjectMessageData {
     pub x: f64,
     pub y: f64,
@@ -28,10 +29,12 @@ pub struct DynamicObjectMessageData {
     pub id: IdType
 }
 
+#[derive(Debug)]
 pub struct DynamicObjectCreationData {
     pub id: IdType
 }
 
+#[derive(Debug)]
 pub struct DynamicObjectDestructionData {
     pub id: IdType
 }

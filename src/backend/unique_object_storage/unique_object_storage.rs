@@ -15,20 +15,18 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use fxhash::FxBuildHasher;
-use dashmap::DashMap;
 use std::sync::Arc;
-use rayon::prelude::*;
-use super::super::super::shared_types::*;
-use super::unique_object::*;
+use dashmap::DashMap;
+use crate::shared_types::*;
+use crate::backend::unique_object_storage::unique_object::*;
 
 pub struct UniqueObjectStorage {
-    objects: DashMap<IdType, Arc<dyn UniqueObject + Sync + Send>, FxBuildHasher>
+    objects: DashMap<IdType, Arc<dyn UniqueObject + Sync + Send>>
 }
 
 impl UniqueObjectStorage {
     pub fn new() -> UniqueObjectStorage {
-        return UniqueObjectStorage {objects: DashMap::with_hasher(FxBuildHasher::default())};
+        return UniqueObjectStorage {objects: DashMap::new()};
     }
 
     pub fn add(&self, new: Arc<dyn UniqueObject + Sync + Send>) {
@@ -50,11 +48,11 @@ impl UniqueObjectStorage {
     pub fn get_by_id(&self, id: IdType) -> Option<Arc<dyn UniqueObject + Sync + Send>>{
         return match self.objects.get(&id) {
             None => None,
-            Some(has) => Some(has.value().clone())
+            Some(has) => Some(has.clone())
         };
     }
 
     pub fn all_objects(&self) -> Vec<Arc<dyn UniqueObject + Sync + Send>> {
-        self.objects.iter().map(|x| x.clone()).collect()
+        self.objects.iter().map(|x| x.value().clone()).collect()
     }
 }

@@ -15,23 +15,16 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::super::collision_component::*;
-use super::super::motion_component::*;
-use super::super::controllable_component::*;
-use super::super::super::shared_types::*;
-use super::super::world_interaction_event::*;
+use crate::backend::world_interaction_event::WorldInteractionEvent;
+use crate::backend::world_objects::object_properties::collision_property::CollidableObject;
+
+use crate::shared_types::*;
 
 pub trait UniqueObject {
     fn get_id(&self) -> IdType;
     fn get_type(&self) -> ObjectType;
-    fn tick(&self, delta_t: DeltaT) -> Vec<WorldInteractionEvent>;
-    fn as_collision_component(&self) -> Option<&dyn CollidableObject> {
+    fn get_collision_property(&self) -> Option<&dyn CollidableObject> {
         return None;
     }
-    fn as_motion_component(&self) -> Option<&dyn MobileObject> {
-        return None;
-    }
-    fn as_controllable_component(&self) -> Option<&dyn ControllableObject> {
-        return None;
-    }
+    fn tick(&self, _delta_t: DeltaT) -> Vec<WorldInteractionEvent>;
 }
