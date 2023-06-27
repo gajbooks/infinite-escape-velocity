@@ -20,8 +20,10 @@ mod configuration_loaders;
 mod connectivity;
 mod shared_types;
 
-use actix_files::Files;
-use actix_web::{App, HttpServer};
+use axum::{
+    routing::get,
+    Router,
+};
 use clap::Parser;
 use connectivity::client_server_message::*;
 use connectivity::server_client_message::*;
@@ -31,6 +33,11 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use std::sync::*;
+
+use tower_http::{
+    services::{ServeDir, ServeFile},
+    trace::TraceLayer,
+};
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -43,24 +50,23 @@ struct Args {
     data_directory: String
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+#[tokio::main]
+async fn main() {
     let args = Args::parse();
 
-    HttpServer::new(move || {
-        let app = App::new();
-        let app = match &args.webapp_directory {
-            Some(webapp_directory) => {
-                app.service(Files::new("/", webapp_directory))
-            },
-            None => {
-                app
-            }
-        };
+    let app = Router::new();
 
-        app
-        })
-        .bind("0.0.0.0:6969")?
-        .run()
+    let app = match &args.webapp_directory {
+        Some(webapp_directory) => {
+            app.nest_service("/", ServeDir::new(webapp_directory))
+        },
+        None => {
+            app
+        }
+    };
+    
+    axum::Server::bind(&"0.0.0.0:6969".parse().unwrap())
+        .serve(app.into_make_service())
         .await
+        .unwrap();
 }
