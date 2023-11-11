@@ -15,8 +15,11 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use serde::Deserialize;
+
 use super::controllable_object_message_data::*;
 
+#[derive(Deserialize, Debug)]
 pub enum ClientServerMessage {
     ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
     ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),

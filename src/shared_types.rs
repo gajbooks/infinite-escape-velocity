@@ -17,6 +17,7 @@
 
 use std::sync::atomic::*;
 use euclid::*;
+use serde::Serialize;
 
 pub type IdType = u32;
 pub type AtomicIdType = AtomicU32;
@@ -29,7 +30,7 @@ pub struct RotationCoordinates;
 pub struct VelocityCoordinates;
 pub struct AccelerationCoordinates;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize)]
 pub enum ObjectType {
     Unknown(),
     Viewport(),

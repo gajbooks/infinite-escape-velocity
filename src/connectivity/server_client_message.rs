@@ -15,10 +15,12 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use serde::Serialize;
+
 use super::dynamic_object_message_data::*;
 use super::controllable_object_message_data::*;
 
-#[derive(Debug)]
+#[derive(Serialize, Debug)]
 pub enum ServerClientMessage {
     DynamicObjectUpdate(DynamicObjectMessageData),
     DynamicObjectCreation(DynamicObjectCreationData),

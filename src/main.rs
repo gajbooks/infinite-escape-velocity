@@ -20,6 +20,9 @@ mod configuration_loaders;
 mod connectivity;
 mod shared_types;
 
+use axum::extract::ws::{WebSocket, Message};
+use axum::extract::{ConnectInfo, WebSocketUpgrade, State};
+use axum::response::IntoResponse;
 use axum::{
     routing::get,
     Router,
@@ -28,11 +31,20 @@ use clap::Parser;
 use connectivity::client_server_message::*;
 use connectivity::server_client_message::*;
 
+use futures_util::SinkExt;
+use serde::{Serialize, Deserialize};
 use shared_types::*;
+use tokio::sync::broadcast::error::TryRecvError;
+use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
+use tokio::sync::mpsc::UnboundedSender;
 use std::fs::File;
+use futures::stream::StreamExt;
 use std::io::{self, BufRead};
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::*;
+
+use tokio::sync::{mpsc, broadcast};
 
 use tower_http::{
     services::{ServeDir, ServeFile},
@@ -64,9 +76,163 @@ async fn main() {
             app
         }
     };
+
+    let user_connections = Arc::new(ConnectedUsers{connection_list: Mutex::new(Vec::new())});
+
+    let app = app.route("/ws", get(websocket_handler)).with_state(user_connections);
     
-    axum::Server::bind(&"0.0.0.0:6969".parse().unwrap())
+    axum::Server::bind(&"0.0.0.0:2718".parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
+}
+
+async fn websocket_handler(
+    websocket: WebSocketUpgrade,
+    ConnectInfo(address): ConnectInfo<SocketAddr>,
+    State(connections): State<Arc<ConnectedUsers>>
+) -> impl IntoResponse {
+    println!("{address} connected.");
+    websocket.on_upgrade(move |socket| handle_socket(socket, address, connections))
+}
+
+async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<ConnectedUsers>) {
+    let (mut sender, mut receiver) = socket.split();
+
+    let (outbound_messages_sender, mut outbound_messages_receiver) = unbounded_channel::<ServerClientMessage>();
+    let (inbound_messages_sender, inbound_messages_receiver) = unbounded_channel::<ClientServerMessage>();
+    let (cancel_messages_sender, cancel_messages_receiver) = broadcast::channel::<()>(1);
+
+    let mut outbound_task_cancel_messages_receiver = cancel_messages_receiver.resubscribe();
+    let mut inbound_task_cancel_messages_receiver = cancel_messages_receiver;
+
+    let external_task_cancel_messages_sender = cancel_messages_sender.clone();
+    let outbound_task_cancel_messages_sender = cancel_messages_sender.clone();
+    let inbound_task_cancel_messages_sender = cancel_messages_sender;
+
+    {
+        let mut connected_users = connections.connection_list.lock().unwrap();
+        connected_users.push(UserSession { to_remote: outbound_messages_sender, from_remote: inbound_messages_receiver, remote_address: who, cancel: external_task_cancel_messages_sender });
+    }
+
+    let outbound_task = tokio::spawn(
+        async move {
+            loop {
+                match outbound_task_cancel_messages_receiver.try_recv() {
+                    Ok(()) => {
+                        break;
+                    }
+                    Err(e) => {
+                        match e {
+                            TryRecvError::Empty => {
+
+                            },
+                            _ => {
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                let message_to_send = outbound_messages_receiver.recv().await;
+                match message_to_send {
+                    Some(outgoing_message) => {
+                        // It would be very difficult for a Serde serialization to fail, and would likely be a programming issue on the server
+                        let serialized = serde_json::to_string(&outgoing_message).unwrap();
+                        
+                        if sender.send(Message::Text(serialized)).await.is_err()
+                        {
+                            // Websocket send failed
+                            let _ = outbound_task_cancel_messages_sender.send(());
+                        }
+                    },
+                    None => {
+                        // All senders closed
+                        let _ = outbound_task_cancel_messages_sender.send(());
+                    }
+                }
+            }
+        }
+    );
+
+    let inbound_task = tokio::spawn(
+        async move {
+            loop {
+                match inbound_task_cancel_messages_receiver.try_recv() {
+                    Ok(()) => {
+                        break;
+                    }
+                    Err(e) => {
+                        match e {
+                            TryRecvError::Empty => {
+
+                            },
+                            _ => {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                match receiver.next().await {
+                    Some(socket_message) => {
+                        match socket_message {
+                            Ok(incoming) => {
+                                match incoming {
+                                    Message::Text(message) => {
+                                        match serde_json::from_str(&message) {
+                                            Ok(deserialized) => {
+                                                match inbound_messages_sender.send(deserialized) {
+                                                    Ok(()) => (),
+                                                    Err(_) => {
+                                                        // Internal sender disconnected, abort
+                                                        let _ = inbound_task_cancel_messages_sender.send(());
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                // Message couldn't be deserialized for some reason. Not fatal but it means something is wrong.
+                                                println!("Nonsense undeserializable websocket message received: {:?}", e);
+                                            }
+                                        }
+                                        
+                                    }
+                                    Message::Close(_) => {
+                                        // User disconnected gracefully
+                                        let _ = inbound_task_cancel_messages_sender.send(());
+                                    }
+                                    _ => {
+                                        // What are you, some kind of wandering butler or something?
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                // Message receive error
+                                println!("User disconnected with error {:?}", e);
+                                let _ = inbound_task_cancel_messages_sender.send(());
+                            }
+                        }
+                    }
+                    None => {
+                        // Rx stream is dead somehow without getting close messages
+                        let _ = inbound_task_cancel_messages_sender.send(());
+                    }
+                }
+
+            }
+        }
+    );
+
+    let _ = tokio::join!(outbound_task, inbound_task);
+}
+
+struct UserSession {
+    to_remote: UnboundedSender<ServerClientMessage>,
+    from_remote: UnboundedReceiver<ClientServerMessage>,
+    remote_address: SocketAddr,
+    cancel: broadcast::Sender<()>
+}
+
+struct ConnectedUsers {
+    connection_list: Mutex<Vec<UserSession>>
 }

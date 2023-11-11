@@ -15,14 +15,16 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use serde::{Deserialize, Serialize};
+
 use crate::shared_types::*;
 
-#[derive(Debug)]
+#[derive(Serialize, Debug)]
 pub struct AssignControllableObjectData {
     pub id: IdType
 }
 
-#[derive(Debug)]
+#[derive(Deserialize, Debug)]
 pub struct ControllableObjectMotionActionData {
     pub end_event: bool
 }

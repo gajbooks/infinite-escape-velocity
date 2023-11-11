@@ -12,6 +12,8 @@ clap = { version = "4", features = ["derive"] }
 dashmap = "5"
 euclid = "0.22"
 fxhash = "0.2"
+futures = "0.3"
+futures-util = "0.3"
 num = "0.4"
 rayon = "1.5"
 rmp-serde = "1.1"
