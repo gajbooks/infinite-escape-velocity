@@ -18,6 +18,7 @@
 use std::sync::atomic::*;
 use euclid::*;
 use serde::Serialize;
+use ts_rs::TS;
 
 pub type IdType = u32;
 pub type AtomicIdType = AtomicU32;
@@ -30,7 +31,8 @@ pub struct RotationCoordinates;
 pub struct VelocityCoordinates;
 pub struct AccelerationCoordinates;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to="webapp/bindings/")]
 pub enum ObjectType {
     Unknown(),
     Viewport(),

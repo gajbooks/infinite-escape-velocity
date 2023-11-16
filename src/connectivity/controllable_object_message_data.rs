@@ -16,15 +16,18 @@
 */
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::shared_types::*;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to="webapp/bindings/")]
 pub struct AssignControllableObjectData {
     pub id: IdType
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export, export_to="webapp/bindings/")]
 pub struct ControllableObjectMotionActionData {
     pub end_event: bool
 }

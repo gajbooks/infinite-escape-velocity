@@ -15,12 +15,16 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use ts_rs::TS;
 use serde::Deserialize;
 
 use super::controllable_object_message_data::*;
 
+#[derive(TS)]
+#[ts(export, export_to="webapp/bindings/")]
 #[derive(Deserialize, Debug)]
 pub enum ClientServerMessage {
+    
     ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
     ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
     ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),

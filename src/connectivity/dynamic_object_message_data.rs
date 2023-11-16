@@ -16,10 +16,12 @@
 */
 
 use serde::Serialize;
+use ts_rs::TS;
 
 use crate::shared_types::*;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to="webapp/bindings/")]
 pub struct DynamicObjectMessageData {
     pub x: f64,
     pub y: f64,
@@ -31,12 +33,14 @@ pub struct DynamicObjectMessageData {
     pub id: IdType
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to="webapp/bindings/")]
 pub struct DynamicObjectCreationData {
     pub id: IdType
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to="webapp/bindings/")]
 pub struct DynamicObjectDestructionData {
     pub id: IdType
 }
