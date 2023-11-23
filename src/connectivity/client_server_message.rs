@@ -23,8 +23,8 @@ use super::controllable_object_message_data::*;
 #[derive(TS)]
 #[ts(export, export_to="webapp/bindings/")]
 #[derive(Deserialize, Debug)]
+#[serde(tag = "type")]
 pub enum ClientServerMessage {
-    
     ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
     ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
     ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),

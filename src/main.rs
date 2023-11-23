@@ -22,6 +22,7 @@ mod shared_types;
 
 use axum::extract::ws::{WebSocket, Message};
 use axum::extract::{ConnectInfo, WebSocketUpgrade, State};
+use axum::http::Response;
 use axum::response::IntoResponse;
 use axum::{
     routing::get,
@@ -32,24 +33,19 @@ use connectivity::client_server_message::*;
 use connectivity::server_client_message::*;
 
 use futures_util::SinkExt;
-use serde::{Serialize, Deserialize};
-use shared_types::*;
 use tokio::sync::broadcast::error::TryRecvError;
 use tokio::sync::mpsc::{UnboundedReceiver, unbounded_channel};
 use tokio::sync::mpsc::UnboundedSender;
-use std::fs::File;
+use tokio::time;
+use tower_http::trace::{TraceLayer, DefaultMakeSpan};
+use std::time::Duration;
 use futures::stream::StreamExt;
-use std::io::{self, BufRead};
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
 use std::sync::*;
 
-use tokio::sync::{mpsc, broadcast};
+use tokio::sync::broadcast;
 
-use tower_http::{
-    services::{ServeDir, ServeFile},
-    trace::TraceLayer,
-};
+use tower_http::services::ServeDir;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -79,10 +75,12 @@ async fn main() {
 
     let user_connections = Arc::new(ConnectedUsers{connection_list: Mutex::new(Vec::new())});
 
-    let app = app.route("/ws", get(websocket_handler)).with_state(user_connections);
+    tokio::spawn(ConnectedUsers::bring_out_your_dead(user_connections.clone()));
+
+    let app = app.route("/ws", get(websocket_handler)).with_state(user_connections.clone());
     
     axum::Server::bind(&"0.0.0.0:2718".parse().unwrap())
-        .serve(app.into_make_service())
+        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
         .await
         .unwrap();
 }
@@ -110,10 +108,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
     let outbound_task_cancel_messages_sender = cancel_messages_sender.clone();
     let inbound_task_cancel_messages_sender = cancel_messages_sender;
 
-    {
-        let mut connected_users = connections.connection_list.lock().unwrap();
-        connected_users.push(UserSession { to_remote: outbound_messages_sender, from_remote: inbound_messages_receiver, remote_address: who, cancel: external_task_cancel_messages_sender });
-    }
+    connections.add_user(UserSession { to_remote: outbound_messages_sender, from_remote: inbound_messages_receiver, remote_address: who, cancel: external_task_cancel_messages_sender });
 
     let outbound_task = tokio::spawn(
         async move {
@@ -142,12 +137,13 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
                         
                         if sender.send(Message::Text(serialized)).await.is_err()
                         {
-                            // Websocket send failed
+                            println!("Websocket send failed to {}", who);
                             let _ = outbound_task_cancel_messages_sender.send(());
                         }
                     },
                     None => {
                         // All senders closed
+                        println!("Server dropped connection to {}", who);
                         let _ = outbound_task_cancel_messages_sender.send(());
                     }
                 }
@@ -186,19 +182,21 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
                                                     Ok(()) => (),
                                                     Err(_) => {
                                                         // Internal sender disconnected, abort
+                                                        println!("Server disconnected inbound messages from: {}", who);
                                                         let _ = inbound_task_cancel_messages_sender.send(());
                                                     }
                                                 }
                                             }
                                             Err(e) => {
                                                 // Message couldn't be deserialized for some reason. Not fatal but it means something is wrong.
-                                                println!("Nonsense undeserializable websocket message received: {:?}", e);
+                                                println!("Nonsense undeserializable websocket message {:?} received from {}", e, who);
                                             }
                                         }
                                         
                                     }
                                     Message::Close(_) => {
                                         // User disconnected gracefully
+                                        println!("User at {} disconnected", who);
                                         let _ = inbound_task_cancel_messages_sender.send(());
                                     }
                                     _ => {
@@ -208,13 +206,14 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
                             }
                             Err(e) => {
                                 // Message receive error
-                                println!("User disconnected with error {:?}", e);
+                                println!("User at {} disconnected with error {:?}", who, e);
                                 let _ = inbound_task_cancel_messages_sender.send(());
                             }
                         }
                     }
                     None => {
                         // Rx stream is dead somehow without getting close messages
+                        println!("User at {} disconnected ungracefully", who);
                         let _ = inbound_task_cancel_messages_sender.send(());
                     }
                 }
@@ -225,7 +224,6 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
 
     let _ = tokio::join!(outbound_task, inbound_task);
 }
-
 struct UserSession {
     to_remote: UnboundedSender<ServerClientMessage>,
     from_remote: UnboundedReceiver<ClientServerMessage>,
@@ -233,6 +231,37 @@ struct UserSession {
     cancel: broadcast::Sender<()>
 }
 
+impl UserSession {
+    pub fn is_dead(&self) -> bool {
+        self.to_remote.is_closed()
+    }
+
+    pub fn disconnect(&self) {
+        self.cancel.send(());
+    }
+}
+
 struct ConnectedUsers {
     connection_list: Mutex<Vec<UserSession>>
+}
+
+impl ConnectedUsers {
+    pub fn add_user(&self, new_user: UserSession)
+    {
+        let mut connected_users = self.connection_list.lock().unwrap();
+        println!("New user connected from {}", new_user.remote_address);
+        connected_users.push(new_user);
+    }
+
+    pub async fn bring_out_your_dead(connected_users: Arc<ConnectedUsers>) {
+            let mut interval = time::interval(Duration::from_millis(500));
+
+            loop {
+                interval.tick().await;
+                {
+                    let mut list = connected_users.connection_list.lock().unwrap();
+                    list.retain(|x| !x.is_dead());
+                }
+            }
+    }
 }

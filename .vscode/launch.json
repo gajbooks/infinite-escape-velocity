@@ -7,7 +7,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug Infinte Escape Velocity Backend",
+            "name": "Debug Infinite Escape Velocity Backend",
             "cargo": {
                 "args": [
                     "build",
@@ -19,13 +19,13 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": ["../infinite-escape-velocity-data/game_data"],
             "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release Infinte Escape Velocity Backend",
+            "name": "Release Infinite Escape Velocity Backend",
             "cargo": {
                 "args": [
                     "build",
@@ -38,7 +38,7 @@
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": ["../infinite-escape-velocity-data/game_data"],
             "cwd": "${workspaceFolder}"
         },
         {
