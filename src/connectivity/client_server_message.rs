@@ -29,5 +29,6 @@ pub enum ClientServerMessage {
     ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
     ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),
     ControllableObjectMotionActionRight(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionFire(ControllableObjectMotionActionData)
+    ControllableObjectMotionActionFire(ControllableObjectMotionActionData),
+    Disconnect
 }
