@@ -23,6 +23,8 @@ mod shared_types;
 use axum::{routing::get, Router};
 use clap::Parser;
 use connectivity::connected_users::ConnectedUsers;
+use tracing::Level;
+use tracing_subscriber::FmtSubscriber;
 
 use std::net::SocketAddr;
 use std::sync::*;
@@ -39,11 +41,26 @@ struct Args {
 
     /// Directory to load gamedata from.
     data_directory: String,
+
+    /// Display more in-depth logs
+    #[clap(long, action)]
+    verbose_logs: bool
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+
+    let tracing = match args.verbose_logs {
+        true => {
+            FmtSubscriber::builder().with_max_level(Level::TRACE)
+        },
+        false => {
+            FmtSubscriber::builder().with_max_level(Level::INFO)
+        }
+    };
+
+    tracing::subscriber::set_global_default(tracing.finish()).expect("Failed to initialize trace logging");
 
     let app = Router::new();
 

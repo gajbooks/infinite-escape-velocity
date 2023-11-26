@@ -15,7 +15,7 @@ impl ConnectedUsers {
 
     pub fn add_user(&self, new_user: Arc<UserSession>) {
         let mut connected_users = self.connection_list.lock().unwrap();
-        println!("New user connected from {}", new_user.remote_address);
+        tracing::info!("New user connected from {}", new_user.remote_address);
         connected_users.push(new_user);
     }
 

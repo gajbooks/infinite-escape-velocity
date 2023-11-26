@@ -23,6 +23,8 @@ tokio = { version = "1", features = ["full"] }
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.4", features = ["fs", "trace"] }
 ts-rs = { version="7" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3" }
 walkdir = "2"
 
 [profile.release]

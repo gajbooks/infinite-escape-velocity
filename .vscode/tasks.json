@@ -9,6 +9,13 @@
 			"problemMatcher": [],
 			"label": "Build Webapp",
 			"detail": "ng build"
+		},
+		{
+			"type": "npm",
+			"script": "open-release",
+			"path": "webapp",
+			"label": "Open Release In Browser",
+			"problemMatcher": []
 		}
 	]
 }

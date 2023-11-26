@@ -1,12 +1,12 @@
 use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, net::SocketAddr};
 
-use tokio::sync::{broadcast, mpsc::{UnboundedReceiver, UnboundedSender}};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::connectivity::{server_client_message::ServerClientMessage, client_server_message::ClientServerMessage};
 
 pub struct UserSession {
     pub remote_address: SocketAddr,
-    cancel: broadcast::Sender<()>,
+    cancel: Arc<AtomicBool>,
     dead: AtomicBool
 }
 
@@ -15,7 +15,7 @@ impl UserSession {
         to_remote: UnboundedSender<ServerClientMessage>,
         from_remote: UnboundedReceiver<ClientServerMessage>,
         remote_address: SocketAddr,
-        cancel: broadcast::Sender<()>,
+        cancel: Arc<AtomicBool>,
     ) -> Arc<UserSession> {
         let session = Arc::new(UserSession {
             remote_address: remote_address,
@@ -28,22 +28,23 @@ impl UserSession {
 
     async fn process_incoming_messages(self: Arc<Self>, to_remote: UnboundedSender<ServerClientMessage>, mut from_remote: UnboundedReceiver<ClientServerMessage>,) {
         loop {
-            if to_remote.is_closed() || self.is_dead() {
+            if self.cancel.load(Ordering::Relaxed) == true {
                 break;
             }
+
             let message = from_remote.recv().await;
 
             let message = match message {
                 Some(x) => x,
                 None => {
-                    break;
+                    continue;
                 }
             };
 
             match message {
                 ClientServerMessage::Disconnect => {
                     self.disconnect();
-                    break;
+                    continue;
                 },
                 _ => ()
             }
@@ -61,7 +62,6 @@ impl UserSession {
     }
 
     pub fn disconnect(&self) {
-        self.cancel.send(());
-        self.mark_dead();
+        let _ = self.cancel.store(true, Ordering::Relaxed);
     }
 }

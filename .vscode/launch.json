@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["../infinite-escape-velocity-data/game_data"],
+            "args": ["../infinite-escape-velocity-data/game_data", "--verbose-logs"],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -40,10 +40,10 @@
             },
             "args": ["../infinite-escape-velocity-data/game_data", "--webapp-directory", "webapp/dist/webapp"],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Build Webapp"
+            "preLaunchTask": "Build Webapp",
         },
         {
-            "name": "Launch Infinite Escape Velocity Frontend",
+            "name": "Debug Infinite Escape Velocity Frontend",
             "type": "node",
             "request": "launch",
             "cwd": "${workspaceRoot}/webapp",
@@ -51,12 +51,22 @@
             "runtimeArgs": [
                 "run-script", "open"
             ],
+        },
+        {
+            "name": "Debug Infinite Escape Velocity Frontend",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceRoot}/webapp",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run-script", "open-release"
+            ],
         }
     ],
     "compounds": [
         {
-            "name": "Launch Both components",
-            "configurations": ["Launch Infinite Escape Velocity Frontend", "Debug Infinite Escape Velocity Backend"]
+            "name": "Debug Both Components",
+            "configurations": ["Debug Infinite Escape Velocity Frontend", "Debug Infinite Escape Velocity Backend"]
         }
     ]
 }
