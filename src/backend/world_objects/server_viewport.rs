@@ -16,92 +16,120 @@
 */
 
 use crate::backend::shape::*;
-use crate::backend::unique_object_storage::{unique_object::*, unique_object_storage::*, unique_id_allocator::*};
+use crate::backend::shrink_storage::ImmutableShrinkable;
+use crate::backend::world_object_storage::{ephemeral_id_allocator::*, world_object::*};
 use crate::backend::world_objects::object_properties::collision_property::*;
-use crate::shared_types::*;
-use crate::connectivity::server_client_message::*;
 use crate::connectivity::dynamic_object_message_data::*;
+use crate::connectivity::server_client_message::*;
+use crate::shared_types::*;
 use dashmap::DashSet;
-use tokio::sync::broadcast;
-use std::sync::Arc;
 use std::sync::*;
-use crate::backend::world_interaction_event::*;
+use tokio::sync::mpsc::UnboundedSender;
+use tracing::trace;
 
 pub struct ServerViewport {
-    id: ReturnableId,
+    id: IdType,
     shape: Mutex<Shape>,
     already_collided: AlreadyCollidedTracker,
-    outgoing_messages: broadcast::Sender<ServerClientMessage>,
+    outgoing_messages: UnboundedSender<ServerClientMessage>,
     last_tick_ids: DashSet<IdType>,
-    unique_object_storage: Arc<UniqueObjectStorage>
 }
 
 impl ServerViewport {
-    pub fn new(position: Shape, id: ReturnableId, outgoing_queue: broadcast::Sender<ServerClientMessage>, storage: Arc<UniqueObjectStorage>) -> ServerViewport {
-        return ServerViewport{id: id, shape: Mutex::new(position), already_collided: AlreadyCollidedTracker::new(), outgoing_messages: outgoing_queue, last_tick_ids: DashSet::new(), unique_object_storage: storage};
+    pub fn new(
+        position: Shape,
+        id_generator: IdAllocatorType,
+        outgoing_queue: UnboundedSender<ServerClientMessage>,
+    ) -> ServerViewport {
+        return ServerViewport {
+            id: id_generator.new_id(),
+            shape: Mutex::new(position),
+            already_collided: AlreadyCollidedTracker::new(),
+            outgoing_messages: outgoing_queue,
+            last_tick_ids: DashSet::new(),
+        };
     }
 }
 
-impl UniqueObject for ServerViewport {
+impl WorldObject for ServerViewport {
     fn get_id(&self) -> IdType {
-        return self.id.id;
+        return self.id;
     }
 
     fn get_type(&self) -> ObjectType {
         return ObjectType::Viewport();
     }
 
-    fn tick(&self, _delta_t: DeltaT) -> Vec<WorldInteractionEvent> {
+    fn tick(&self, _delta_t: DeltaT) {
         let current_tick_list = self.already_collided.get_list();
-        let removed = self.last_tick_ids.iter().map(|x| *x).filter(|x| !current_tick_list.contains(&x));
+        let removed = self
+            .last_tick_ids
+            .iter()
+            .map(|x| *x)
+            .filter(|x| !current_tick_list.contains(&x));
 
         for remove in removed {
-            self.outgoing_messages.send(ServerClientMessage::DynamicObjectDestruction(DynamicObjectDestructionData{id: remove})).unwrap();
+            let _ = self.outgoing_messages
+                .send(ServerClientMessage::DynamicObjectDestruction(
+                    DynamicObjectDestructionData { id: remove },
+                )); // Nothing we can do about send errors for users disconnected
         }
 
         self.last_tick_ids.clear();
 
-        for x in current_tick_list {
-            self.last_tick_ids.insert(x);
+        for x in current_tick_list.iter() {
+            self.last_tick_ids.insert(*x);
         }
 
-        crate::shrink_storage!(self.last_tick_ids);
+        self.last_tick_ids.shrink_storage();
 
         self.already_collided.clear();
-        return Vec::new();
     }
 
     fn get_collision_property(&self) -> Option<&dyn CollidableObject> {
         return Some(self);
     }
+
+    fn get_serialization_data(&self) -> WorldObjectSerializationData {
+        WorldObjectSerializationData::None
+    }
 }
 
 impl CollidableObject for ServerViewport {
-    fn do_collision(&self, _shape: &Shape, id: IdType) {
-        let collided_object = match self.unique_object_storage.get_by_id(id) {
-            Some(has) => has,
-            None => {return;}
-        };
-
-        let ship_type =  collided_object.get_type();
+    fn do_collision(&self, collided_object: &dyn WorldObject) {
+        let id = collided_object.get_id();
+        let ship_type = collided_object.get_type();
 
         match self.last_tick_ids.contains(&id) {
-            true => {
-            }, 
+            true => {}
             false => {
-                self.outgoing_messages.send(ServerClientMessage::DynamicObjectCreation(DynamicObjectCreationData{id: id})).unwrap();
+                let _ = self.outgoing_messages
+                    .send(ServerClientMessage::DynamicObjectCreation(
+                        DynamicObjectCreationData { id: id },
+                    )); // Nothing we can do about send errors for users disconnected
             }
         }
 
-        let coordinates = collided_object.get_collision_property().unwrap().get_shape().center();
-        self.outgoing_messages.send(ServerClientMessage::DynamicObjectUpdate(DynamicObjectMessageData{id: id,
-            x: coordinates.x,
-            y: coordinates.y,
-            rotation: 0.0,
-            vx: 0.0,
-            vy: 0.0,
-            angular_velocity: 0.0,
-            object_type: ship_type})).unwrap();
+        let coordinates = collided_object
+            .get_collision_property()
+            .unwrap()
+            .get_shape()
+            .center();
+
+        let _ = self.outgoing_messages
+            .send(ServerClientMessage::DynamicObjectUpdate(
+                DynamicObjectMessageData {
+                    id: id,
+                    x: coordinates.x,
+                    y: coordinates.y,
+                    rotation: 0.0,
+                    vx: 0.0,
+                    vy: 0.0,
+                    angular_velocity: 0.0,
+                    object_type: ship_type,
+                },
+            )); // Nothing we can do about send errors for users disconnected
+
     }
 
     fn get_already_collided(&self) -> &AlreadyCollidedTracker {
@@ -112,4 +140,11 @@ impl CollidableObject for ServerViewport {
         return self.shape.lock().unwrap().clone();
     }
 
+    fn set_shape(&self, shape: Shape) -> Shape {
+        let mut locked = self.shape.lock().unwrap();
+        let old_shape = *locked;
+        *locked = shape;
+        return old_shape;
+
+    }
 }

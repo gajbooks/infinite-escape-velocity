@@ -15,53 +15,50 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use dashmap::DashSet;
+
+use crate::backend::shrink_storage::*;
+use crate::backend::world_object_storage::world_object::WorldObject;
 use crate::shared_types::*;
 use crate::backend::shape::*;
-use std::sync::Mutex;
 
 pub struct AlreadyCollidedTracker {
-    list: Mutex<Vec<IdType>>,
+    list: DashSet<IdType>,
 }
 
 impl AlreadyCollidedTracker {
     pub fn clear(&self) {
-        let mut locked = self.list.lock().unwrap();
-        crate::shrink_storage!(locked);
-        locked.clear();
+        self.list.shrink_storage();
+        self.list.clear();
     }
 
     pub fn not_collided(&self, id: IdType) -> bool {
-        let mut locked = self.list.lock().unwrap();
-        match locked.contains(&id) {
-            true => return false,
-            false => {
-                locked.push(id);
-                return true;
-            }
-        }
+        return self.list.insert(id);
     }
 
-    pub fn get_list(&self) -> Vec<IdType> {
-        return self.list.lock().unwrap().clone();
+    pub fn get_list(&self) -> DashSet<IdType> {
+        return self.list.clone();
     }
 
     pub fn new() -> AlreadyCollidedTracker {
         AlreadyCollidedTracker {
-            list: Mutex::new(Vec::new()),
+            list: DashSet::new(),
         }
     }
 }
 
 pub trait CollidableObject: Send + Sync {
-    fn collide_with(&self, shape: &Shape, id: IdType) {
-        if self.get_already_collided().not_collided(id) {
-            self.do_collision(shape, id);
+    fn collide_with(&self, collided_object: &dyn WorldObject) {
+        if self.get_already_collided().not_collided(collided_object.get_id()) {
+            self.do_collision(collided_object);
         }
     }
 
-    fn do_collision(&self, shape: &Shape, id: IdType);
+    fn do_collision(&self, collided_object: &dyn WorldObject);
 
     fn get_already_collided(&self) -> &AlreadyCollidedTracker;
 
     fn get_shape(&self) -> Shape;
+
+    fn set_shape(&self, shape: Shape) -> Shape;
 }

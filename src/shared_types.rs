@@ -20,8 +20,8 @@ use euclid::*;
 use serde::Serialize;
 use ts_rs::TS;
 
-pub type IdType = u32;
-pub type AtomicIdType = AtomicU32;
+pub type IdType = u64;
+pub type AtomicIdType = AtomicU64;
 pub type GlobalCoordinateType = f64;
 pub type LocalCoordinateType = f32;
 pub type DeltaTimeType = f32;
@@ -34,11 +34,12 @@ pub struct AccelerationCoordinates;
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to="webapp/bindings/")]
 pub enum ObjectType {
+    Deleted(),
     Unknown(),
     Viewport(),
     AIViewport(),
     AreaViewport(),
-    WorldObject(IdType)
+    WorldObject(String)
 }
 
 pub type AABB = Box2D<GlobalCoordinateType, WorldCoordinates>;

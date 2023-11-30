@@ -18,25 +18,33 @@
 use crate::backend::spatial_optimizer::aabb_iterator::*;
 use crate::shared_types::*;
 use euclid::*;
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CircleData {
     pub location: Coordinates,
     pub radius: Radius
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RoundedTubeData {
     pub point_1: Coordinates,
     pub point_2: Coordinates,
     pub radius: Radius
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct PointData {
+    pub point: Coordinates
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Shape {
     Circle (CircleData),
-    RoundedTube (RoundedTubeData)
+    RoundedTube (RoundedTubeData),
+    Point (PointData)
 }
+
 
 impl Shape {
     pub fn move_center(&self, center: Coordinates) -> Shape {
@@ -46,7 +54,8 @@ impl Shape {
                 let old_center = self.center();
                 let center_offset = center - old_center;
                 Shape::RoundedTube(RoundedTubeData{point_1: tube.point_1 + center_offset, point_2: tube.point_2 + center_offset, radius: tube.radius}) 
-            }
+            },
+            Shape::Point(_point) => Shape::Point(PointData { point: center })
         }
     }
 
@@ -59,7 +68,8 @@ impl Shape {
                 let radius = Vector2D::new(tube.radius.get(), tube.radius.get());
 
                 AABB::new(min - radius, max + radius)
-            }
+            },
+            Shape::Point(point) => AABB::new(point.point, point.point)
         }
     }
 
@@ -68,7 +78,8 @@ impl Shape {
             Shape::Circle(circle) => circle.location,
             Shape::RoundedTube(tube) => {
                 tube.point_1.lerp(tube.point_2, 0.5)
-            }
+            },
+            Shape::Point(point) => point.point
         }
     }
 
@@ -85,6 +96,9 @@ impl Shape {
                     },
                     Shape::RoundedTube(tube2) => {
                         circle_rounded_tube(circle1, tube2)
+                    },
+                    Shape::Point(point2) => {
+                        point_circle(point2, circle1)
                     }
                 }
             },
@@ -95,6 +109,22 @@ impl Shape {
                     },
                     Shape::RoundedTube(tube2) => {
                         tube_tube(tube1, tube2)
+                    },
+                    Shape::Point(point2) => {
+                        point_rounded_tube(point2, tube1)
+                    }
+                }
+            },
+            Shape::Point(point1) => {
+                match other {
+                    Shape::Circle(circle2) => {
+                        point_circle(point1, circle2)
+                    },
+                    Shape::RoundedTube(tube2) => {
+                        point_rounded_tube(point1, tube2)
+                    },
+                    Shape::Point(point2) => {
+                        point_point(point1, point2)
                     }
                 }
             }
@@ -137,4 +167,16 @@ fn tube_tube(tube1: &RoundedTubeData, tube2: &RoundedTubeData) -> bool {
     let t2p2_to_t1 = circle_rounded_tube(&CircleData{location: tube2.point_2, radius: tube2.radius}, tube1);
 
     return t1p1_to_t2 || t1p2_to_t2 || t2p1_to_t1 || t2p2_to_t1;
+}
+
+fn point_circle(point: &PointData, circle: &CircleData) -> bool {
+    return circle.location.distance_to(point.point) < circle.radius.get();
+}
+
+fn point_rounded_tube(point: &PointData, tube: &RoundedTubeData) -> bool {
+    return circle_rounded_tube(&CircleData { location: point.point, radius: Length::new(0.0) }, tube)
+}
+
+fn point_point(point1: &PointData, point2: &PointData) -> bool {
+    point1.point == point2.point
 }

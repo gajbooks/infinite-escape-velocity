@@ -30,4 +30,8 @@ impl ConnectedUsers {
             }
         }
     }
+
+    pub fn all_users(&self) -> Vec<Arc<UserSession>> {
+        self.connection_list.lock().unwrap().clone()
+    }
 }

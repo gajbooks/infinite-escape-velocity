@@ -15,16 +15,21 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use crate::backend::world_interaction_event::WorldInteractionEvent;
-use crate::backend::world_objects::object_properties::collision_property::CollidableObject;
-
+use std::sync::{atomic::*, Arc};
 use crate::shared_types::*;
 
-pub trait UniqueObject {
-    fn get_id(&self) -> IdType;
-    fn get_type(&self) -> ObjectType;
-    fn get_collision_property(&self) -> Option<&dyn CollidableObject> {
-        return None;
+pub type IdAllocatorType = Arc<EphemeralIdAllocator>;
+
+pub struct EphemeralIdAllocator {
+    id_tracker: AtomicIdType
+}
+
+impl EphemeralIdAllocator {
+    pub fn new_id(&self) -> IdType {
+        self.id_tracker.fetch_add(1, Ordering::Relaxed)
     }
-    fn tick(&self, _delta_t: DeltaT) -> Vec<WorldInteractionEvent>;
+
+    pub fn new() -> EphemeralIdAllocator {
+        EphemeralIdAllocator{id_tracker: AtomicIdType::new(0)}
+    }
 }

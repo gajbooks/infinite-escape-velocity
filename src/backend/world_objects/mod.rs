@@ -15,5 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+pub mod ship;
 pub mod server_viewport;
 pub mod object_properties;

@@ -1,12 +1,14 @@
 use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, net::SocketAddr};
 
+use euclid::{Point2D, Length};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::connectivity::{server_client_message::ServerClientMessage, client_server_message::ClientServerMessage};
+use crate::{connectivity::{server_client_message::ServerClientMessage, client_server_message::ClientServerMessage}, backend::{world_objects::server_viewport::ServerViewport, world_object_storage::{ephemeral_id_allocator::IdAllocatorType, world_object::WorldObject}, shape::{CircleData, Shape}}};
 
 pub struct UserSession {
     pub remote_address: SocketAddr,
     cancel: Arc<AtomicBool>,
+    viewport: Arc<ServerViewport>,
     dead: AtomicBool
 }
 
@@ -16,11 +18,13 @@ impl UserSession {
         from_remote: UnboundedReceiver<ClientServerMessage>,
         remote_address: SocketAddr,
         cancel: Arc<AtomicBool>,
+        id_generator: IdAllocatorType
     ) -> Arc<UserSession> {
         let session = Arc::new(UserSession {
             remote_address: remote_address,
             cancel: cancel,
-            dead: false.into()
+            dead: false.into(),
+            viewport: Arc::new(ServerViewport::new(Shape::Circle(CircleData{location: Point2D::new(0.0, 0.0), radius: Length::new(500.0)}), id_generator, to_remote.clone()))
         });
         tokio::spawn(session.clone().process_incoming_messages(to_remote, from_remote));
         session
@@ -63,5 +67,9 @@ impl UserSession {
 
     pub fn disconnect(&self) {
         let _ = self.cancel.store(true, Ordering::Relaxed);
+    }
+
+    pub fn get_viewport(&self) -> Arc<dyn WorldObject> {
+        return self.viewport.clone();
     }
 }
