@@ -112,4 +112,11 @@ impl CollidableObject for Ship {
     fn get_shape(&self) -> Shape {
         return self.shape.lock().unwrap().clone();
     }
+
+    fn set_shape(&self, shape: Shape) -> Shape {
+        let mut locked = self.shape.lock().unwrap();
+        let old_shape = *locked;
+        *locked = shape;
+        return old_shape;
+    }
 }

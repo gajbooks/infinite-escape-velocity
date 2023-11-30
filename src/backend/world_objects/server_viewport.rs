@@ -145,6 +145,5 @@ impl CollidableObject for ServerViewport {
         let old_shape = *locked;
         *locked = shape;
         return old_shape;
-
     }
 }
