@@ -21,5 +21,4 @@ pub mod client_server_message;
 pub mod connected_users;
 pub mod controllable_object_message_data;
 pub mod user_session;
-pub mod viewport_message_data;
 pub mod websocket_handler;

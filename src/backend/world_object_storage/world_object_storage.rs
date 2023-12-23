@@ -21,7 +21,7 @@ use crate::shared_types::*;
 use crate::backend::world_object_storage::world_object::*;
 use crate::backend::shrink_storage::ImmutableShrinkable;
 
-use super::{ephemeral_id_allocator::{EphemeralIdAllocator, IdAllocatorType}, cleanup_predicate::{self, retain_world_objects}};
+use crate::backend::world_object_storage::{ephemeral_id_allocator::IdAllocatorType, cleanup_predicate::retain_world_objects};
 
 pub struct WorldObjectStorage {
     objects: DashMap<IdType, Arc<dyn WorldObject>>
@@ -43,6 +43,7 @@ impl WorldObjectStorage {
     }
 
     pub fn cleanup(&self) {
+        self.objects.shrink_storage();
         self.objects.retain(|_, x| retain_world_objects(x.as_ref()));
     }
 

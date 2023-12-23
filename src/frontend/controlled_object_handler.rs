@@ -15,8 +15,8 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::super::connectivity::client_server_message::*;
-use super::super::connectivity::controllable_object_message_data::*;
+use crate::connectivity::client_server_message::*;
+use crate::connectivity::controllable_object_message_data::*;
 use macroquad::prelude::*;
 
 pub struct ControlledObjectHandler {

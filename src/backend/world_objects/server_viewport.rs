@@ -25,7 +25,6 @@ use crate::shared_types::*;
 use dashmap::DashSet;
 use std::sync::*;
 use tokio::sync::mpsc::UnboundedSender;
-use tracing::trace;
 
 pub struct ServerViewport {
     id: IdType,
@@ -142,7 +141,7 @@ impl CollidableObject for ServerViewport {
 
     fn set_shape(&self, shape: Shape) -> Shape {
         let mut locked = self.shape.lock().unwrap();
-        let old_shape = *locked;
+        let old_shape = locked.clone();
         *locked = shape;
         return old_shape;
     }

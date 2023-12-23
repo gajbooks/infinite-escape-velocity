@@ -15,12 +15,12 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use crate::{backend::world_objects::object_properties::collision_property::{CollidableObject, self}, shared_types::IdType};
+use crate::backend::world_objects::object_properties::collision_property::CollidableObject;
 
 use super::hash_coordinates::*;
 use rayon::prelude::*;
 use std::sync::Arc;
-use super::super::world_object_storage::world_object::*;
+use crate::backend::world_object_storage::world_object::*;
 
 struct ObjectWithinCell<'a> {
     pub cell: HashCoordinates,
@@ -28,19 +28,20 @@ struct ObjectWithinCell<'a> {
     pub collision: &'a dyn CollidableObject
 }
 
-pub struct CollisionOptimizer {}
+pub struct CollisionOptimizer {
+    cache: Option<Vec<ObjectWithinCell<'static>>>
+}
 
 impl CollisionOptimizer {
     pub fn new() -> CollisionOptimizer {
-        return CollisionOptimizer {};
+        return CollisionOptimizer {cache: Some(Vec::new())};
     }
 
-    pub fn run_collisions(&self, object_list: &[Arc<(dyn WorldObject)>]) -> () {
-        let mut list: Vec<ObjectWithinCell> = object_list.par_iter()
+    pub fn run_collisions<'a>(&mut self, object_list: &[Arc<(dyn WorldObject)>]) -> () {
+        let mut list = self.cache.take().unwrap();
+        list.par_extend(object_list.par_iter()
         .filter_map(|object| object.get_collision_property().map(move |collision_property| (object.as_ref(), collision_property)))
-        .flat_map_iter(move |has_collision_property| has_collision_property.1.get_shape().aabb_iter().map(move |y| ObjectWithinCell{cell: y, object: has_collision_property.0, collision: has_collision_property.1})).collect();
-
-        let length = list.len();
+        .flat_map_iter(move |has_collision_property| has_collision_property.1.get_shape().aabb_iter().map(move |y| ObjectWithinCell{cell: y, object: has_collision_property.0, collision: has_collision_property.1})));
 
         list.par_sort_unstable_by(|x, y| x.cell.cmp(&y.cell));
 
@@ -49,11 +50,11 @@ impl CollisionOptimizer {
 
             let mut inner_index = range.0 + 1;
 
-            if inner_index >= length {
+            if inner_index >= list.len() {
                 return;
             }
 
-            while inner_index < length && outer_object.cell == list[inner_index].cell {
+            while inner_index < list.len() && outer_object.cell == list[inner_index].cell {
                 let inner_object = &list[inner_index];
                 if outer_object
                     .collision.get_shape()
@@ -69,5 +70,6 @@ impl CollisionOptimizer {
         });
 
         list.clear();
+        self.cache = list.into_iter().map(|_| unreachable!()).collect();
     }
 }

@@ -15,19 +15,16 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::ops::Deref;
 use std::sync::Arc;
 
-use serde::de::Visitor;
 use serde::{Serialize, Deserialize};
 
-use crate::backend::world_interaction_event::WorldInteractionEvent;
 use crate::backend::world_objects::object_properties::collision_property::CollidableObject;
 
 use crate::backend::world_objects::ship::{Ship, ShipSerializationData};
 use crate::shared_types::*;
 
-use super::ephemeral_id_allocator::{IdAllocatorType, EphemeralIdAllocator};
+use super::ephemeral_id_allocator::IdAllocatorType;
 
 #[derive(Serialize, Deserialize)]
 pub enum WorldObjectSerializationData {

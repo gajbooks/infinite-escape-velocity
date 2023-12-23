@@ -23,7 +23,7 @@ mod shared_types;
 use crate::backend::shape::Shape;
 use axum::{routing::get, Router};
 use backend::shape::CircleData;
-use backend::spatial_optimizer::collision_optimizer::{self, CollisionOptimizer};
+use backend::spatial_optimizer::collision_optimizer::CollisionOptimizer;
 use backend::world_object_storage::ephemeral_id_allocator::{
     EphemeralIdAllocator, IdAllocatorType,
 };
@@ -33,7 +33,6 @@ use clap::Parser;
 use connectivity::connected_users::ConnectedUsers;
 use euclid::{Length, Scale};
 use rand::Rng;
-use shared_types::WorldCoordinates;
 use tokio::time;
 use tower_http::compression::CompressionLayer;
 use tracing::{info, trace, Level};
@@ -91,7 +90,7 @@ async fn main() {
     tokio::spawn(ConnectedUsers::garbage_collector(user_connections.clone()));
 
     tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(5));
+        let mut interval = time::interval(Duration::from_secs(4));
 
         loop {
             let time = interval.tick().await;
@@ -100,7 +99,7 @@ async fn main() {
             spawning_storage.add(Arc::new(Ship::new(
                 Shape::Circle(CircleData {
                     location: Point2D::new(x, y),
-                    radius: Length::new(4.9 as f64),
+                    radius: Length::new(5.0 as f64),
                 }),
                 "A ship I guess".to_string(),
                 spawn_allocator.new_id(),
@@ -109,13 +108,13 @@ async fn main() {
         }
     });
 
-    let tick_handle = tokio::spawn(async move {
+    tokio::spawn(async move {
         let expected_tick_rate = time::Duration::from_secs_f32(1.0 / 20.0);
+        let mut collision_optimizer = CollisionOptimizer::new();
 
         let mut start;
         loop {
             start = time::Instant::now();
-            let collision_optimizer = CollisionOptimizer::new();
             let users = tick_connections.all_users();
             let viewports = users.iter().map(|x| x.get_viewport());
             let mut all_objects = world_object_storage.all_objects();

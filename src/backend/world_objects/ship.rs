@@ -21,7 +21,7 @@ use crate::{
     shared_types::*,
 };
 
-use super::object_properties::collision_property::{AlreadyCollidedTracker, CollidableObject};
+use crate::backend::world_objects::object_properties::collision_property::{AlreadyCollidedTracker, CollidableObject};
 
 #[derive(Serialize, Deserialize)]
 pub struct ShipSerializationData {
@@ -115,7 +115,7 @@ impl CollidableObject for Ship {
 
     fn set_shape(&self, shape: Shape) -> Shape {
         let mut locked = self.shape.lock().unwrap();
-        let old_shape = *locked;
+        let old_shape = locked.clone();
         *locked = shape;
         return old_shape;
     }

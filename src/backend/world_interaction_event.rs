@@ -15,8 +15,8 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::super::shared_types::*;
-use super::super::configuration_loaders::object_configuration_record::*;
+use crate::shared_types::*;
+use crate::configuration_loaders::object_configuration_record::*;
 
 pub struct ObjectSpawnParameters {
     pub object_type: ObjectTypeParameters,
