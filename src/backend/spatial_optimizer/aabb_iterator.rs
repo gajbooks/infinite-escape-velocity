@@ -14,8 +14,8 @@
     You should have received a copy of the GNU General Public License
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
-use crate::shared_types::*;
 use super::hash_coordinates::*;
+use crate::shared_types::*;
 
 const SQUARE_SIZE: HashCoordinateType = 1024;
 
@@ -24,7 +24,7 @@ pub struct AABBIterator {
     end_x: HashCoordinateType,
     end_y: HashCoordinateType,
     current_x: HashCoordinateType,
-    current_y: HashCoordinateType
+    current_y: HashCoordinateType,
 }
 
 impl AABBIterator {
@@ -36,7 +36,13 @@ impl AABBIterator {
         let end_y = (bb.max.y % max) as HashCoordinateType / SQUARE_SIZE;
 
         let x_len = (end_x - start_x) + 1;
-        return AABBIterator {x_len: x_len, end_x: end_x, end_y: end_y, current_x: start_x, current_y: start_y}
+        return AABBIterator {
+            x_len: x_len,
+            end_x: end_x,
+            end_y: end_y,
+            current_x: start_x,
+            current_y: start_y,
+        };
     }
 }
 
@@ -46,10 +52,11 @@ impl Iterator for AABBIterator {
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_y > self.end_y {
             return None;
-        }
-        else
-        {
-            let old_result = HashCoordinates {x: self.current_x, y: self.current_y};
+        } else {
+            let old_result = HashCoordinates {
+                x: self.current_x,
+                y: self.current_y,
+            };
             self.current_x += 1;
             let x_has_wrapped = ((self.x_len - 1) - (self.end_x - self.current_x)) / self.x_len;
             self.current_y += x_has_wrapped;

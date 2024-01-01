@@ -15,26 +15,26 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 
-use bevy_ecs::prelude::*;
 use crate::backend::shrink_storage::ImmutableShrinkable;
 use crate::backend::world_objects::object_properties::collision_component::*;
 use crate::connectivity::dynamic_object_message_data::*;
 use crate::connectivity::server_client_message::*;
+use bevy_ecs::prelude::*;
 use dashmap::DashSet;
 use tokio::sync::mpsc::UnboundedSender;
 
 #[derive(Bundle)]
 pub struct ViewportBundle {
     pub viewport: ServerViewport,
-    pub collidable: CollidableComponent<Displayable>
+    pub collidable: CollidableComponent<Displayable>,
 }
 
 #[derive(Component)]
 pub struct Displayable {
-    pub object_type: String
+    pub object_type: String,
 }
 
 #[derive(Component)]
@@ -57,7 +57,15 @@ impl ServerViewport {
     }
 }
 
-pub fn tick_viewport(mut all_viewports: Query<(Entity, &mut ServerViewport, &CollidableComponent<Displayable>)>, displayables: Query<(&CollisionMarker<Displayable>, &Displayable)>, mut commands: Commands) {
+pub fn tick_viewport(
+    mut all_viewports: Query<(
+        Entity,
+        &mut ServerViewport,
+        &CollidableComponent<Displayable>,
+    )>,
+    displayables: Query<(&CollisionMarker<Displayable>, &Displayable)>,
+    mut commands: Commands,
+) {
     for (viewport_entity, viewport, collide_with) in all_viewports.iter_mut() {
         if viewport.cancel.load(std::sync::atomic::Ordering::Relaxed) == true {
             commands.entity(viewport_entity).despawn();
@@ -67,22 +75,24 @@ pub fn tick_viewport(mut all_viewports: Query<(Entity, &mut ServerViewport, &Col
         for collision in collide_with.list.iter().map(|x| x.key().clone()) {
             let (collided_hitbox, displayable) = match displayables.get(collision) {
                 Ok(x) => x,
-                Err(_) => continue
+                Err(_) => continue,
             };
 
             match viewport.last_tick_ids.contains(&collision) {
                 true => {}
                 false => {
-                    let _ = viewport.outgoing_messages
-                        .send(ServerClientMessage::DynamicObjectCreation(
-                            DynamicObjectCreationData { id: Into::<ExternalEntity>::into(collision) },
-                        )); // Nothing we can do about send errors for users disconnected
+                    let _ = viewport.outgoing_messages.send(
+                        ServerClientMessage::DynamicObjectCreation(DynamicObjectCreationData {
+                            id: Into::<ExternalEntity>::into(collision),
+                        }),
+                    ); // Nothing we can do about send errors for users disconnected
                 }
             }
-    
+
             let coordinates = collided_hitbox.shape.center();
-    
-            let _ = viewport.outgoing_messages
+
+            let _ = viewport
+                .outgoing_messages
                 .send(ServerClientMessage::DynamicObjectUpdate(
                     DynamicObjectMessageData {
                         id: Into::<ExternalEntity>::into(collision),
@@ -104,7 +114,8 @@ pub fn tick_viewport(mut all_viewports: Query<(Entity, &mut ServerViewport, &Col
             .filter(|x| !collide_with.list.contains(&x));
 
         for remove in removed {
-            let _ = viewport.outgoing_messages
+            let _ = viewport
+                .outgoing_messages
                 .send(ServerClientMessage::DynamicObjectDestruction(
                     DynamicObjectDestructionData { id: remove.into() },
                 )); // Nothing we can do about send errors for users disconnected

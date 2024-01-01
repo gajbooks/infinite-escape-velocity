@@ -25,82 +25,120 @@ pub struct ControlledObjectHandler {
     reverse_already_pressed: bool,
     left_already_pressed: bool,
     right_already_pressed: bool,
-    fire_already_pressed: bool
+    fire_already_pressed: bool,
 }
 
 impl ControlledObjectHandler {
-
-    pub fn new(message_queue: crossbeam_channel::Sender<ClientServerMessage>) -> ControlledObjectHandler {
-        ControlledObjectHandler{
+    pub fn new(
+        message_queue: crossbeam_channel::Sender<ClientServerMessage>,
+    ) -> ControlledObjectHandler {
+        ControlledObjectHandler {
             outgoing_messages: message_queue,
             forward_already_pressed: false,
             reverse_already_pressed: false,
             left_already_pressed: false,
             right_already_pressed: false,
-            fire_already_pressed: false}
+            fire_already_pressed: false,
+        }
     }
 
     pub fn send_updates(&mut self) {
         if is_key_down(KeyCode::Up) {
-            if !self.forward_already_pressed
-            {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionForward(ControllableObjectMotionActionData{end_event: false}));
+            if !self.forward_already_pressed {
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionForward(
+                        ControllableObjectMotionActionData { end_event: false },
+                    ),
+                );
                 self.forward_already_pressed = true;
             }
         } else {
             if self.forward_already_pressed {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionForward(ControllableObjectMotionActionData{end_event: true}));
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionForward(
+                        ControllableObjectMotionActionData { end_event: true },
+                    ),
+                );
                 self.forward_already_pressed = false;
             }
         }
 
         if is_key_down(KeyCode::Down) {
             if !self.reverse_already_pressed {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionReverse(ControllableObjectMotionActionData{end_event: false}));
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionReverse(
+                        ControllableObjectMotionActionData { end_event: false },
+                    ),
+                );
                 self.reverse_already_pressed = true;
             }
         } else {
             if self.reverse_already_pressed {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionReverse(ControllableObjectMotionActionData{end_event: true}));
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionReverse(
+                        ControllableObjectMotionActionData { end_event: true },
+                    ),
+                );
                 self.reverse_already_pressed = false;
             }
         }
 
         if is_key_down(KeyCode::Left) {
-            if !self.left_already_pressed
-            {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionLeft(ControllableObjectMotionActionData{end_event: false}));
+            if !self.left_already_pressed {
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionLeft(
+                        ControllableObjectMotionActionData { end_event: false },
+                    ),
+                );
                 self.left_already_pressed = true;
             }
         } else {
             if self.left_already_pressed {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionLeft(ControllableObjectMotionActionData{end_event: true}));
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionLeft(
+                        ControllableObjectMotionActionData { end_event: true },
+                    ),
+                );
                 self.left_already_pressed = false;
             }
         }
 
         if is_key_down(KeyCode::Right) {
-            if !self.right_already_pressed
-            {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionRight(ControllableObjectMotionActionData{end_event: false}));
+            if !self.right_already_pressed {
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionRight(
+                        ControllableObjectMotionActionData { end_event: false },
+                    ),
+                );
                 self.right_already_pressed = true;
             }
         } else {
             if self.right_already_pressed {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionRight(ControllableObjectMotionActionData{end_event: true}));
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionRight(
+                        ControllableObjectMotionActionData { end_event: true },
+                    ),
+                );
                 self.right_already_pressed = false;
             }
         }
 
         if is_key_down(KeyCode::Space) {
-            if !self.fire_already_pressed
-            {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionFire(ControllableObjectMotionActionData{end_event: false}));
+            if !self.fire_already_pressed {
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionFire(
+                        ControllableObjectMotionActionData { end_event: false },
+                    ),
+                );
                 self.fire_already_pressed = true;
             }
         } else {
             if self.fire_already_pressed {
-                self.outgoing_messages.send(ClientServerMessage::ControllableObjectMotionActionFire(ControllableObjectMotionActionData{end_event: true}));
+                self.outgoing_messages.send(
+                    ClientServerMessage::ControllableObjectMotionActionFire(
+                        ControllableObjectMotionActionData { end_event: true },
+                    ),
+                );
                 self.fire_already_pressed = false;
             }
         }

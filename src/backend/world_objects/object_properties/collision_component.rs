@@ -17,20 +17,23 @@
 
 use std::marker::PhantomData;
 
-use dashmap::DashSet;
 use bevy_ecs::prelude::*;
+use dashmap::DashSet;
 
-use crate::backend::{shrink_storage::*, shape::Shape};
+use crate::backend::{shape::Shape, shrink_storage::*};
 
 #[derive(Component)]
 pub struct CollisionMarker<T: Send + Sync + Sized + 'static> {
     _phantom: PhantomData<T>,
-    pub shape: Shape
+    pub shape: Shape,
 }
 
 impl<T: Send + Sync + Sized + 'static> CollisionMarker<T> {
     pub fn new(shape: Shape) -> Self {
-        Self{_phantom: PhantomData, shape: shape}
+        Self {
+            _phantom: PhantomData,
+            shape: shape,
+        }
     }
 }
 
@@ -38,14 +41,14 @@ impl<T: Send + Sync + Sized + 'static> CollisionMarker<T> {
 pub struct CollidableComponent<T: Send + Sync + Sized + 'static> {
     _phantom: PhantomData<T>,
     pub list: DashSet<Entity>,
-    pub shape: Shape
+    pub shape: Shape,
 }
 
 pub fn clear_old_collisions<T: Send + Sync + Sized>(collidables: Query<&CollidableComponent<T>>) {
     collidables.par_iter().for_each(|x| x.clear());
 }
 
-impl<T:  Send + Sync + Sized + 'static> CollidableComponent<T> {
+impl<T: Send + Sync + Sized + 'static> CollidableComponent<T> {
     pub fn clear(&self) {
         self.list.shrink_storage();
         self.list.clear();
@@ -59,7 +62,7 @@ impl<T:  Send + Sync + Sized + 'static> CollidableComponent<T> {
         CollidableComponent {
             _phantom: PhantomData,
             list: DashSet::new(),
-            shape: shape
+            shape: shape,
         }
     }
 }

@@ -120,7 +120,7 @@ impl StarfieldGenerator {
             screen_y: (y as f32 - 1.0 + y_offset) * self.world_coordinates_per_cell,
             speed_multiplier: speed_multiplier,
             spectra: spectra,
-            size: size
+            size: size,
         };
     }
 

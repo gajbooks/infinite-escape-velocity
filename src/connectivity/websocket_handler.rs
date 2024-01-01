@@ -1,3 +1,20 @@
+/*
+    This file is part of Infinite Escape Velocity.
+
+    Infinite Escape Velocity is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Infinite Escape Velocity is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
+*/
+
 use crate::connectivity::client_server_message::*;
 use crate::connectivity::connected_users::*;
 use crate::connectivity::server_client_message::*;
@@ -17,13 +34,13 @@ use tokio::sync::mpsc::unbounded_channel;
 
 #[derive(Clone)]
 pub struct HandlerState {
-    pub connections: Arc<ConnectedUsers>
+    pub connections: Arc<ConnectedUsers>,
 }
 
 pub async fn websocket_handler(
     websocket: WebSocketUpgrade,
     ConnectInfo(address): ConnectInfo<SocketAddr>,
-    State(state): State<HandlerState>
+    State(state): State<HandlerState>,
 ) -> impl IntoResponse {
     tracing::trace!("{address} attempted WebSocket upgrade.");
     websocket.on_upgrade(move |socket| handle_socket(socket, address, state.connections))
@@ -46,7 +63,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
         outbound_messages_sender,
         inbound_messages_receiver,
         who,
-        external_task_cancel
+        external_task_cancel,
     ));
 
     let outbound_task = tokio::spawn(async move {

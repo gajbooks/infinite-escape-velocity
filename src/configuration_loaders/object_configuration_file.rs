@@ -21,5 +21,5 @@ use serde::Deserialize;
 #[derive(Deserialize)]
 pub struct ObjectConfigurationFile {
     pub version: u32,
-    pub definitions: Vec<ObjectConfigurationRecord>
+    pub definitions: Vec<ObjectConfigurationRecord>,
 }

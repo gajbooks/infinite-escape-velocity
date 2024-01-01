@@ -19,10 +19,10 @@ use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct GraphicsParameters {
-    pub simple: Option<SimpleTextureGraphic>
+    pub simple: Option<SimpleTextureGraphic>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SimpleTextureGraphic {
-    pub filename: String
+    pub filename: String,
 }

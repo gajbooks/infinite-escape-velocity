@@ -17,13 +17,15 @@
 
 use std::ops::DerefMut;
 
-use dashmap::{DashSet, DashMap};
+use dashmap::{DashMap, DashSet};
 
 pub trait ImmutableShrinkable {
     fn shrink_storage(&self);
 }
 
-impl<K: std::cmp::Eq + std::hash::Hash, S: std::hash::BuildHasher + Clone> ImmutableShrinkable for DashSet<K, S> {
+impl<K: std::cmp::Eq + std::hash::Hash, S: std::hash::BuildHasher + Clone> ImmutableShrinkable
+    for DashSet<K, S>
+{
     fn shrink_storage(&self) {
         self.shrink_to_fit();
     }

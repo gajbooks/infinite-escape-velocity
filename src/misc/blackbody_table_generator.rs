@@ -18,18 +18,15 @@
 type ColorTriple = (f64, f64, f64);
 
 fn main() {
-
-    for temp in (1000..12000).step_by(440)
-    {
+    for temp in (1000..12000).step_by(440) {
         let color = color_at_temperature(temp as f64);
 
         let r = (color.0 * 255.0) as i32;
         let g = (color.1 * 255.0) as i32;
         let b = (color.2 * 255.0) as i32;
-    
+
         println!("vec3({r}, {g}, {b}),");
     }
-
 }
 
 fn color_at_temperature(temperature: f64) -> ColorTriple {
@@ -46,8 +43,9 @@ fn integrate_CIE_tristimulus(temperature: f64) -> ColorTriple {
     let mut Z: f64 = 0.0;
 
     for wavelength in 380..780 {
-        let meter_wavelength = wavelength as f64 / 1e9; 
-        let irradiance = blackbody_radiance_at_frequency(meter_wavelength as f64, temperature as f64);
+        let meter_wavelength = wavelength as f64 / 1e9;
+        let irradiance =
+            blackbody_radiance_at_frequency(meter_wavelength as f64, temperature as f64);
         let stimulus = CIE_stimulus(wavelength as f64);
 
         X += stimulus.0 * irradiance;
@@ -60,13 +58,12 @@ fn integrate_CIE_tristimulus(temperature: f64) -> ColorTriple {
     return (X * normalize, Y * normalize, Z * normalize);
 }
 
-fn blackbody_radiance_at_frequency(wavelength: f64, temperature: f64) -> f64
-{
+fn blackbody_radiance_at_frequency(wavelength: f64, temperature: f64) -> f64 {
     const PLANCK_CONSTANT: f64 = 6.62607015e-34;
     const BOLTZMANN_CONSTANT: f64 = 1.380649e-23;
     const C: f64 = 299792458.0;
 
-    let left = (C.powi(2) * PLANCK_CONSTANT * 2.0 ) / wavelength.powi(5);
+    let left = (C.powi(2) * PLANCK_CONSTANT * 2.0) / wavelength.powi(5);
     let exponent = (PLANCK_CONSTANT * C) / (wavelength * BOLTZMANN_CONSTANT * temperature);
     let right = 1.0 / (exponent.exp() - 1.0);
 

@@ -21,13 +21,13 @@ use ts_rs::TS;
 use super::dynamic_object_message_data::ExternalEntity;
 
 #[derive(Serialize, Debug, TS)]
-#[ts(export, export_to="webapp/bindings/")]
+#[ts(export, export_to = "webapp/bindings/")]
 pub struct AssignControllableObjectData {
-    pub id: ExternalEntity
+    pub id: ExternalEntity,
 }
 
 #[derive(Deserialize, Debug, TS)]
-#[ts(export, export_to="webapp/bindings/")]
+#[ts(export, export_to = "webapp/bindings/")]
 pub struct ControllableObjectMotionActionData {
-    pub end_event: bool
+    pub end_event: bool,
 }

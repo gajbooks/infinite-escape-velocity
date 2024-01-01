@@ -15,7 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::sync::atomic::*;
 use euclid::*;
 use serde::Serialize;
 use ts_rs::TS;
@@ -30,9 +29,9 @@ pub struct VelocityCoordinates;
 pub struct AccelerationCoordinates;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, TS)]
-#[ts(export, export_to="webapp/bindings/")]
+#[ts(export, export_to = "webapp/bindings/")]
 pub struct ObjectType {
-    name: String
+    name: String,
 }
 
 pub type AABB = Box2D<GlobalCoordinateType, WorldCoordinates>;
@@ -56,7 +55,7 @@ pub fn delta_t_to_delta_t_a(delta_t: DeltaT) -> DeltaTA {
 #[derive(Clone)]
 pub struct CoordinatesRotation {
     pub location: Coordinates,
-    pub rotation: Rotation
+    pub rotation: Rotation,
 }
 
 #[derive(Clone)]
@@ -64,5 +63,5 @@ pub struct CoordinatesVelocity {
     pub location: Coordinates,
     pub rotation: Rotation,
     pub velocity: Velocity,
-    pub angular_velocity: AngularVelocity
+    pub angular_velocity: AngularVelocity,
 }

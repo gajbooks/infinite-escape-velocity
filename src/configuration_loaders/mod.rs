@@ -15,6 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+pub mod graphics_configuration;
 pub mod object_configuration_file;
 pub mod object_configuration_record;
-pub mod graphics_configuration;

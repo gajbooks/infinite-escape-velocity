@@ -15,7 +15,9 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use crate::backend::world_objects::object_properties::collision_component::{CollidableComponent, CollisionMarker};
+use crate::backend::world_objects::object_properties::collision_component::{
+    CollidableComponent, CollisionMarker,
+};
 
 use super::hash_coordinates::*;
 use bevy_ecs::prelude::*;
@@ -23,27 +25,41 @@ use rayon::prelude::*;
 
 enum SenderReceiver<'a, T: Send + Sync + 'static> {
     Sender(&'a CollisionMarker<T>),
-    Receiver(&'a CollidableComponent<T>)
+    Receiver(&'a CollidableComponent<T>),
 }
 
 struct ObjectWithinCell<'a, T: Send + Sync + 'static> {
     pub cell: HashCoordinates,
     pub entity: Entity,
-    pub sender_receiver: SenderReceiver<'a, T>
+    pub sender_receiver: SenderReceiver<'a, T>,
 }
 
-pub fn collision_system<T: Send + Sync>(mut optimizer: ResMut<CollisionOptimizer<T>>, receivers: Query<(Entity, &CollidableComponent<T>)>, senders: Query<(Entity, &CollisionMarker<T>)>) {
+pub fn collision_system<T: Send + Sync>(
+    mut optimizer: ResMut<CollisionOptimizer<T>>,
+    receivers: Query<(Entity, &CollidableComponent<T>)>,
+    senders: Query<(Entity, &CollisionMarker<T>)>,
+) {
     let mut list = optimizer.cache.take().unwrap();
     list.extend(receivers.iter().flat_map(|(entity, collision_receiver)| {
-        collision_receiver.shape.aabb_iter().map(move |coordinates|{
-            ObjectWithinCell{cell: coordinates, entity: entity.clone(), sender_receiver: SenderReceiver::Receiver(collision_receiver)}
-        })
+        collision_receiver
+            .shape
+            .aabb_iter()
+            .map(move |coordinates| ObjectWithinCell {
+                cell: coordinates,
+                entity: entity.clone(),
+                sender_receiver: SenderReceiver::Receiver(collision_receiver),
+            })
     }));
 
     list.extend(senders.iter().flat_map(|(entity, collision_sender)| {
-        collision_sender.shape.aabb_iter().map(move |coordinates|{
-            ObjectWithinCell{cell: coordinates, entity: entity.clone(), sender_receiver: SenderReceiver::Sender(collision_sender)}
-        })
+        collision_sender
+            .shape
+            .aabb_iter()
+            .map(move |coordinates| ObjectWithinCell {
+                cell: coordinates,
+                entity: entity.clone(),
+                sender_receiver: SenderReceiver::Sender(collision_sender),
+            })
     }));
 
     list.par_sort_unstable_by(|x, y| x.cell.cmp(&y.cell));
@@ -60,25 +76,25 @@ pub fn collision_system<T: Send + Sync>(mut optimizer: ResMut<CollisionOptimizer
         while inner_index < list.len() && outer_object.cell == list[inner_index].cell {
             let inner_object = &list[inner_index];
             match outer_object.sender_receiver {
-                SenderReceiver::Sender(sender) => {
-                    match inner_object.sender_receiver {
-                        SenderReceiver::Sender(_) => (),
-                        SenderReceiver::Receiver(receiver) => {
-                            if sender.shape.collides(&receiver.shape) && (inner_object.entity != outer_object.entity) {
-                                receiver.add_to_collision_list(outer_object.entity);
-                            }
+                SenderReceiver::Sender(sender) => match inner_object.sender_receiver {
+                    SenderReceiver::Sender(_) => (),
+                    SenderReceiver::Receiver(receiver) => {
+                        if sender.shape.collides(&receiver.shape)
+                            && (inner_object.entity != outer_object.entity)
+                        {
+                            receiver.add_to_collision_list(outer_object.entity);
                         }
                     }
                 },
-                SenderReceiver::Receiver(receiver) => {
-                    match inner_object.sender_receiver {
-                        SenderReceiver::Sender(sender) => {
-                            if sender.shape.collides(&receiver.shape) && (inner_object.entity != outer_object.entity){
-                                receiver.add_to_collision_list(inner_object.entity);
-                            }
-                        },
-                        SenderReceiver::Receiver(_) => ()
+                SenderReceiver::Receiver(receiver) => match inner_object.sender_receiver {
+                    SenderReceiver::Sender(sender) => {
+                        if sender.shape.collides(&receiver.shape)
+                            && (inner_object.entity != outer_object.entity)
+                        {
+                            receiver.add_to_collision_list(inner_object.entity);
+                        }
                     }
+                    SenderReceiver::Receiver(_) => (),
                 },
             };
             inner_index += 1;
@@ -91,11 +107,13 @@ pub fn collision_system<T: Send + Sync>(mut optimizer: ResMut<CollisionOptimizer
 
 #[derive(Resource)]
 pub struct CollisionOptimizer<T: Send + Sync + 'static> {
-    cache: Option<Vec<ObjectWithinCell<'static, T>>>
+    cache: Option<Vec<ObjectWithinCell<'static, T>>>,
 }
 
 impl<T: Send + Sync + 'static> CollisionOptimizer<T> {
     pub fn new() -> Self {
-        Self{cache: Some(Vec::new())}
+        Self {
+            cache: Some(Vec::new()),
+        }
     }
 }
