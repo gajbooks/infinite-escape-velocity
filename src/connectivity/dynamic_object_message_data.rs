@@ -15,10 +15,21 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use bevy_ecs::entity::Entity;
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::shared_types::*;
+#[derive(Serialize, Debug, TS)]
+pub struct ExternalEntity {
+    pub generation: u32,
+    pub index: u32
+}
+
+impl From<Entity> for ExternalEntity {
+    fn from(value: Entity) -> Self {
+        ExternalEntity{generation: value.generation(), index: value.index()}
+    }
+}
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to="webapp/bindings/")]
@@ -29,18 +40,18 @@ pub struct DynamicObjectMessageData {
     pub vx: f32,
     pub vy: f32,
     pub angular_velocity: f32,
-    pub object_type: ObjectType,
-    pub id: IdType
+    pub object_type: String,
+    pub id: ExternalEntity
 }
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to="webapp/bindings/")]
 pub struct DynamicObjectCreationData {
-    pub id: IdType
+    pub id: ExternalEntity
 }
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to="webapp/bindings/")]
 pub struct DynamicObjectDestructionData {
-    pub id: IdType
+    pub id: ExternalEntity
 }

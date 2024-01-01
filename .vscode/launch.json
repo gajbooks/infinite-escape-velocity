@@ -53,7 +53,7 @@
             ],
         },
         {
-            "name": "Debug Infinite Escape Velocity Frontend",
+            "name": "Release Infinite Escape Velocity Frontend",
             "type": "node",
             "request": "launch",
             "cwd": "${workspaceRoot}/webapp",

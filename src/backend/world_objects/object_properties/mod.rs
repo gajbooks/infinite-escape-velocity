@@ -15,4 +15,5 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod collision_property;
+pub mod collision_component;
+pub mod timeout_component;

@@ -18,12 +18,12 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::shared_types::*;
+use super::dynamic_object_message_data::ExternalEntity;
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to="webapp/bindings/")]
 pub struct AssignControllableObjectData {
-    pub id: IdType
+    pub id: ExternalEntity
 }
 
 #[derive(Deserialize, Debug, TS)]

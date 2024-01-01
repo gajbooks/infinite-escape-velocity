@@ -1,36 +1,36 @@
-use std::{sync::{atomic::{AtomicBool, Ordering}, Arc}, net::SocketAddr};
+use std::{sync::{atomic::{AtomicBool, Ordering}, Arc, Mutex}, net::SocketAddr};
 
-use euclid::{Point2D, Length};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::{connectivity::{server_client_message::ServerClientMessage, client_server_message::ClientServerMessage}, backend::{world_objects::server_viewport::ServerViewport, world_object_storage::{ephemeral_id_allocator::IdAllocatorType, world_object::WorldObject}, shape::{CircleData, Shape}}};
+use crate::{connectivity::{server_client_message::ServerClientMessage, client_server_message::ClientServerMessage}, backend::shape::{CircleData, Shape}, shared_types::{Coordinates, Radius}};
 
 pub struct UserSession {
     pub remote_address: SocketAddr,
-    cancel: Arc<AtomicBool>,
-    viewport: Arc<ServerViewport>,
+    pub to_remote: UnboundedSender<ServerClientMessage>,
+    pub viewports_to_spawn: Mutex<Vec<Shape>>,
+    pub cancel: Arc<AtomicBool>,
     dead: AtomicBool
 }
 
 impl UserSession {
-    pub fn new(
+    pub fn spawn_user_session(
         to_remote: UnboundedSender<ServerClientMessage>,
         from_remote: UnboundedReceiver<ClientServerMessage>,
         remote_address: SocketAddr,
-        cancel: Arc<AtomicBool>,
-        id_generator: IdAllocatorType
+        cancel: Arc<AtomicBool>
     ) -> Arc<UserSession> {
         let session = Arc::new(UserSession {
+            to_remote: to_remote.clone(),
             remote_address: remote_address,
             cancel: cancel,
             dead: false.into(),
-            viewport: Arc::new(ServerViewport::new(Shape::Circle(CircleData{location: Point2D::new(0.0, 0.0), radius: Length::new(500.0)}), id_generator, to_remote.clone()))
+            viewports_to_spawn: Mutex::new(vec![Shape::Circle(CircleData {radius: Radius::new(600.0), location: Coordinates::new(0.0, 0.0)})])
         });
         tokio::spawn(session.clone().process_incoming_messages(to_remote, from_remote));
         session
     }
 
-    async fn process_incoming_messages(self: Arc<Self>, to_remote: UnboundedSender<ServerClientMessage>, mut from_remote: UnboundedReceiver<ClientServerMessage>,) {
+    async fn process_incoming_messages(self: Arc<Self>, _to_remote: UnboundedSender<ServerClientMessage>, mut from_remote: UnboundedReceiver<ClientServerMessage>,) {
         loop {
             if self.cancel.load(Ordering::Relaxed) == true {
                 break;
@@ -67,9 +67,5 @@ impl UserSession {
 
     pub fn disconnect(&self) {
         let _ = self.cancel.store(true, Ordering::Relaxed);
-    }
-
-    pub fn get_viewport(&self) -> Arc<dyn WorldObject> {
-        return self.viewport.clone();
     }
 }

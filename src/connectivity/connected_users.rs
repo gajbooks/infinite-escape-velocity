@@ -1,11 +1,31 @@
 use std::{sync::{Mutex, Arc}, time::Duration};
 
+use bevy_ecs::system::{Resource, Commands, Res};
 use tokio::time;
 
-use crate::connectivity::user_session::UserSession;
+use crate::{connectivity::user_session::UserSession, backend::world_objects::{server_viewport::{ViewportBundle, ServerViewport}, object_properties::collision_component::{CollidableComponent}}};
+
+pub fn create_user_viewports(connected_users: Res<ConnectedUsersResource>, mut commands: Commands) {
+    let connected_users = connected_users.connected_users.connection_list.lock().unwrap();
+    for user in connected_users.iter() {
+        let mut viewports = user.viewports_to_spawn.lock().unwrap();
+        for new_viewports in viewports.iter() {
+            commands.spawn(ViewportBundle{
+                viewport: ServerViewport::new(user.cancel.clone(), user.to_remote.clone()),
+                collidable: CollidableComponent::new(new_viewports.clone())});
+        }
+
+        viewports.clear();
+    }
+}
 
 pub struct ConnectedUsers {
-    connection_list: Mutex<Vec<Arc<UserSession>>>,
+    pub connection_list: Mutex<Vec<Arc<UserSession>>>,
+}
+
+#[derive(Resource)]
+pub struct ConnectedUsersResource {
+    pub connected_users: Arc<ConnectedUsers>
 }
 
 impl ConnectedUsers {
@@ -29,9 +49,5 @@ impl ConnectedUsers {
                 list.retain(|x| !x.is_dead());
             }
         }
-    }
-
-    pub fn all_users(&self) -> Vec<Arc<UserSession>> {
-        self.connection_list.lock().unwrap().clone()
     }
 }

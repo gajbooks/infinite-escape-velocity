@@ -1,10 +1,7 @@
-use crate::backend::world_object_storage::ephemeral_id_allocator::IdAllocatorType;
 use crate::connectivity::client_server_message::*;
 use crate::connectivity::connected_users::*;
 use crate::connectivity::server_client_message::*;
 use crate::connectivity::user_session::*;
-use crate::backend::world_object_storage::ephemeral_id_allocator;
-use axum::extract::ws::CloseFrame;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
@@ -20,7 +17,6 @@ use tokio::sync::mpsc::unbounded_channel;
 
 #[derive(Clone)]
 pub struct HandlerState {
-    pub id_allocator: IdAllocatorType,
     pub connections: Arc<ConnectedUsers>
 }
 
@@ -30,10 +26,10 @@ pub async fn websocket_handler(
     State(state): State<HandlerState>
 ) -> impl IntoResponse {
     tracing::trace!("{address} attempted WebSocket upgrade.");
-    websocket.on_upgrade(move |socket| handle_socket(socket, address, state.connections, state.id_allocator))
+    websocket.on_upgrade(move |socket| handle_socket(socket, address, state.connections))
 }
 
-async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<ConnectedUsers>, id_allocator: IdAllocatorType) {
+async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<ConnectedUsers>) {
     let (mut sender, mut receiver) = socket.split();
 
     let (outbound_messages_sender, mut outbound_messages_receiver) =
@@ -46,12 +42,11 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
     let outbound_task_cancel = canceled.clone();
     let inbound_task_cancel = canceled;
 
-    connections.add_user(UserSession::new(
+    connections.add_user(UserSession::spawn_user_session(
         outbound_messages_sender,
         inbound_messages_receiver,
         who,
-        external_task_cancel,
-        id_allocator
+        external_task_cancel
     ));
 
     let outbound_task = tokio::spawn(async move {

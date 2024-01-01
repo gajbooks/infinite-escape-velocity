@@ -8,6 +8,7 @@ edition = "2021"
 
 [dependencies]
 axum = { version="0.6", features=["ws"] }
+bevy_ecs = "*"
 clap = { version = "4", features = ["derive"] }
 dashmap = "5"
 euclid = {version = "0.22", features = ["serde"]}
@@ -16,10 +17,11 @@ futures = "0.3"
 futures-util = "0.3"
 num = "0.4"
 rand = "0.8"
-rayon = "1.5"
-rmp-serde = "1.1"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+rayon = "1"
+rmp-serde = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+spin_sleep = "1"
 tokio = { version = "1", features = ["full"] }
 tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.4", features = ["fs", "trace", "compression-br", "compression-deflate", "compression-gzip", "compression-zstd"] }

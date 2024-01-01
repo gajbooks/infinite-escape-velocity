@@ -20,31 +20,48 @@ mod configuration_loaders;
 mod connectivity;
 mod shared_types;
 
-use crate::backend::shape::Shape;
 use axum::{routing::get, Router};
-use backend::shape::CircleData;
-use backend::spatial_optimizer::collision_optimizer::CollisionOptimizer;
-use backend::world_object_storage::ephemeral_id_allocator::{
-    EphemeralIdAllocator, IdAllocatorType,
-};
-use backend::world_object_storage::world_object_storage::WorldObjectStorage;
-use backend::world_objects::ship::Ship;
+use backend::resources::delta_t_resource::{increment_time, DeltaTResource};
+use backend::shape::{Shape, PointData};
+use backend::spatial_optimizer::collision_optimizer::{CollisionOptimizer, collision_system};
+use backend::world_objects::object_properties::collision_component::{clear_old_collisions, CollisionMarker};
+use backend::world_objects::object_properties::timeout_component::{check_despawn_times, TimeoutComponent};
+use backend::world_objects::server_viewport::{tick_viewport, Displayable};
+use backend::world_objects::ship::ShipBundle;
+use bevy_ecs::schedule::{Schedule, IntoSystemConfigs};
+use bevy_ecs::system::{Local, Commands, Res};
+use bevy_ecs::world::World;
 use clap::Parser;
-use connectivity::connected_users::ConnectedUsers;
-use euclid::{Length, Scale};
-use rand::Rng;
+use connectivity::connected_users::{ConnectedUsers, create_user_viewports, ConnectedUsersResource};
+use shared_types::Coordinates;
 use tokio::time;
 use tower_http::compression::CompressionLayer;
-use tracing::{info, trace, Level};
+use tracing::{trace, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use connectivity::websocket_handler::*;
-use euclid::Point2D;
 use std::net::SocketAddr;
 use std::sync::*;
 use std::time::Duration;
 
 use tower_http::services::ServeDir;
+
+use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
+
+fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut commands: Commands) {
+    if *spawned == 0 {
+        *spawned = 1;
+    }
+
+    if (time.total_time / *spawned) > Duration::from_secs(1) {
+        *spawned += 1;
+        commands.spawn(ShipBundle {
+            displayable: Displayable{object_type: format!("Ship {}", *spawned)},
+            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(PointData{point: Coordinates::new(0.0, 0.0)})),
+            timeout: TimeoutComponent{spawn_time: time.total_time, lifetime: Duration::from_secs(2)}
+        });
+    }
+}
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -81,59 +98,53 @@ async fn main() {
     };
 
     let user_connections = Arc::new(ConnectedUsers::new());
-    let tick_connections = user_connections.clone();
-    let world_object_storage = Arc::new(WorldObjectStorage::new());
-    let spawning_storage = world_object_storage.clone();
-    let id_allocator: IdAllocatorType = Arc::new(EphemeralIdAllocator::new());
-    let spawn_allocator = id_allocator.clone();
+    let resource_connections = user_connections.clone();
 
     tokio::spawn(ConnectedUsers::garbage_collector(user_connections.clone()));
 
     tokio::spawn(async move {
-        let mut interval = time::interval(Duration::from_secs(4));
+        let mut world = World::new();
+        world.insert_resource(DeltaTResource::new());
+        world.insert_resource(CollisionOptimizer::<Displayable>::new());
+        world.insert_resource(ConnectedUsersResource{connected_users: resource_connections});
 
+        let mut schedule = Schedule::default();
+        schedule.add_systems(increment_time);
+        schedule.add_systems(clear_old_collisions::<Displayable>);
+        schedule.add_systems(collision_system::<Displayable>.after(clear_old_collisions::<Displayable>));
+        schedule.add_systems(create_user_viewports);
+        schedule.add_systems(tick_viewport.after(collision_system::<Displayable>));
+        schedule.add_systems(spawn_a_ship_idk.after(increment_time));
+        schedule.add_systems(check_despawn_times.after(increment_time));
+
+        const STATS_INTERVAL: usize = 1000;
+        let mut stats_counter: usize = 0;
+        let mut average_time: f32 = 0.0;
         loop {
-            let time = interval.tick().await;
-            let x: f64 = rand::thread_rng().gen_range(-100.0..100.0);
-            let y: f64 = rand::thread_rng().gen_range(-100.0..100.0);
-            spawning_storage.add(Arc::new(Ship::new(
-                Shape::Circle(CircleData {
-                    location: Point2D::new(x, y),
-                    radius: Length::new(5.0 as f64),
-                }),
-                "A ship I guess".to_string(),
-                spawn_allocator.new_id(),
-            )));
-            info!("Spawned a ship at {:?}", time);
-        }
-    });
-
-    tokio::spawn(async move {
-        let expected_tick_rate = time::Duration::from_secs_f32(1.0 / 20.0);
-        let mut collision_optimizer = CollisionOptimizer::new();
-
-        let mut start;
-        loop {
-            start = time::Instant::now();
-            let users = tick_connections.all_users();
-            let viewports = users.iter().map(|x| x.get_viewport());
-            let mut all_objects = world_object_storage.all_objects();
-            all_objects.extend(viewports);
-
-            collision_optimizer.run_collisions(all_objects.as_slice());
-            for i in &all_objects {
-                i.tick(Scale::new(expected_tick_rate.as_secs_f32()));
+            let now = time::Instant::now();
+            schedule.run(&mut world);
+            let duration = time::Instant::now().duration_since(now);
+            {
+                let mut world_tick = world.get_resource_mut::<DeltaTResource>().unwrap();
+                world_tick.last_tick_time = duration;
             }
-            world_object_storage.cleanup();
-            let wall_time = time::Instant::now() - start;
-            let wait = expected_tick_rate - wall_time;
-            time::sleep(wait).await;
+            stats_counter += 1;
+            average_time += duration.as_secs_f32() / 1000.0;
+            if stats_counter == STATS_INTERVAL {
+                trace!("Ticked in {} milliseconds average with {} entities currently", average_time / STATS_INTERVAL as f32, world.entities().len());
+                stats_counter = 0;
+            }
+            let minimum_time = MINIMUM_TICK_DURATION.saturating_sub(duration);
+            let time_less_milliseconds = minimum_time.saturating_sub(Duration::from_millis(2));
+            time::sleep(time_less_milliseconds).await;
+            let true_time_now = time::Instant::now();
+            let time_remainder = minimum_time.saturating_sub(true_time_now - now);
+            spin_sleep::sleep(time_remainder);
         }
     });
 
     let websocket_state = HandlerState {
         connections: user_connections.clone(),
-        id_allocator: id_allocator,
     };
 
     let app = app

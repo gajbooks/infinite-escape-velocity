@@ -15,134 +15,107 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use crate::backend::shape::*;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
+use bevy_ecs::prelude::*;
 use crate::backend::shrink_storage::ImmutableShrinkable;
-use crate::backend::world_object_storage::{ephemeral_id_allocator::*, world_object::*};
-use crate::backend::world_objects::object_properties::collision_property::*;
+use crate::backend::world_objects::object_properties::collision_component::*;
 use crate::connectivity::dynamic_object_message_data::*;
 use crate::connectivity::server_client_message::*;
-use crate::shared_types::*;
 use dashmap::DashSet;
-use std::sync::*;
 use tokio::sync::mpsc::UnboundedSender;
 
+#[derive(Bundle)]
+pub struct ViewportBundle {
+    pub viewport: ServerViewport,
+    pub collidable: CollidableComponent<Displayable>
+}
+
+#[derive(Component)]
+pub struct Displayable {
+    pub object_type: String
+}
+
+#[derive(Component)]
 pub struct ServerViewport {
-    id: IdType,
-    shape: Mutex<Shape>,
-    already_collided: AlreadyCollidedTracker,
+    cancel: Arc<AtomicBool>,
     outgoing_messages: UnboundedSender<ServerClientMessage>,
-    last_tick_ids: DashSet<IdType>,
+    last_tick_ids: DashSet<Entity>,
 }
 
 impl ServerViewport {
     pub fn new(
-        position: Shape,
-        id_generator: IdAllocatorType,
+        cancel: Arc<AtomicBool>,
         outgoing_queue: UnboundedSender<ServerClientMessage>,
     ) -> ServerViewport {
         return ServerViewport {
-            id: id_generator.new_id(),
-            shape: Mutex::new(position),
-            already_collided: AlreadyCollidedTracker::new(),
+            cancel: cancel,
             outgoing_messages: outgoing_queue,
             last_tick_ids: DashSet::new(),
         };
     }
 }
 
-impl WorldObject for ServerViewport {
-    fn get_id(&self) -> IdType {
-        return self.id;
-    }
+pub fn tick_viewport(mut all_viewports: Query<(Entity, &mut ServerViewport, &CollidableComponent<Displayable>)>, displayables: Query<(&CollisionMarker<Displayable>, &Displayable)>, mut commands: Commands) {
+    for (viewport_entity, viewport, collide_with) in all_viewports.iter_mut() {
+        if viewport.cancel.load(std::sync::atomic::Ordering::Relaxed) == true {
+            commands.entity(viewport_entity).despawn();
+            continue;
+        }
 
-    fn get_type(&self) -> ObjectType {
-        return ObjectType::Viewport();
-    }
+        for collision in collide_with.list.iter().map(|x| x.key().clone()) {
+            let (collided_hitbox, displayable) = match displayables.get(collision) {
+                Ok(x) => x,
+                Err(_) => continue
+            };
 
-    fn tick(&self, _delta_t: DeltaT) {
-        let current_tick_list = self.already_collided.get_list();
-        let removed = self
-            .last_tick_ids
-            .iter()
-            .map(|x| *x)
-            .filter(|x| !current_tick_list.contains(&x));
-
-        for remove in removed {
-            let _ = self.outgoing_messages
-                .send(ServerClientMessage::DynamicObjectDestruction(
-                    DynamicObjectDestructionData { id: remove },
+            match viewport.last_tick_ids.contains(&collision) {
+                true => {}
+                false => {
+                    let _ = viewport.outgoing_messages
+                        .send(ServerClientMessage::DynamicObjectCreation(
+                            DynamicObjectCreationData { id: Into::<ExternalEntity>::into(collision) },
+                        )); // Nothing we can do about send errors for users disconnected
+                }
+            }
+    
+            let coordinates = collided_hitbox.shape.center();
+    
+            let _ = viewport.outgoing_messages
+                .send(ServerClientMessage::DynamicObjectUpdate(
+                    DynamicObjectMessageData {
+                        id: Into::<ExternalEntity>::into(collision),
+                        x: coordinates.x,
+                        y: coordinates.y,
+                        rotation: 0.0,
+                        vx: 0.0,
+                        vy: 0.0,
+                        angular_velocity: 0.0,
+                        object_type: displayable.object_type.clone(),
+                    },
                 )); // Nothing we can do about send errors for users disconnected
         }
 
-        self.last_tick_ids.clear();
+        let removed = viewport
+            .last_tick_ids
+            .iter()
+            .map(|x| *x)
+            .filter(|x| !collide_with.list.contains(&x));
 
-        for x in current_tick_list.iter() {
-            self.last_tick_ids.insert(*x);
+        for remove in removed {
+            let _ = viewport.outgoing_messages
+                .send(ServerClientMessage::DynamicObjectDestruction(
+                    DynamicObjectDestructionData { id: remove.into() },
+                )); // Nothing we can do about send errors for users disconnected
         }
 
-        self.last_tick_ids.shrink_storage();
+        viewport.last_tick_ids.clear();
 
-        self.already_collided.clear();
-    }
-
-    fn get_collision_property(&self) -> Option<&dyn CollidableObject> {
-        return Some(self);
-    }
-
-    fn get_serialization_data(&self) -> WorldObjectSerializationData {
-        WorldObjectSerializationData::None
-    }
-}
-
-impl CollidableObject for ServerViewport {
-    fn do_collision(&self, collided_object: &dyn WorldObject) {
-        let id = collided_object.get_id();
-        let ship_type = collided_object.get_type();
-
-        match self.last_tick_ids.contains(&id) {
-            true => {}
-            false => {
-                let _ = self.outgoing_messages
-                    .send(ServerClientMessage::DynamicObjectCreation(
-                        DynamicObjectCreationData { id: id },
-                    )); // Nothing we can do about send errors for users disconnected
-            }
+        for x in collide_with.list.iter() {
+            viewport.last_tick_ids.insert(*x);
         }
 
-        let coordinates = collided_object
-            .get_collision_property()
-            .unwrap()
-            .get_shape()
-            .center();
-
-        let _ = self.outgoing_messages
-            .send(ServerClientMessage::DynamicObjectUpdate(
-                DynamicObjectMessageData {
-                    id: id,
-                    x: coordinates.x,
-                    y: coordinates.y,
-                    rotation: 0.0,
-                    vx: 0.0,
-                    vy: 0.0,
-                    angular_velocity: 0.0,
-                    object_type: ship_type,
-                },
-            )); // Nothing we can do about send errors for users disconnected
-
-    }
-
-    fn get_already_collided(&self) -> &AlreadyCollidedTracker {
-        return &self.already_collided;
-    }
-
-    fn get_shape(&self) -> Shape {
-        return self.shape.lock().unwrap().clone();
-    }
-
-    fn set_shape(&self, shape: Shape) -> Shape {
-        let mut locked = self.shape.lock().unwrap();
-        let old_shape = locked.clone();
-        *locked = shape;
-        return old_shape;
+        viewport.last_tick_ids.shrink_storage();
     }
 }
