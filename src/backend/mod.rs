@@ -19,4 +19,5 @@ pub mod resources;
 pub mod shape;
 pub mod shrink_storage;
 pub mod spatial_optimizer;
+pub mod systems;
 pub mod world_objects;

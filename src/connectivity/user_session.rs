@@ -19,26 +19,24 @@ use std::{
     net::SocketAddr,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
+use bevy_ecs::{component::Component, entity::Entity};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::{
-    backend::shape::{CircleData, Shape},
-    connectivity::{
-        client_server_message::ClientServerMessage, server_client_message::ServerClientMessage,
-    },
-    shared_types::{Coordinates, Radius},
+use crate::connectivity::{
+    client_server_message::ClientServerMessage, server_client_message::ServerClientMessage,
 };
 
+#[derive(Component)]
 pub struct UserSession {
     pub remote_address: SocketAddr,
     pub to_remote: UnboundedSender<ServerClientMessage>,
-    pub viewports_to_spawn: Mutex<Vec<Shape>>,
     pub cancel: Arc<AtomicBool>,
-    dead: AtomicBool,
+    pub primary_viewport: Option<Entity>,
+    pub should_follow: Option<Entity>,
 }
 
 impl UserSession {
@@ -47,32 +45,29 @@ impl UserSession {
         from_remote: UnboundedReceiver<ClientServerMessage>,
         remote_address: SocketAddr,
         cancel: Arc<AtomicBool>,
-    ) -> Arc<UserSession> {
-        let session = Arc::new(UserSession {
+    ) -> UserSession {
+        let session = UserSession {
             to_remote: to_remote.clone(),
             remote_address: remote_address,
-            cancel: cancel,
-            dead: false.into(),
-            viewports_to_spawn: Mutex::new(vec![Shape::Circle(CircleData {
-                radius: Radius::new(600.0),
-                location: Coordinates::new(0.0, 0.0),
-            })]),
-        });
-        tokio::spawn(
-            session
-                .clone()
-                .process_incoming_messages(to_remote, from_remote),
-        );
+            cancel: cancel.clone(),
+            primary_viewport: None,
+            should_follow: None,
+        };
+        tokio::spawn(Self::process_incoming_messages(
+            cancel,
+            to_remote,
+            from_remote,
+        ));
         session
     }
 
     async fn process_incoming_messages(
-        self: Arc<Self>,
+        cancel: Arc<AtomicBool>,
         _to_remote: UnboundedSender<ServerClientMessage>,
         mut from_remote: UnboundedReceiver<ClientServerMessage>,
     ) {
         loop {
-            if self.cancel.load(Ordering::Relaxed) == true {
+            if cancel.load(Ordering::Relaxed) == true {
                 break;
             }
 
@@ -87,25 +82,11 @@ impl UserSession {
 
             match message {
                 ClientServerMessage::Disconnect => {
-                    self.disconnect();
+                    let _ = cancel.store(true, Ordering::Relaxed);
                     continue;
                 }
                 _ => (),
             }
         }
-
-        self.mark_dead();
-    }
-
-    fn mark_dead(&self) {
-        self.dead.store(true, Ordering::Relaxed);
-    }
-
-    pub fn is_dead(&self) -> bool {
-        self.dead.load(Ordering::Relaxed)
-    }
-
-    pub fn disconnect(&self) {
-        let _ = self.cancel.store(true, Ordering::Relaxed);
     }
 }

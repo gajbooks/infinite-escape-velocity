@@ -32,21 +32,32 @@ use bevy_ecs::schedule::{Schedule, IntoSystemConfigs};
 use bevy_ecs::system::{Local, Commands, Res};
 use bevy_ecs::world::World;
 use clap::Parser;
-use connectivity::connected_users::{ConnectedUsers, create_user_viewports, ConnectedUsersResource};
+use connectivity::connected_users::ConnectingUsersQueue;
+use futures::channel::mpsc::unbounded;
+use rand::Rng;
 use shared_types::Coordinates;
 use tokio::time;
 use tower_http::compression::CompressionLayer;
-use tracing::{trace, Level};
+use tracing::{trace, Level, debug};
 use tracing_subscriber::FmtSubscriber;
 
 use connectivity::websocket_handler::*;
 use std::net::SocketAddr;
-use std::sync::*;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use tower_http::services::ServeDir;
 
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
+use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
+use crate::connectivity::connected_users::{spawn_user_sessions, check_alive_sessions};
+use crate::connectivity::user_session::UserSession;
+
+fn plus_or_minus_random(radius: f64) -> f64 {
+    let value = rand::thread_rng().gen::<f64>();
+    let range = radius * 2.0;
+    (range * value) - radius
+}
 
 fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut commands: Commands) {
     if *spawned == 0 {
@@ -55,11 +66,10 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
 
     if (time.total_time / *spawned) > Duration::from_secs(1) {
         *spawned += 1;
-        commands.spawn(ShipBundle {
+        commands.spawn((ShipBundle {
             displayable: Displayable{object_type: format!("Ship {}", *spawned)},
-            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(PointData{point: Coordinates::new(0.0, 0.0)})),
-            timeout: TimeoutComponent{spawn_time: time.total_time, lifetime: Duration::from_secs(2)}
-        });
+            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(PointData{point: Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0))})),
+        }, TimeoutComponent{spawn_time: time.total_time, lifetime: Duration::from_secs(2)}));
     }
 }
 
@@ -68,10 +78,10 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
 struct Args {
     /// Directory to host the webapp from. If ommitted, server is started without.
     #[arg(long)]
-    webapp_directory: Option<String>,
+    webapp_directory: Option<PathBuf>,
 
     /// Directory to load gamedata from.
-    data_directory: String,
+    data_directory: PathBuf,
 
     /// Display more in-depth logs
     #[clap(long, action)]
@@ -90,32 +100,33 @@ async fn main() {
     tracing::subscriber::set_global_default(tracing.finish())
         .expect("Failed to initialize trace logging");
 
+    debug!("Using data directory: {:?}", args.data_directory.canonicalize().unwrap());
+
     let app = Router::new();
 
     let app = match &args.webapp_directory {
-        Some(webapp_directory) => app.nest_service("/", ServeDir::new(webapp_directory)),
+        Some(webapp_directory) => app.nest_service("/", ServeDir::new(webapp_directory.canonicalize().unwrap())),
         None => app,
-    };
+    }.nest_service("/data", ServeDir::new(args.data_directory.canonicalize().unwrap()));
 
-    let user_connections = Arc::new(ConnectedUsers::new());
-    let resource_connections = user_connections.clone();
-
-    tokio::spawn(ConnectedUsers::garbage_collector(user_connections.clone()));
+    let (user_session_sender, user_session_receiver) = unbounded::<UserSession>();
 
     tokio::spawn(async move {
         let mut world = World::new();
         world.insert_resource(DeltaTResource::new());
         world.insert_resource(CollisionOptimizer::<Displayable>::new());
-        world.insert_resource(ConnectedUsersResource{connected_users: resource_connections});
+        world.insert_resource(ConnectingUsersQueue::new(user_session_receiver));
 
         let mut schedule = Schedule::default();
         schedule.add_systems(increment_time);
         schedule.add_systems(clear_old_collisions::<Displayable>);
         schedule.add_systems(collision_system::<Displayable>.after(clear_old_collisions::<Displayable>));
-        schedule.add_systems(create_user_viewports);
         schedule.add_systems(tick_viewport.after(collision_system::<Displayable>));
         schedule.add_systems(spawn_a_ship_idk.after(increment_time));
         schedule.add_systems(check_despawn_times.after(increment_time));
+        schedule.add_systems(spawn_user_sessions);
+        schedule.add_systems(check_alive_sessions);
+        schedule.add_systems(spawn_player_ship_and_viewports);
 
         const STATS_INTERVAL: usize = 1000;
         let mut stats_counter: usize = 0;
@@ -144,7 +155,7 @@ async fn main() {
     });
 
     let websocket_state = HandlerState {
-        connections: user_connections.clone(),
+        connections: user_session_sender,
     };
 
     let app = app

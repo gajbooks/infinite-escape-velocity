@@ -15,23 +15,17 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::ops::Shl;
+
 use bevy_ecs::entity::Entity;
 use serde::Serialize;
 use ts_rs::TS;
 
-#[derive(Serialize, Debug, TS)]
-pub struct ExternalEntity {
-    pub generation: u32,
-    pub index: u32,
-}
 
-impl From<Entity> for ExternalEntity {
-    fn from(value: Entity) -> Self {
-        ExternalEntity {
-            generation: value.generation(),
-            index: value.index(),
-        }
-    }
+pub type ExternalEntity = u64;
+
+pub fn into_external_entity(value: Entity) -> ExternalEntity {
+    (value.index() as u64).shl(32) | value.generation() as u64
 }
 
 #[derive(Serialize, Debug, TS)]

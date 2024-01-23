@@ -15,18 +15,4 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use serde::Serialize;
-use ts_rs::TS;
-
-use crate::connectivity::controllable_object_message_data::*;
-use crate::connectivity::dynamic_object_message_data::*;
-
-#[derive(Serialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
-#[serde(tag = "type")]
-pub enum ServerClientMessage {
-    ViewportFollow(ViewportFollowData),
-    DynamicObjectUpdate(DynamicObjectMessageData),
-    DynamicObjectCreation(DynamicObjectCreationData),
-    DynamicObjectDestruction(DynamicObjectDestructionData),
-}
+pub mod player_spawn_system;

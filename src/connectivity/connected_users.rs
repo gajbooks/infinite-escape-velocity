@@ -15,72 +15,52 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
+use std::sync::atomic::Ordering;
+
+use bevy_ecs::{
+    entity::Entity,
+    system::{Commands, Query, ResMut, Resource},
 };
+use futures::channel::mpsc::UnboundedReceiver;
 
-use bevy_ecs::system::{Commands, Res, Resource};
-use tokio::time;
+use crate::connectivity::user_session::UserSession;
 
-use crate::{
-    backend::world_objects::{
-        object_properties::collision_component::CollidableComponent,
-        server_viewport::{ServerViewport, ViewportBundle},
-    },
-    connectivity::user_session::UserSession,
-};
-
-pub fn create_user_viewports(connected_users: Res<ConnectedUsersResource>, mut commands: Commands) {
-    let connected_users = connected_users
-        .connected_users
-        .connection_list
-        .lock()
-        .unwrap();
-    for user in connected_users.iter() {
-        let mut viewports = user.viewports_to_spawn.lock().unwrap();
-        for new_viewports in viewports.iter() {
-            commands.spawn(ViewportBundle {
-                viewport: ServerViewport::new(user.cancel.clone(), user.to_remote.clone()),
-                collidable: CollidableComponent::new(new_viewports.clone()),
-            });
+pub fn spawn_user_sessions(
+    mut connecting_users: ResMut<ConnectingUsersQueue>,
+    mut commands: Commands,
+) {
+    while let Ok(new_user) = connecting_users.new_users.try_next() {
+        match new_user {
+            Some(new_user) => {
+                tracing::info!("New user connected from {}", new_user.remote_address);
+                commands.spawn(new_user);
+            }
+            None => {
+                // Disconnected
+                tracing::error!(
+                    "User session spawning resource became detached from connection management"
+                );
+                panic!("Cannot spawn new user sessions with connection management detached");
+            }
         }
-
-        viewports.clear();
     }
 }
 
-pub struct ConnectedUsers {
-    pub connection_list: Mutex<Vec<Arc<UserSession>>>,
+pub fn check_alive_sessions(sessions: Query<(Entity, &UserSession)>, mut commands: Commands) {
+    sessions.for_each(|(entity, session)| {
+        if session.cancel.load(Ordering::Relaxed) {
+            commands.entity(entity).despawn();
+        }
+    })
 }
 
 #[derive(Resource)]
-pub struct ConnectedUsersResource {
-    pub connected_users: Arc<ConnectedUsers>,
+pub struct ConnectingUsersQueue {
+    pub new_users: UnboundedReceiver<UserSession>,
 }
 
-impl ConnectedUsers {
-    pub fn new() -> ConnectedUsers {
-        ConnectedUsers {
-            connection_list: Mutex::new(Vec::new()),
-        }
-    }
-
-    pub fn add_user(&self, new_user: Arc<UserSession>) {
-        let mut connected_users = self.connection_list.lock().unwrap();
-        tracing::info!("New user connected from {}", new_user.remote_address);
-        connected_users.push(new_user);
-    }
-
-    pub async fn garbage_collector(connected_users: Arc<ConnectedUsers>) {
-        let mut interval = time::interval(Duration::from_millis(500));
-
-        loop {
-            interval.tick().await;
-            {
-                let mut list = connected_users.connection_list.lock().unwrap();
-                list.retain(|x| !x.is_dead());
-            }
-        }
+impl ConnectingUsersQueue {
+    pub fn new(new_users: UnboundedReceiver<UserSession>) -> ConnectingUsersQueue {
+        ConnectingUsersQueue { new_users }
     }
 }
