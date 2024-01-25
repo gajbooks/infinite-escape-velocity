@@ -7,6 +7,7 @@ import { DynamicObjectMessageData } from 'bindings/DynamicObjectMessageData';
 import { ServerClientMessage } from 'bindings/ServerClientMessage';
 import Konva from 'konva';
 import { Observable, Subject, interval } from 'rxjs';
+import { ENVIRONMENT } from 'src/environments/environment';
 
 class RenderShip {
   x: number;
@@ -37,17 +38,17 @@ export class GameplayCanvasComponent {
   renderLoop = interval(16);
   shipImage = new Image();
   ships: Map<BigInt, RenderShip> = new Map();
+  x_offset: number = 0.0;
+  y_offset: number = 0.0;
 
   constructor() {
-    this.shipImage.src = 'http://localhost:2718/data/images/default.webp';
+    this.shipImage.src = ENVIRONMENT.GAME_SERVER_URL + '/data/images/default.webp';
   }
 
   refreshScreen() {
-    let x_offset = this.renderer.width() / 2;
-    let y_offset = this.renderer.height() / 2;
     this.ships.forEach((val) => {
-      val.graphics.x(val.x + x_offset);
-      val.graphics.y(val.y + y_offset);
+      val.graphics.x(val.x + this.x_offset);
+      val.graphics.y(val.y + this.y_offset);
     });
 
     this.renderer.draw();
@@ -57,9 +58,12 @@ export class GameplayCanvasComponent {
     if (this.renderer != null && this.gameWindow != null) {
       if(this.renderer.width() != this.gameWindow.nativeElement.clientWidth) {
         this.renderer.width(this.gameWindow.nativeElement.clientWidth);
+        this.x_offset = this.renderer.width() / 2;
       }
       if(this.renderer.height() != this.gameWindow.nativeElement.clientHeight) {
         this.renderer.height(this.gameWindow.nativeElement.clientHeight);
+        this.y_offset = this.renderer.height() / 2;
+        console.log(this.y_offset);
       }
     }
   }
@@ -85,14 +89,22 @@ export class GameplayCanvasComponent {
 
         if (val.type == 'DynamicObjectUpdate') {
           let updated_ship = <DynamicObjectMessageData>val;
+          // Correct Y coordinates from world space to screen space for Konva rendering
+          updated_ship.y = -updated_ship.y;
+          if (updated_ship.velocity != null) {
+            updated_ship.velocity.vy = -updated_ship.velocity.vy;
+          }
+
           if (canvas.ships.has(updated_ship.id) == false) {
             canvas.ships.set(updated_ship.id, new RenderShip(
-              updated_ship.x,
-              updated_ship.y,
+              updated_ship.x + canvas.x_offset,
+              updated_ship.y + canvas.y_offset,
               new Konva.Image({
                 image: canvas.shipImage,
                 offsetX: canvas.shipImage.width / 2,
-                offsetY: canvas.shipImage.height / 2
+                offsetY: canvas.shipImage.height / 2,
+                x: updated_ship.x + canvas.x_offset,
+                y: updated_ship.y + canvas.y_offset
               })
             ));
             let ship = <RenderShip>canvas.ships.get(updated_ship.id);

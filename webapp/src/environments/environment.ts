@@ -2,8 +2,12 @@
 // `ng build` replaces `environment.ts` with `environment.prod.ts`.
 // The list of file replacements can be found in `angular.json`.
 
-export const environment = {
-  production: false
+const GAME_SERVER_HOST = 'localhost:2718';
+
+export const ENVIRONMENT = {
+  PRODUCTION: false,
+  GAME_SERVER_HOST: GAME_SERVER_HOST,
+  GAME_SERVER_URL: 'http://' + GAME_SERVER_HOST
 };
 
 /*

@@ -15,7 +15,7 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use ts_rs::TS;
 
 use super::dynamic_object_message_data::ExternalEntity;
@@ -27,10 +27,4 @@ pub enum ViewportFollowData {
     Entity(ExternalEntity),
     Static{x: f64, y: f64},
     Disconnected
-}
-
-#[derive(Deserialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
-pub struct ControllableObjectMotionActionData {
-    pub end_event: bool,
 }

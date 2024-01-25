@@ -3,6 +3,7 @@ import { Subject } from 'rxjs';
 import { webSocket } from 'rxjs/webSocket';
 import { ClientServerMessage } from 'bindings/ClientServerMessage';
 import { ServerClientMessage } from 'bindings/ServerClientMessage';
+import { ENVIRONMENT } from 'src/environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -11,7 +12,7 @@ import { ServerClientMessage } from 'bindings/ServerClientMessage';
 })
 export class AppComponent {
   title = 'Infinite Escape Velocity';
-  socket = webSocket('ws://localhost:2718/ws');
+  socket = ENVIRONMENT.PRODUCTION ? webSocket('ws://' + location.host + '/ws') : webSocket('ws://' + ENVIRONMENT.GAME_SERVER_HOST + '/ws');
 
   public incomingMessages = new Subject<ServerClientMessage>();
   public outgoingMessages = new Subject<ClientServerMessage>();

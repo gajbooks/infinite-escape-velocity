@@ -18,17 +18,23 @@
 use serde::Deserialize;
 use ts_rs::TS;
 
-use super::controllable_object_message_data::*;
+#[derive(Deserialize, Debug, TS)]
+#[ts(export, export_to = "webapp/bindings/")]
+pub enum ControlInput {
+    Forward,
+    Backward,
+    Left,
+    Right,
+    Fire
+}
+
+pub type ControlInputStatus = bool;
 
 #[derive(TS)]
 #[ts(export, export_to = "webapp/bindings/")]
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientServerMessage {
-    ControllableObjectMotionActionForward(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionReverse(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionLeft(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionRight(ControllableObjectMotionActionData),
-    ControllableObjectMotionActionFire(ControllableObjectMotionActionData),
+    ControlInput{input: ControlInput, pressed: ControlInputStatus},
     Disconnect,
 }

@@ -15,7 +15,7 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use crate::backend::world_objects::object_properties::collision_component::{
+use crate::backend::world_objects::components::collision_component::{
     CollidableComponent, CollisionMarker,
 };
 

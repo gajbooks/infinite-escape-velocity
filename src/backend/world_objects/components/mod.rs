@@ -15,6 +15,11 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod ship;
-pub mod server_viewport;
-pub mod components;
+pub mod angular_velocity_component;
+pub mod collision_component;
+pub mod player_controlled_component;
+pub mod position_component;
+pub mod rotation_component;
+pub mod semi_newtonian_physics_component;
+pub mod timeout_component;
+pub mod velocity_component;

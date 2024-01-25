@@ -16,7 +16,7 @@
 */
 
 use crate::backend::shrink_storage::ImmutableShrinkable;
-use crate::backend::world_objects::object_properties::collision_component::*;
+use crate::backend::world_objects::components::collision_component::*;
 use crate::connectivity::controllable_object_message_data::ViewportFollowData;
 use crate::connectivity::dynamic_object_message_data::*;
 use crate::connectivity::server_client_message::*;
@@ -27,10 +27,15 @@ use dashmap::DashSet;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::warn;
 
+use super::components::angular_velocity_component::AngularVelocityComponent;
+use super::components::position_component::PositionComponent;
+use super::components::rotation_component::RotationComponent;
+use super::components::velocity_component::VelocityComponent;
+
 #[derive(Bundle)]
 pub struct ViewportBundle {
     pub viewport: ServerViewport,
-    pub collidable: CollidableComponent<Displayable>,
+    pub collidable: CollidableComponent<Displayable>
 }
 
 #[derive(Component)]
@@ -69,7 +74,7 @@ impl ServerViewport {
         self.tracking_mode = new_tracking_mode;
         let tracking_message_data = match self.tracking_mode {
             ViewportTrackingMode::Entity(entity) => {
-                ViewportFollowData::Entity(into_external_entity(entity))
+                ViewportFollowData::Entity(entity.to_bits())
             },
             ViewportTrackingMode::Static(location) => {
                 ViewportFollowData::Static { x: location.x, y: location.y }
@@ -91,7 +96,10 @@ pub fn tick_viewport(
         &mut ServerViewport,
         &mut CollidableComponent<Displayable>,
     )>,
-    displayables: Query<(&CollisionMarker<Displayable>, &Displayable)>,
+    displayables: Query<(&CollisionMarker<Displayable>, &PositionComponent, &Displayable)>,
+    optional_velocity: Query<(&VelocityComponent, With<CollisionMarker<Displayable>>, With<PositionComponent>, With<Displayable>)>,
+    optional_rotation: Query<(&RotationComponent, With<CollisionMarker<Displayable>>, With<PositionComponent>, With<Displayable>)>,
+    optional_angular_velocity: Query<(&AngularVelocityComponent, With<CollisionMarker<Displayable>>, With<PositionComponent>, With<Displayable>, With<RotationComponent>)>,
     sessions: Query<&UserSession>,
     mut commands: Commands,
 ) {
@@ -107,8 +115,8 @@ pub fn tick_viewport(
             ViewportTrackingMode::Entity(entity) => {
                 // Track viewport to assigned entity
                 match displayables.get(entity) {
-                    Ok((tracked_hitbox, _)) => {
-                        collide_with.shape = collide_with.shape.move_center(tracked_hitbox.shape.center());
+                    Ok((_, position, _)) => {
+                        collide_with.shape = collide_with.shape.move_center(position.position);
                     },
                     Err(_lost_track) => {
                         viewport.tracking_mode = ViewportTrackingMode::Disconnected;
@@ -126,7 +134,7 @@ pub fn tick_viewport(
 
         for collision in collide_with.list.iter().map(|x| x.key().clone()) {
             // Theoretically we could get an entity in the collision list that doesn't match the query, we should just ignore them
-            let (collided_hitbox, displayable) = match displayables.get(collision) {
+            let (_collided_hitbox, position, displayable) = match displayables.get(collision) {
                 Ok(x) => x,
                 Err(_) => {
                     warn!("Entity collided with Viewport which does not have the required components: {:?}", collision);
@@ -140,26 +148,44 @@ pub fn tick_viewport(
                 false => {
                     let _ = viewport.outgoing_messages.send(
                         ServerClientMessage::DynamicObjectCreation(DynamicObjectCreationData {
-                            id: into_external_entity(collision),
+                            id: collision.to_bits(),
                         }),
                     ); // Nothing we can do about send errors for users disconnected
                 }
             }
 
-            let coordinates = collided_hitbox.shape.center();
+            let velocity = match optional_velocity.get(collision) {
+                Ok(has) => {
+                    Some(VelocityMessage{vx: has.0.velocity.x, vy: has.0.velocity.y})
+                },
+                Err(_) => None,
+            };
+
+            let rotation = match optional_rotation.get(collision) {
+                Ok(has) => {
+                    Some(RotationMessage{rotation: has.0.rotation.get()})
+                },
+                Err(_) => None,
+            };
+
+            let angular_velocity = match optional_angular_velocity.get(collision) {
+                Ok(has) => {
+                    Some(AngularVelocityMessage{angular_velocity: has.0.angular_velocity.get()})
+                },
+                Err(_) => None,
+            };
 
             // Send an update frame for each object moved which has been within the viewport for at least one frame
             let _ = viewport
                 .outgoing_messages
                 .send(ServerClientMessage::DynamicObjectUpdate(
                     DynamicObjectMessageData {
-                        id: into_external_entity(collision),
-                        x: coordinates.x,
-                        y: coordinates.y,
-                        rotation: 0.0,
-                        vx: 0.0,
-                        vy: 0.0,
-                        angular_velocity: 0.0,
+                        id: collision.to_bits(),
+                        x: position.position.x,
+                        y: position.position.y,
+                        rotation: rotation,
+                        velocity: velocity,
+                        angular_velocity: angular_velocity,
                         object_type: displayable.object_type.clone(),
                     },
                 )); // Nothing we can do about send errors for users disconnected
@@ -178,7 +204,7 @@ pub fn tick_viewport(
                 .outgoing_messages
                 .send(ServerClientMessage::DynamicObjectDestruction(
                     DynamicObjectDestructionData {
-                        id: into_external_entity(remove),
+                        id: remove.to_bits(),
                     },
                 )); // Nothing we can do about send errors for users disconnected
         }

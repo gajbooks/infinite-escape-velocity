@@ -17,17 +17,14 @@
 
 use bevy_ecs::{system::{Query, Commands}, entity::Entity};
 
-use crate::{connectivity::user_session::UserSession, backend::{world_objects::{ship::ShipBundle, server_viewport::{Displayable, ServerViewport, ViewportTrackingMode, ViewportBundle}, object_properties::collision_component::{CollisionMarker, CollidableComponent}}, shape::{PointData, Shape, CircleData}}, shared_types::{Coordinates, Radius}};
+use crate::{connectivity::user_session::UserSession, backend::{world_objects::{ship::ShipBundle, server_viewport::{Displayable, ServerViewport, ViewportTrackingMode, ViewportBundle}, components::collision_component::{CollisionMarker, CollidableComponent}}, shape::{PointData, Shape, CircleData}}, shared_types::{Coordinates, Radius}};
 
 pub fn spawn_player_ship_and_viewports(mut sessions: Query<(Entity, &mut UserSession)>, mut viewports: Query<&mut ServerViewport>, mut commands: Commands) {
     sessions.for_each_mut(|(session_entity, mut session)| {
         let following_id = match session.should_follow {
             Some(following) => following,
             None => {
-                let new_ship = ShipBundle{
-                    displayable: Displayable{object_type: format!("Player Ship {}", session.remote_address)},
-                    displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(PointData{point: Coordinates::new(0.0, 0.0)}))
-                };
+                let new_ship = ShipBundle::new(&format!("Player Ship {}", session.remote_address), Coordinates::new(0.0, 0.0));
                 let new_ship_id = commands.spawn(new_ship).id();
                 session.should_follow = Some(new_ship_id);
                 new_ship_id

@@ -15,6 +15,11 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod ship;
-pub mod server_viewport;
-pub mod components;
+use bevy_ecs::component::Component;
+
+use crate::shared_types::Rotation;
+
+#[derive(Debug, Component)]
+pub struct RotationComponent {
+    pub rotation: Rotation,
+}

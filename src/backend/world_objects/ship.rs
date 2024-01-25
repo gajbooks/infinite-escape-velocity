@@ -17,12 +17,25 @@
 
 use bevy_ecs::bundle::Bundle;
 
+use crate::{backend::shape::{PointData, Shape}, shared_types::Coordinates};
+
 use super::{
-    object_properties::collision_component::CollisionMarker, server_viewport::Displayable,
+    components::{collision_component::CollisionMarker, position_component::PositionComponent}, server_viewport::Displayable,
 };
 
 #[derive(Bundle)]
 pub struct ShipBundle {
     pub displayable: Displayable,
     pub displayable_collision_marker: CollisionMarker<Displayable>,
+    pub position: PositionComponent
+}
+
+impl ShipBundle {
+    pub fn new(name: &str, position: Coordinates) -> ShipBundle {
+        ShipBundle {
+            displayable: Displayable{object_type: format!("Ship {}", name)},
+            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(PointData{point: position})),
+            position: PositionComponent{position: position}
+        }
+    }
 }

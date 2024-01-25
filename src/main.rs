@@ -24,18 +24,19 @@ use axum::{routing::get, Router};
 use backend::resources::delta_t_resource::{increment_time, DeltaTResource};
 use backend::shape::{Shape, PointData};
 use backend::spatial_optimizer::collision_optimizer::{CollisionOptimizer, collision_system};
-use backend::world_objects::object_properties::collision_component::{clear_old_collisions, CollisionMarker};
-use backend::world_objects::object_properties::timeout_component::{check_despawn_times, TimeoutComponent};
+use backend::world_objects::components::collision_component::{clear_old_collisions, CollisionMarker};
+use backend::world_objects::components::timeout_component::{check_despawn_times, TimeoutComponent};
+use backend::world_objects::components::velocity_component::VelocityComponent;
 use backend::world_objects::server_viewport::{tick_viewport, Displayable};
 use backend::world_objects::ship::ShipBundle;
-use bevy_ecs::schedule::{Schedule, IntoSystemConfigs};
+use bevy_ecs::schedule::{IntoSystemConfigs, Schedule};
 use bevy_ecs::system::{Local, Commands, Res};
 use bevy_ecs::world::World;
 use clap::Parser;
 use connectivity::connected_users::ConnectingUsersQueue;
 use futures::channel::mpsc::unbounded;
 use rand::Rng;
-use shared_types::Coordinates;
+use shared_types::{Coordinates, Velocity, VelocityCoordinates};
 use tokio::time;
 use tower_http::compression::CompressionLayer;
 use tracing::{trace, Level, debug};
@@ -50,6 +51,10 @@ use tower_http::services::ServeDir;
 
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
 use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
+use crate::backend::systems::update_collisions_with_position::update_collisions_with_position;
+use crate::backend::systems::update_collisions_with_rotation::update_collisions_with_rotation;
+use crate::backend::systems::update_positions_with_velocity::update_positions_with_velocity;
+use crate::backend::systems::update_rotations_with_angular_momentum::update_rotations_with_angular_momentum;
 use crate::connectivity::connected_users::{spawn_user_sessions, check_alive_sessions};
 use crate::connectivity::user_session::UserSession;
 
@@ -66,11 +71,21 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
 
     if (time.total_time / *spawned) > Duration::from_secs(1) {
         *spawned += 1;
-        commands.spawn((ShipBundle {
-            displayable: Displayable{object_type: format!("Ship {}", *spawned)},
-            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(PointData{point: Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0))})),
-        }, TimeoutComponent{spawn_time: time.total_time, lifetime: Duration::from_secs(2)}));
+        commands.spawn((
+            ShipBundle::new(&spawned.to_string(), Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0))),
+            VelocityComponent{velocity: Velocity::new(plus_or_minus_random(50.0) as f32, plus_or_minus_random(50.0) as f32)},
+            TimeoutComponent{spawn_time: time.total_time, lifetime: Duration::from_secs(2)}));
     }
+}
+
+fn build_collision_phase<T: Send + Sync + 'static>(schedule: &mut Schedule, world: &mut World) {
+    world.insert_resource(CollisionOptimizer::<T>::new());
+
+    schedule
+    .add_systems(clear_old_collisions::<T>)
+    .add_systems(update_collisions_with_rotation::<T>.after(update_rotations_with_angular_momentum))
+    .add_systems(update_collisions_with_position::<T>.after(update_positions_with_velocity))
+    .add_systems(collision_system::<T>.after(clear_old_collisions::<T>).after(update_collisions_with_position::<T>).after(update_collisions_with_rotation::<T>));
 }
 
 #[derive(Parser, Debug)]
@@ -114,13 +129,15 @@ async fn main() {
     tokio::spawn(async move {
         let mut world = World::new();
         world.insert_resource(DeltaTResource::new());
-        world.insert_resource(CollisionOptimizer::<Displayable>::new());
         world.insert_resource(ConnectingUsersQueue::new(user_session_receiver));
 
         let mut schedule = Schedule::default();
-        schedule.add_systems(increment_time);
-        schedule.add_systems(clear_old_collisions::<Displayable>);
-        schedule.add_systems(collision_system::<Displayable>.after(clear_old_collisions::<Displayable>));
+        schedule
+        .add_systems(increment_time)
+        .add_systems(update_rotations_with_angular_momentum.after(increment_time))
+        .add_systems(update_positions_with_velocity.after(increment_time));
+    
+        build_collision_phase::<Displayable>(&mut schedule, &mut world);
         schedule.add_systems(tick_viewport.after(collision_system::<Displayable>));
         schedule.add_systems(spawn_a_ship_idk.after(increment_time));
         schedule.add_systems(check_despawn_times.after(increment_time));
