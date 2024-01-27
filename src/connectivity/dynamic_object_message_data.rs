@@ -17,9 +17,6 @@
 use serde::Serialize;
 use ts_rs::TS;
 
-
-pub type ExternalEntity = u64;
-
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
 pub struct VelocityMessage {
@@ -49,17 +46,17 @@ pub struct DynamicObjectMessageData {
     pub velocity: Option<VelocityMessage>,
     pub angular_velocity: Option<AngularVelocityMessage>,
     pub object_type: String,
-    pub id: ExternalEntity,
+    pub id: u64,
 }
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
 pub struct DynamicObjectCreationData {
-    pub id: ExternalEntity,
+    pub id: u64,
 }
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
 pub struct DynamicObjectDestructionData {
-    pub id: ExternalEntity,
+    pub id: u64,
 }

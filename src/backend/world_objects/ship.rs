@@ -17,25 +17,55 @@
 
 use bevy_ecs::bundle::Bundle;
 
-use crate::{backend::shape::{PointData, Shape}, shared_types::Coordinates};
+use crate::{
+    backend::shape::{PointData, Shape},
+    shared_types::{AngularVelocity, Coordinates, Rotation, Velocity},
+};
 
 use super::{
-    components::{collision_component::CollisionMarker, position_component::PositionComponent}, server_viewport::Displayable,
+    components::{
+        angular_velocity_component::AngularVelocityComponent, collision_component::CollisionMarker,
+        position_component::PositionComponent, rotation_component::RotationComponent,
+        velocity_component::VelocityComponent,
+    },
+    server_viewport::Displayable,
 };
 
 #[derive(Bundle)]
 pub struct ShipBundle {
     pub displayable: Displayable,
     pub displayable_collision_marker: CollisionMarker<Displayable>,
-    pub position: PositionComponent
+    pub position: PositionComponent,
+    pub velocity: VelocityComponent,
+    pub rotation: RotationComponent,
+    pub angular_velocity: AngularVelocityComponent,
 }
 
 impl ShipBundle {
-    pub fn new(name: &str, position: Coordinates) -> ShipBundle {
+    pub fn new(
+        name: &str,
+        position: Coordinates,
+        velocity: Option<Velocity>,
+        rotation: Option<Rotation>,
+        angular_velocity: Option<AngularVelocity>,
+    ) -> ShipBundle {
         ShipBundle {
-            displayable: Displayable{object_type: format!("Ship {}", name)},
-            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(PointData{point: position})),
-            position: PositionComponent{position: position}
+            displayable: Displayable {
+                object_type: format!("Ship {}", name),
+            },
+            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(
+                PointData { point: position },
+            )),
+            position: PositionComponent { position: position },
+            velocity: VelocityComponent {
+                velocity: velocity.unwrap_or_default(),
+            },
+            rotation: RotationComponent {
+                rotation: rotation.unwrap_or_default(),
+            },
+            angular_velocity: AngularVelocityComponent {
+                angular_velocity: angular_velocity.unwrap_or_default(),
+            },
         }
     }
 }

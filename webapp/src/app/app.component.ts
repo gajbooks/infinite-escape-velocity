@@ -1,9 +1,10 @@
 import { Component, Output } from '@angular/core';
 import { Subject } from 'rxjs';
-import { webSocket } from 'rxjs/webSocket';
+import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
 import { ClientServerMessage } from 'bindings/ClientServerMessage';
 import { ServerClientMessage } from 'bindings/ServerClientMessage';
 import { ENVIRONMENT } from 'src/environments/environment';
+/// <reference path="cbor-web/types/lib/cbor.d.ts" />
 
 @Component({
   selector: 'app-root',
@@ -22,7 +23,7 @@ export class AppComponent {
     this.socket.subscribe({
       next(value) {
         if ("type" in <any>value) {
-          incomingMessages.next(<ServerClientMessage>value);
+          incomingMessages.next(value as ServerClientMessage);
         } else {
           console.warn("Received garbage type from server: ", value);
         }

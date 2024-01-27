@@ -22,24 +22,26 @@ mod shared_types;
 
 use axum::{routing::get, Router};
 use backend::resources::delta_t_resource::{increment_time, DeltaTResource};
-use backend::shape::{Shape, PointData};
-use backend::spatial_optimizer::collision_optimizer::{CollisionOptimizer, collision_system};
-use backend::world_objects::components::collision_component::{clear_old_collisions, CollisionMarker};
-use backend::world_objects::components::timeout_component::{check_despawn_times, TimeoutComponent};
-use backend::world_objects::components::velocity_component::VelocityComponent;
+use backend::spatial_optimizer::collision_optimizer::{collision_system, CollisionOptimizer};
+use backend::world_objects::components::collision_component::clear_old_collisions;
+use backend::world_objects::components::semi_newtonian_physics_component::SemiNewtonianPhysicsComponent;
+use backend::world_objects::components::timeout_component::{
+    check_despawn_times, TimeoutComponent,
+};
 use backend::world_objects::server_viewport::{tick_viewport, Displayable};
 use backend::world_objects::ship::ShipBundle;
 use bevy_ecs::schedule::{IntoSystemConfigs, Schedule};
-use bevy_ecs::system::{Local, Commands, Res};
+use bevy_ecs::system::{Commands, Local, Res};
 use bevy_ecs::world::World;
 use clap::Parser;
 use connectivity::connected_users::ConnectingUsersQueue;
+use euclid::Angle;
 use futures::channel::mpsc::unbounded;
 use rand::Rng;
-use shared_types::{Coordinates, Velocity, VelocityCoordinates};
+use shared_types::{Coordinates, Speed, Velocity};
 use tokio::time;
 use tower_http::compression::CompressionLayer;
-use tracing::{trace, Level, debug};
+use tracing::{debug, trace, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use connectivity::websocket_handler::*;
@@ -50,13 +52,15 @@ use std::time::Duration;
 use tower_http::services::ServeDir;
 
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
+use crate::backend::systems::apply_player_control::apply_player_control;
 use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
 use crate::backend::systems::update_collisions_with_position::update_collisions_with_position;
 use crate::backend::systems::update_collisions_with_rotation::update_collisions_with_rotation;
 use crate::backend::systems::update_positions_with_velocity::update_positions_with_velocity;
-use crate::backend::systems::update_rotations_with_angular_momentum::update_rotations_with_angular_momentum;
-use crate::connectivity::connected_users::{spawn_user_sessions, check_alive_sessions};
-use crate::connectivity::user_session::UserSession;
+use crate::backend::systems::update_rotations_with_angular_velocity::update_rotations_with_angular_velocity;
+use crate::backend::systems::update_velocities_with_semi_newtonian_physics::update_velocities_with_semi_newtonian_physics;
+use crate::connectivity::connected_users::{check_alive_sessions, spawn_user_sessions};
+use crate::connectivity::user_session::{process_incoming_messages, UserSession};
 
 fn plus_or_minus_random(radius: f64) -> f64 {
     let value = rand::thread_rng().gen::<f64>();
@@ -72,9 +76,22 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
     if (time.total_time / *spawned) > Duration::from_secs(1) {
         *spawned += 1;
         commands.spawn((
-            ShipBundle::new(&spawned.to_string(), Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0))),
-            VelocityComponent{velocity: Velocity::new(plus_or_minus_random(50.0) as f32, plus_or_minus_random(50.0) as f32)},
-            TimeoutComponent{spawn_time: time.total_time, lifetime: Duration::from_secs(2)}));
+            ShipBundle::new(
+                &spawned.to_string(),
+                Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0)),
+                Some(Velocity::new(
+                    plus_or_minus_random(100.0) as f32,
+                    plus_or_minus_random(100.0) as f32,
+                )),
+                Some(Angle::radians(plus_or_minus_random(std::f64::consts::PI) as f32)),
+                Some(Angle::radians(plus_or_minus_random(std::f64::consts::PI) as f32)),
+            ),
+            SemiNewtonianPhysicsComponent::new(Speed::new(50.0)),
+            TimeoutComponent {
+                spawn_time: time.total_time,
+                lifetime: Duration::from_secs(10),
+            },
+        ));
     }
 }
 
@@ -82,11 +99,21 @@ fn build_collision_phase<T: Send + Sync + 'static>(schedule: &mut Schedule, worl
     world.insert_resource(CollisionOptimizer::<T>::new());
 
     schedule
-    .add_systems(clear_old_collisions::<T>)
-    .add_systems(update_collisions_with_rotation::<T>.after(update_rotations_with_angular_momentum))
-    .add_systems(update_collisions_with_position::<T>.after(update_positions_with_velocity))
-    .add_systems(collision_system::<T>.after(clear_old_collisions::<T>).after(update_collisions_with_position::<T>).after(update_collisions_with_rotation::<T>));
+        .add_systems(clear_old_collisions::<T>)
+        .add_systems(
+            update_collisions_with_rotation::<T>.after(update_rotations_with_angular_velocity),
+        )
+        .add_systems(update_collisions_with_position::<T>.after(update_positions_with_velocity))
+        .add_systems(
+            collision_system::<T>
+                .after(clear_old_collisions::<T>)
+                .after(update_collisions_with_position::<T>)
+                .after(update_collisions_with_rotation::<T>)
+                .before(post_collision_checkpoint),
+        );
 }
+
+fn post_collision_checkpoint() {}
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -115,14 +142,23 @@ async fn main() {
     tracing::subscriber::set_global_default(tracing.finish())
         .expect("Failed to initialize trace logging");
 
-    debug!("Using data directory: {:?}", args.data_directory.canonicalize().unwrap());
+    debug!(
+        "Using data directory: {:?}",
+        args.data_directory.canonicalize().unwrap()
+    );
 
     let app = Router::new();
 
     let app = match &args.webapp_directory {
-        Some(webapp_directory) => app.nest_service("/", ServeDir::new(webapp_directory.canonicalize().unwrap())),
+        Some(webapp_directory) => {
+            app.nest_service("/", ServeDir::new(webapp_directory.canonicalize().unwrap()))
+        }
         None => app,
-    }.nest_service("/data", ServeDir::new(args.data_directory.canonicalize().unwrap()));
+    }
+    .nest_service(
+        "/data",
+        ServeDir::new(args.data_directory.canonicalize().unwrap()),
+    );
 
     let (user_session_sender, user_session_receiver) = unbounded::<UserSession>();
 
@@ -133,17 +169,31 @@ async fn main() {
 
         let mut schedule = Schedule::default();
         schedule
-        .add_systems(increment_time)
-        .add_systems(update_rotations_with_angular_momentum.after(increment_time))
-        .add_systems(update_positions_with_velocity.after(increment_time));
-    
+            .add_systems(increment_time)
+            .add_systems(update_rotations_with_angular_velocity.after(increment_time))
+            .add_systems(
+                update_velocities_with_semi_newtonian_physics
+                    .after(update_rotations_with_angular_velocity),
+            )
+            .add_systems(
+                update_positions_with_velocity.after(update_velocities_with_semi_newtonian_physics),
+            );
+
         build_collision_phase::<Displayable>(&mut schedule, &mut world);
-        schedule.add_systems(tick_viewport.after(collision_system::<Displayable>));
-        schedule.add_systems(spawn_a_ship_idk.after(increment_time));
-        schedule.add_systems(check_despawn_times.after(increment_time));
-        schedule.add_systems(spawn_user_sessions);
-        schedule.add_systems(check_alive_sessions);
-        schedule.add_systems(spawn_player_ship_and_viewports);
+
+        schedule
+            .add_systems(post_collision_checkpoint)
+            .add_systems(tick_viewport.after(post_collision_checkpoint))
+            .add_systems(spawn_a_ship_idk.after(post_collision_checkpoint))
+            .add_systems(check_despawn_times.after(post_collision_checkpoint))
+            .add_systems(spawn_user_sessions.after(post_collision_checkpoint))
+            .add_systems(check_alive_sessions.after(post_collision_checkpoint))
+            .add_systems(spawn_player_ship_and_viewports.after(post_collision_checkpoint))
+            .add_systems(process_incoming_messages.after(post_collision_checkpoint))
+            .add_systems(
+                apply_player_control::<SemiNewtonianPhysicsComponent>
+                    .after(process_incoming_messages),
+            );
 
         const STATS_INTERVAL: usize = 1000;
         let mut stats_counter: usize = 0;
@@ -159,7 +209,11 @@ async fn main() {
             stats_counter += 1;
             average_time += duration.as_secs_f32() / 1000.0;
             if stats_counter == STATS_INTERVAL {
-                trace!("Ticked in {} milliseconds average with {} entities currently", average_time / STATS_INTERVAL as f32, world.entities().len());
+                trace!(
+                    "Ticked in {} milliseconds average with {} entities currently",
+                    average_time / STATS_INTERVAL as f32,
+                    world.entities().len()
+                );
                 stats_counter = 0;
             }
             let minimum_time = MINIMUM_TICK_DURATION.saturating_sub(duration);

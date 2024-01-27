@@ -10,6 +10,7 @@ edition = "2021"
 axum = { version="0.6", features=["ws"] }
 axum-server = { version="*", features=["tls-rustls"] }
 bevy_ecs = "*"
+ciborium = "*"
 clap = { version = "4", features = ["derive"] }
 dashmap = "5"
 euclid = {version = "0.22", features = ["serde"]}

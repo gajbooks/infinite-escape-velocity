@@ -1,22 +1,53 @@
 import { group } from '@angular/animations';
-import { Component, ElementRef, Input, ViewChild } from '@angular/core';
+import { Component, ElementRef, HostListener, Input, ViewChild } from '@angular/core';
 import { ClientServerMessage } from 'bindings/ClientServerMessage';
+import { ControlInput } from 'bindings/ControlInput';
 import { DynamicObjectCreationData } from 'bindings/DynamicObjectCreationData';
 import { DynamicObjectDestructionData } from 'bindings/DynamicObjectDestructionData';
 import { DynamicObjectMessageData } from 'bindings/DynamicObjectMessageData';
 import { ServerClientMessage } from 'bindings/ServerClientMessage';
+import { ViewportFollowData } from 'bindings/ViewportFollowData';
 import Konva from 'konva';
-import { Observable, Subject, interval } from 'rxjs';
+import { Subject, interval } from 'rxjs';
 import { ENVIRONMENT } from 'src/environments/environment';
+
+type SendMessageFunction = (input: ControlInput, pressed: boolean) => void;
+
+class KeyStatus {
+  pressed: boolean = false;
+  input: ControlInput;
+  send_message: SendMessageFunction;
+  
+  constructor(input: ControlInput, send: SendMessageFunction) {
+    this.input = input;
+    this.send_message = send;
+  }
+
+  updateStatus(key_down: boolean) {
+    if (this.pressed == false) {
+      if (key_down == true) {
+        this.pressed = true;
+        this.send_message(this.input, this.pressed);
+      }
+    } else {
+      if (key_down == false) {
+        this.pressed = false;
+        this.send_message(this.input, this.pressed);
+      }
+    }
+  }
+}
 
 class RenderShip {
   x: number;
   y: number;
+  rotation: number;
   graphics: Konva.Image
 
-  constructor(x: number, y: number, graphics: Konva.Image) {
+  constructor(x: number, y: number, rotation: number, graphics: Konva.Image) {
     this.x = x;
     this.y = y;
+    this.rotation = rotation;
     this.graphics = graphics;
   }
 }
@@ -38,17 +69,38 @@ export class GameplayCanvasComponent {
   renderLoop = interval(16);
   shipImage = new Image();
   ships: Map<BigInt, RenderShip> = new Map();
-  x_offset: number = 0.0;
-  y_offset: number = 0.0;
+  half_screen_width: number = 0.0;
+  half_screen_height: number = 0.0;
+  camera_center_x: number = 0.0;
+  camera_center_y: number = 0.0;
+  camera_center_entity: BigInt | null = null;
+  key_status: Map<String, KeyStatus> = new Map();
 
   constructor() {
     this.shipImage.src = ENVIRONMENT.GAME_SERVER_URL + '/data/images/default.webp';
   }
 
+  object_offset_x(): number {
+    return this.half_screen_width - this.camera_center_x;
+  }
+
+  object_offset_y(): number {
+    return this.half_screen_height - this.camera_center_y;
+  }
+
   refreshScreen() {
+    if (this.camera_center_entity != null) {
+      let center_entity = this.ships.get(this.camera_center_entity);
+      if (typeof center_entity !== 'undefined') {
+        this.camera_center_x = center_entity.x;
+        this.camera_center_y = center_entity.y;
+      }
+    }
+
     this.ships.forEach((val) => {
-      val.graphics.x(val.x + this.x_offset);
-      val.graphics.y(val.y + this.y_offset);
+      val.graphics.x(val.x + this.object_offset_x());
+      val.graphics.y(val.y + this.object_offset_y());
+      val.graphics.rotation(val.rotation);
     });
 
     this.renderer.draw();
@@ -56,15 +108,24 @@ export class GameplayCanvasComponent {
 
   resizeRenderer() {
     if (this.renderer != null && this.gameWindow != null) {
-      if(this.renderer.width() != this.gameWindow.nativeElement.clientWidth) {
+      if (this.renderer.width() != this.gameWindow.nativeElement.clientWidth) {
         this.renderer.width(this.gameWindow.nativeElement.clientWidth);
-        this.x_offset = this.renderer.width() / 2;
+        this.half_screen_width = this.renderer.width() / 2;
       }
-      if(this.renderer.height() != this.gameWindow.nativeElement.clientHeight) {
+      if (this.renderer.height() != this.gameWindow.nativeElement.clientHeight) {
         this.renderer.height(this.gameWindow.nativeElement.clientHeight);
-        this.y_offset = this.renderer.height() / 2;
-        console.log(this.y_offset);
+        this.half_screen_height = this.renderer.height() / 2;
       }
+    }
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  @HostListener('document:keyup', ['$event'])
+  onKeyChange(event: KeyboardEvent) {
+    let pressed = event.type == 'keydown' ? true : false;
+    let button = this.key_status.get(event.key);
+    if (typeof button !== 'undefined') {
+      button.updateStatus(pressed);
     }
   }
 
@@ -74,37 +135,46 @@ export class GameplayCanvasComponent {
       width: 1000,
       height: 1000
     });
+
     this.shipLayer = new Konva.Layer();
     this.renderer.add(this.shipLayer);
     this.renderLoop.subscribe(() => {
       this.refreshScreen();
     });
+
     let canvas = this;
     this.incomingMessages.subscribe({
       next(val) {
         if (val.type == 'DynamicObjectCreation') {
-          let new_ship = <DynamicObjectCreationData>val;
+          let new_ship = val.data as DynamicObjectCreationData;
           // We don't care about imaginary ships right now
         }
 
-        if (val.type == 'DynamicObjectUpdate') {
-          let updated_ship = <DynamicObjectMessageData>val;
+        else if (val.type == 'DynamicObjectUpdate') {
+          let updated_ship = val.data as DynamicObjectMessageData;
           // Correct Y coordinates from world space to screen space for Konva rendering
           updated_ship.y = -updated_ship.y;
           if (updated_ship.velocity != null) {
             updated_ship.velocity.vy = -updated_ship.velocity.vy;
           }
 
+          // Correct rotational coordinates from radians to degrees for Konva rendering
+          if (updated_ship.rotation != null) {
+            updated_ship.rotation.rotation = updated_ship.rotation.rotation * (180 / Math.PI);
+          }
+
           if (canvas.ships.has(updated_ship.id) == false) {
             canvas.ships.set(updated_ship.id, new RenderShip(
-              updated_ship.x + canvas.x_offset,
-              updated_ship.y + canvas.y_offset,
+              updated_ship.x,
+              updated_ship.y,
+              updated_ship.rotation?.rotation ?? 0.0,
               new Konva.Image({
                 image: canvas.shipImage,
                 offsetX: canvas.shipImage.width / 2,
                 offsetY: canvas.shipImage.height / 2,
-                x: updated_ship.x + canvas.x_offset,
-                y: updated_ship.y + canvas.y_offset
+                x: updated_ship.x + canvas.object_offset_x(),
+                y: updated_ship.y + canvas.object_offset_y(),
+                rotation: updated_ship.rotation?.rotation
               })
             ));
             let ship = <RenderShip>canvas.ships.get(updated_ship.id);
@@ -113,25 +183,48 @@ export class GameplayCanvasComponent {
 
           let ship = canvas.ships.get(updated_ship.id);
 
-          if(typeof ship !== 'undefined') {
+          if (typeof ship !== 'undefined') {
             ship.x = updated_ship.x;
             ship.y = updated_ship.y;
+            ship.rotation = updated_ship.rotation?.rotation ?? 0;
           }
 
         }
 
-        if (val.type == 'DynamicObjectDestruction') {
-          let deleted_ship = <DynamicObjectDestructionData>val;
+        else if (val.type == 'DynamicObjectDestruction') {
+          let deleted_ship = val.data as DynamicObjectDestructionData;
           let ship = canvas.ships.get(deleted_ship.id);
 
-          if(typeof ship !== 'undefined') {
+          if (typeof ship !== 'undefined') {
             ship.graphics.remove();
             canvas.ships.delete(deleted_ship.id);
           }
         }
 
+        else if (val.type == 'ViewportFollow') {
+          let viewport_follow = <ViewportFollowData>val.data;
+          if (viewport_follow.subtype == 'Disconnected') {
+            // Do nothing, leave viewport center in previous position
+          } else if (viewport_follow.subtype == 'Entity') {
+            canvas.camera_center_entity = viewport_follow.id;
+          } else if (viewport_follow.subtype == 'Static') {
+            canvas.camera_center_x = viewport_follow.x;
+            canvas.camera_center_y = viewport_follow.y;
+          }
+        }
+
       }
     })
+
+    let send_message = (input: ControlInput, pressed: boolean) => {
+      this.outgoingMessages.next({type: 'ControlInput', input: input, pressed: pressed});
+    };
+
+    this.key_status.set('ArrowDown', new KeyStatus('Backward', send_message));
+    this.key_status.set('ArrowUp', new KeyStatus('Forward', send_message));
+    this.key_status.set('ArrowLeft', new KeyStatus('Left', send_message));
+    this.key_status.set('ArrowRight', new KeyStatus('Right', send_message));
+    this.key_status.set(' ', new KeyStatus('Fire', send_message));
   }
 
   ngAfterViewChecked() {

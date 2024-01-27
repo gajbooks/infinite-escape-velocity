@@ -18,7 +18,7 @@
 use serde::Deserialize;
 use ts_rs::TS;
 
-#[derive(Deserialize, Debug, TS)]
+#[derive(Clone, Deserialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
 pub enum ControlInput {
     Forward,

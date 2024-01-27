@@ -74,7 +74,7 @@ impl ServerViewport {
         self.tracking_mode = new_tracking_mode;
         let tracking_message_data = match self.tracking_mode {
             ViewportTrackingMode::Entity(entity) => {
-                ViewportFollowData::Entity(entity.to_bits())
+                ViewportFollowData::Entity{id: entity.to_bits()}
             },
             ViewportTrackingMode::Static(location) => {
                 ViewportFollowData::Static { x: location.x, y: location.y }
@@ -97,9 +97,9 @@ pub fn tick_viewport(
         &mut CollidableComponent<Displayable>,
     )>,
     displayables: Query<(&CollisionMarker<Displayable>, &PositionComponent, &Displayable)>,
-    optional_velocity: Query<(&VelocityComponent, With<CollisionMarker<Displayable>>, With<PositionComponent>, With<Displayable>)>,
-    optional_rotation: Query<(&RotationComponent, With<CollisionMarker<Displayable>>, With<PositionComponent>, With<Displayable>)>,
-    optional_angular_velocity: Query<(&AngularVelocityComponent, With<CollisionMarker<Displayable>>, With<PositionComponent>, With<Displayable>, With<RotationComponent>)>,
+    optional_velocity: Query<&VelocityComponent>,
+    optional_rotation: Query<&RotationComponent>,
+    optional_angular_velocity: Query<&AngularVelocityComponent>,
     sessions: Query<&UserSession>,
     mut commands: Commands,
 ) {
@@ -156,21 +156,21 @@ pub fn tick_viewport(
 
             let velocity = match optional_velocity.get(collision) {
                 Ok(has) => {
-                    Some(VelocityMessage{vx: has.0.velocity.x, vy: has.0.velocity.y})
+                    Some(VelocityMessage{vx: has.velocity.x, vy: has.velocity.y})
                 },
                 Err(_) => None,
             };
 
             let rotation = match optional_rotation.get(collision) {
                 Ok(has) => {
-                    Some(RotationMessage{rotation: has.0.rotation.get()})
+                    Some(RotationMessage{rotation: has.rotation.get()})
                 },
                 Err(_) => None,
             };
 
             let angular_velocity = match optional_angular_velocity.get(collision) {
                 Ok(has) => {
-                    Some(AngularVelocityMessage{angular_velocity: has.0.angular_velocity.get()})
+                    Some(AngularVelocityMessage{angular_velocity: has.angular_velocity.get()})
                 },
                 Err(_) => None,
             };
