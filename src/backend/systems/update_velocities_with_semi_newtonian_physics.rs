@@ -79,9 +79,8 @@ pub fn update_velocities_with_semi_newtonian_physics(
                 // Trim the excess speed added by the most recent accelerations applied so acceleration can never exceed the maximum speed,
                 // then decay the remaining excess speed by an exponential constant and a small constant value per delta_t
                 let excess_falloff = ((excess_speed - delta_t_acceleration.length())
-                    .min(f32::zero())
                     * (-delta_t / EXCESS_REDUCTION_EXPONENT).exp())
-                    - (EXCESS_REDUCTION_CONSTANT * delta_t);
+                    - (EXCESS_REDUCTION_CONSTANT * delta_t).max(f32::zero());
 
                 // Create a vector velocity with the excess speed subtracted from it
                 let velocity_less_excess_exponent =

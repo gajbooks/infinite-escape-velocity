@@ -10,6 +10,7 @@ import { ViewportFollowData } from 'bindings/ViewportFollowData';
 import Konva from 'konva';
 import { Subject, interval } from 'rxjs';
 import { ENVIRONMENT } from 'src/environments/environment';
+import { StarfieldGenerator } from './starfield-generator';
 
 type SendMessageFunction = (input: ControlInput, pressed: boolean) => void;
 
@@ -75,6 +76,7 @@ export class GameplayCanvasComponent {
   camera_center_y: number = 0.0;
   camera_center_entity: BigInt | null = null;
   key_status: Map<String, KeyStatus> = new Map();
+  starfield_renderer!: StarfieldGenerator;
 
   constructor() {
     this.shipImage.src = ENVIRONMENT.GAME_SERVER_URL + '/data/images/default.webp';
@@ -96,6 +98,8 @@ export class GameplayCanvasComponent {
         this.camera_center_y = center_entity.y;
       }
     }
+
+    this.starfield_renderer.draw_stars(this.camera_center_x, this.camera_center_y, this.renderer.width(), this.renderer.height());
 
     this.ships.forEach((val) => {
       val.graphics.x(val.x + this.object_offset_x());
@@ -136,6 +140,10 @@ export class GameplayCanvasComponent {
       height: 1000
     });
 
+    let star_layer = new Konva.Layer({listening: false});
+    this.renderer.add(star_layer);
+    this.starfield_renderer = new StarfieldGenerator(star_layer);
+
     this.shipLayer = new Konva.Layer();
     this.renderer.add(this.shipLayer);
     this.renderLoop.subscribe(() => {
@@ -152,11 +160,6 @@ export class GameplayCanvasComponent {
 
         else if (val.type == 'DynamicObjectUpdate') {
           let updated_ship = val.data as DynamicObjectMessageData;
-          // Correct Y coordinates from world space to screen space for Konva rendering
-          updated_ship.y = -updated_ship.y;
-          if (updated_ship.velocity != null) {
-            updated_ship.velocity.vy = -updated_ship.velocity.vy;
-          }
 
           // Correct rotational coordinates from radians to degrees for Konva rendering
           if (updated_ship.rotation != null) {

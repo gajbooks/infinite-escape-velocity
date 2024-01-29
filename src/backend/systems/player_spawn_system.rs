@@ -85,7 +85,7 @@ pub fn spawn_player_ship_and_viewports(
                         viewport: ServerViewport::new(session_entity, session.to_remote.clone()),
                         collidable: CollidableComponent::new(Shape::Circle(CircleData {
                             location: Coordinates::new(0.0, 0.0),
-                            radius: Radius::new(2000.0),
+                            radius: Radius::new(6000.0),
                         })),
                     })
                     .id();

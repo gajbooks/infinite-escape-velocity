@@ -4,7 +4,21 @@ import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
 import { ClientServerMessage } from 'bindings/ClientServerMessage';
 import { ServerClientMessage } from 'bindings/ServerClientMessage';
 import { ENVIRONMENT } from 'src/environments/environment';
-/// <reference path="cbor-web/types/lib/cbor.d.ts" />
+// @ts-ignore
+import * as CBOR from 'cbor-web/dist/cbor';
+
+function generateWebsocket(url: string): WebSocketSubject<unknown> {
+  return webSocket({
+    url: url,
+    binaryType: 'arraybuffer',
+    serializer: (val) => {
+      return CBOR.encode(val);
+    },
+    deserializer: (event) => {
+      return CBOR.decode(event.data);
+    }
+  });
+}
 
 @Component({
   selector: 'app-root',
@@ -13,7 +27,7 @@ import { ENVIRONMENT } from 'src/environments/environment';
 })
 export class AppComponent {
   title = 'Infinite Escape Velocity';
-  socket = ENVIRONMENT.PRODUCTION ? webSocket('ws://' + location.host + '/ws') : webSocket('ws://' + ENVIRONMENT.GAME_SERVER_HOST + '/ws');
+  socket = ENVIRONMENT.PRODUCTION ? generateWebsocket('ws://' + location.host + '/ws') : generateWebsocket('ws://' + ENVIRONMENT.GAME_SERVER_HOST + '/ws');
 
   public incomingMessages = new Subject<ServerClientMessage>();
   public outgoingMessages = new Subject<ClientServerMessage>();

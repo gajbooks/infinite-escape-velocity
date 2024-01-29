@@ -80,10 +80,11 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
             let message_to_send = outbound_messages_receiver.recv().await;
             match message_to_send {
                 Some(outgoing_message) => {
-                    // It would be very difficult for a Serde serialization to fail, and would likely be a programming issue on the server
-                    let serialized = serde_json::to_string(&outgoing_message).unwrap();
+                    let mut serialized = Vec::<u8>::new();
+                    // It would be very difficult for a serialization to fail, and would likely be a programming issue on the server
+                    ciborium::into_writer(&outgoing_message, &mut serialized).unwrap();
 
-                    if sender.send(Message::Text(serialized)).await.is_err() {
+                    if sender.send(Message::Binary(serialized)).await.is_err() {
                         tracing::warn!("Websocket send failed to {}", who);
                         outbound_task_cancel.store(true, atomic::Ordering::Relaxed);
                     }
@@ -121,8 +122,8 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                             match socket_message {
                                 Ok(incoming) => {
                                     match incoming {
-                                        Message::Text(message) => {
-                                            match serde_json::from_str(&message) {
+                                        Message::Binary(bin) => {
+                                            match ciborium::from_reader(bin.as_slice()) {
                                                 Ok(deserialized) => {
                                                     match inbound_messages_sender.send(deserialized)
                                                     {
@@ -142,7 +143,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                                                     tracing::warn!("Nonsense undeserializable websocket message {:?} received from {}", e, who);
                                                 }
                                             }
-                                        }
+                                        },
                                         Message::Close(_) => {
                                             // User disconnected gracefully
                                             tracing::info!("User at {} disconnected", who);
