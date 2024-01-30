@@ -14,48 +14,49 @@
     You should have received a copy of the GNU General Public License
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
-
-use bevy_ecs::entity::Entity;
 use serde::Serialize;
 use ts_rs::TS;
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
-pub struct ExternalEntity {
-    pub generation: u32,
-    pub index: u32,
+pub struct VelocityMessage {
+    pub vx: f32,
+    pub vy: f32
 }
 
-impl From<Entity> for ExternalEntity {
-    fn from(value: Entity) -> Self {
-        ExternalEntity {
-            generation: value.generation(),
-            index: value.index(),
-        }
-    }
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to = "webapp/bindings/")]
+pub struct RotationMessage {
+    pub rotation: f32,
 }
+
+#[derive(Serialize, Debug, TS)]
+#[ts(export, export_to = "webapp/bindings/")]
+pub struct AngularVelocityMessage {
+    pub angular_velocity: f32,
+}
+
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
 pub struct DynamicObjectMessageData {
     pub x: f64,
     pub y: f64,
-    pub rotation: f32,
-    pub vx: f32,
-    pub vy: f32,
-    pub angular_velocity: f32,
+    pub rotation: Option<RotationMessage>,
+    pub velocity: Option<VelocityMessage>,
+    pub angular_velocity: Option<AngularVelocityMessage>,
     pub object_type: String,
-    pub id: ExternalEntity,
+    pub id: u64,
 }
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
 pub struct DynamicObjectCreationData {
-    pub id: ExternalEntity,
+    pub id: u64,
 }
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
 pub struct DynamicObjectDestructionData {
-    pub id: ExternalEntity,
+    pub id: u64,
 }

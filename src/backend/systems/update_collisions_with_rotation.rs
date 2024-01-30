@@ -15,6 +15,15 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod ship;
-pub mod server_viewport;
-pub mod components;
+use bevy_ecs::system::Query;
+
+use crate::backend::world_objects::components::{collision_component::{CollidableComponent, CollisionMarker}, rotation_component::RotationComponent};
+
+pub fn update_collisions_with_rotation<T: Send + Sync>(mut sender: Query<(&mut CollidableComponent<T>, &RotationComponent)>, mut receiver: Query<(&mut CollisionMarker<T>, &RotationComponent)>) {
+    sender.par_iter_mut().for_each(|(mut collider, rotation)| {
+        collider.shape = collider.shape.set_rotation(rotation.rotation);
+    });
+    receiver.par_iter_mut().for_each(|(mut collider, rotation)| {
+        collider.shape = collider.shape.set_rotation(rotation.rotation);
+    });
+}

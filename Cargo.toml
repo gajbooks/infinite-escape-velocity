@@ -1,3 +1,4 @@
+workspace = { members = ["src/misc/blackbody"] }
 [package]
 name = "infinite-escape-velocity"
 version = "0.1.0"
@@ -10,6 +11,7 @@ edition = "2021"
 axum = { version="0.6", features=["ws"] }
 axum-server = { version="*", features=["tls-rustls"] }
 bevy_ecs = "*"
+ciborium = "*"
 clap = { version = "4", features = ["derive"] }
 dashmap = "5"
 euclid = {version = "0.22", features = ["serde"]}
@@ -35,6 +37,8 @@ walkdir = "2"
 lto = true
 codegen-units=1
 debug = true
+split-debuginfo = "packed"
+strip = "symbols"
 
 [profile.dev.package."*"]
 opt-level = 3

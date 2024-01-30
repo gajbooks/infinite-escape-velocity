@@ -15,6 +15,13 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod ship;
-pub mod server_viewport;
-pub mod components;
+use bevy_ecs::system::{Query, Res};
+
+use crate::backend::{resources::delta_t_resource::DeltaTResource, world_objects::components::{angular_velocity_component::AngularVelocityComponent, rotation_component::RotationComponent}};
+
+pub fn update_rotations_with_angular_velocity(mut movable: Query<(&mut RotationComponent, &AngularVelocityComponent)>, time: Res<DeltaTResource>) {
+    let delta_t = time.last_tick.as_secs_f32();
+    movable.par_iter_mut().for_each(|(mut rotation, angular_velocity)| {
+        rotation.rotation = (rotation.rotation + (angular_velocity.angular_velocity * delta_t)).signed();
+    });
+}

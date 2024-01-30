@@ -23,9 +23,9 @@ use crate::connectivity::dynamic_object_message_data::*;
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export, export_to = "webapp/bindings/")]
-#[serde(tag = "type")]
+#[serde(tag = "type", content="data")]
 pub enum ServerClientMessage {
-    AssignControllableObject(AssignControllableObjectData),
+    ViewportFollow(ViewportFollowData),
     DynamicObjectUpdate(DynamicObjectMessageData),
     DynamicObjectCreation(DynamicObjectCreationData),
     DynamicObjectDestruction(DynamicObjectDestructionData),

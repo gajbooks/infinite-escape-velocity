@@ -16,12 +16,12 @@
 */
 
 use crate::connectivity::client_server_message::*;
-use crate::connectivity::connected_users::*;
 use crate::connectivity::server_client_message::*;
 use crate::connectivity::user_session::*;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
+use futures::channel::mpsc::UnboundedSender;
 use tokio::time::timeout;
 
 use futures::stream::StreamExt;
@@ -34,7 +34,7 @@ use tokio::sync::mpsc::unbounded_channel;
 
 #[derive(Clone)]
 pub struct HandlerState {
-    pub connections: Arc<ConnectedUsers>,
+    pub connections: UnboundedSender<UserSession>,
 }
 
 pub async fn websocket_handler(
@@ -46,7 +46,7 @@ pub async fn websocket_handler(
     websocket.on_upgrade(move |socket| handle_socket(socket, address, state.connections))
 }
 
-async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<ConnectedUsers>) {
+async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawner: UnboundedSender<UserSession>) {
     let (mut sender, mut receiver) = socket.split();
 
     let (outbound_messages_sender, mut outbound_messages_receiver) =
@@ -59,12 +59,12 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
     let outbound_task_cancel = canceled.clone();
     let inbound_task_cancel = canceled;
 
-    connections.add_user(UserSession::spawn_user_session(
+    connection_spawner.send(UserSession::spawn_user_session(
         outbound_messages_sender,
         inbound_messages_receiver,
         who,
         external_task_cancel,
-    ));
+    )).await.unwrap(); // Can't do anything if the ECS portion is disconnected
 
     let outbound_task = tokio::spawn(async move {
         loop {
@@ -80,10 +80,11 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
             let message_to_send = outbound_messages_receiver.recv().await;
             match message_to_send {
                 Some(outgoing_message) => {
-                    // It would be very difficult for a Serde serialization to fail, and would likely be a programming issue on the server
-                    let serialized = serde_json::to_string(&outgoing_message).unwrap();
+                    let mut serialized = Vec::<u8>::new();
+                    // It would be very difficult for a serialization to fail, and would likely be a programming issue on the server
+                    ciborium::into_writer(&outgoing_message, &mut serialized).unwrap();
 
-                    if sender.send(Message::Text(serialized)).await.is_err() {
+                    if sender.send(Message::Binary(serialized)).await.is_err() {
                         tracing::warn!("Websocket send failed to {}", who);
                         outbound_task_cancel.store(true, atomic::Ordering::Relaxed);
                     }
@@ -121,8 +122,8 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
                             match socket_message {
                                 Ok(incoming) => {
                                     match incoming {
-                                        Message::Text(message) => {
-                                            match serde_json::from_str(&message) {
+                                        Message::Binary(bin) => {
+                                            match ciborium::from_reader(bin.as_slice()) {
                                                 Ok(deserialized) => {
                                                     match inbound_messages_sender.send(deserialized)
                                                     {
@@ -142,7 +143,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connections: Arc<Conn
                                                     tracing::warn!("Nonsense undeserializable websocket message {:?} received from {}", e, who);
                                                 }
                                             }
-                                        }
+                                        },
                                         Message::Close(_) => {
                                             // User disconnected gracefully
                                             tracing::info!("User at {} disconnected", who);

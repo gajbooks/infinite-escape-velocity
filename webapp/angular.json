@@ -30,7 +30,7 @@
             "styles": [
               "src/styles.less"
             ],
-            "scripts": []
+            "scripts": ["node_modules/cbor-web/dist/cbor.js"]
           },
           "configurations": {
             "production": {

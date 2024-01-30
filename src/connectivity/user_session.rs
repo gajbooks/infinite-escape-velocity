@@ -15,30 +15,62 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+const CONTROL_INPUT_MESSAGE_CAPACITY: usize = 100;
+
 use std::{
     net::SocketAddr,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use bevy_ecs::{component::Component, entity::Entity, system::Query};
+use tokio::sync::{broadcast, mpsc::{UnboundedReceiver, UnboundedSender}};
 
-use crate::{
-    backend::shape::{CircleData, Shape},
-    connectivity::{
-        client_server_message::ClientServerMessage, server_client_message::ServerClientMessage,
-    },
-    shared_types::{Coordinates, Radius},
+use crate::connectivity::{
+    client_server_message::ClientServerMessage, server_client_message::ServerClientMessage,
 };
 
+use super::client_server_message::ControlInput;
+
+pub fn process_incoming_messages(mut user_sessions: Query<&mut UserSession>) {
+    user_sessions.par_iter_mut().for_each(|mut session| {
+        if session.cancel.load(Ordering::Relaxed) == true {
+            return;
+        }
+
+        while let Ok(message) = session.from_remote.try_recv() {
+            match message {
+                ClientServerMessage::Disconnect => {
+                    let _ = session.cancel.store(true, Ordering::Relaxed);
+                    continue;
+                },
+                ClientServerMessage::ControlInput { input, pressed } => {
+                    // We can't do anything about send errors when there are no receive handles
+                    let _ = session.control_input_sender.send(ControlInputMessage{input, pressed});
+                }
+                _ => (),
+            }
+        }
+    });
+}
+
+#[derive(Clone)]
+pub struct ControlInputMessage {
+    pub input: ControlInput, 
+    pub pressed: bool
+}
+
+#[derive(Component)]
 pub struct UserSession {
     pub remote_address: SocketAddr,
     pub to_remote: UnboundedSender<ServerClientMessage>,
-    pub viewports_to_spawn: Mutex<Vec<Shape>>,
+    from_remote: UnboundedReceiver<ClientServerMessage>,
+    pub control_input_sender: broadcast::Sender<ControlInputMessage>,
     pub cancel: Arc<AtomicBool>,
-    dead: AtomicBool,
+    pub primary_viewport: Option<Entity>,
+    pub should_follow: Option<Entity>,
 }
 
 impl UserSession {
@@ -47,65 +79,16 @@ impl UserSession {
         from_remote: UnboundedReceiver<ClientServerMessage>,
         remote_address: SocketAddr,
         cancel: Arc<AtomicBool>,
-    ) -> Arc<UserSession> {
-        let session = Arc::new(UserSession {
+    ) -> UserSession {
+        let session = UserSession {
+            from_remote,
             to_remote: to_remote.clone(),
+            control_input_sender: broadcast::Sender::new(CONTROL_INPUT_MESSAGE_CAPACITY),
             remote_address: remote_address,
-            cancel: cancel,
-            dead: false.into(),
-            viewports_to_spawn: Mutex::new(vec![Shape::Circle(CircleData {
-                radius: Radius::new(600.0),
-                location: Coordinates::new(0.0, 0.0),
-            })]),
-        });
-        tokio::spawn(
-            session
-                .clone()
-                .process_incoming_messages(to_remote, from_remote),
-        );
+            cancel: cancel.clone(),
+            primary_viewport: None,
+            should_follow: None,
+        };
         session
-    }
-
-    async fn process_incoming_messages(
-        self: Arc<Self>,
-        _to_remote: UnboundedSender<ServerClientMessage>,
-        mut from_remote: UnboundedReceiver<ClientServerMessage>,
-    ) {
-        loop {
-            if self.cancel.load(Ordering::Relaxed) == true {
-                break;
-            }
-
-            let message = from_remote.recv().await;
-
-            let message = match message {
-                Some(x) => x,
-                None => {
-                    continue;
-                }
-            };
-
-            match message {
-                ClientServerMessage::Disconnect => {
-                    self.disconnect();
-                    continue;
-                }
-                _ => (),
-            }
-        }
-
-        self.mark_dead();
-    }
-
-    fn mark_dead(&self) {
-        self.dead.store(true, Ordering::Relaxed);
-    }
-
-    pub fn is_dead(&self) -> bool {
-        self.dead.load(Ordering::Relaxed)
-    }
-
-    pub fn disconnect(&self) {
-        let _ = self.cancel.store(true, Ordering::Relaxed);
     }
 }

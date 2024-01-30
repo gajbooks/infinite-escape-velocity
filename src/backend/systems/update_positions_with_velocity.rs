@@ -15,6 +15,13 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod ship;
-pub mod server_viewport;
-pub mod components;
+use bevy_ecs::system::{Query, Res};
+
+use crate::{backend::{resources::delta_t_resource::DeltaTResource, world_objects::components::{position_component::PositionComponent, velocity_component::VelocityComponent}}, shared_types::{GlobalCoordinateType, WorldCoordinates}};
+
+pub fn update_positions_with_velocity(mut movable: Query<(&mut PositionComponent, &VelocityComponent)>, time: Res<DeltaTResource>) {
+    let delta_t = time.last_tick.as_secs_f32();
+    movable.par_iter_mut().for_each(|(mut position, velocity)| {
+        position.position = position.position + (velocity.velocity * delta_t).cast::<GlobalCoordinateType>().cast_unit::<WorldCoordinates>();
+    });
+}

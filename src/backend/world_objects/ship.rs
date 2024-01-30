@@ -17,9 +17,16 @@
 
 use bevy_ecs::bundle::Bundle;
 
+use crate::{
+    backend::shape::{PointData, Shape},
+    shared_types::{AngularVelocity, Coordinates, Rotation, Velocity},
+};
+
 use super::{
-    object_properties::{
-        collision_component::CollisionMarker, timeout_component::TimeoutComponent,
+    components::{
+        angular_velocity_component::AngularVelocityComponent, collision_component::CollisionMarker,
+        position_component::PositionComponent, rotation_component::RotationComponent,
+        velocity_component::VelocityComponent,
     },
     server_viewport::Displayable,
 };
@@ -28,5 +35,37 @@ use super::{
 pub struct ShipBundle {
     pub displayable: Displayable,
     pub displayable_collision_marker: CollisionMarker<Displayable>,
-    pub timeout: TimeoutComponent,
+    pub position: PositionComponent,
+    pub velocity: VelocityComponent,
+    pub rotation: RotationComponent,
+    pub angular_velocity: AngularVelocityComponent,
+}
+
+impl ShipBundle {
+    pub fn new(
+        name: &str,
+        position: Coordinates,
+        velocity: Option<Velocity>,
+        rotation: Option<Rotation>,
+        angular_velocity: Option<AngularVelocity>,
+    ) -> ShipBundle {
+        ShipBundle {
+            displayable: Displayable {
+                object_type: format!("Ship {}", name),
+            },
+            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(
+                PointData { point: position },
+            )),
+            position: PositionComponent { position: position },
+            velocity: VelocityComponent {
+                velocity: velocity.unwrap_or_default(),
+            },
+            rotation: RotationComponent {
+                rotation: rotation.unwrap_or_default(),
+            },
+            angular_velocity: AngularVelocityComponent {
+                angular_velocity: angular_velocity.unwrap_or_default(),
+            },
+        }
+    }
 }
