@@ -36,10 +36,13 @@ use connectivity::connected_users::{ConnectedUsers, create_user_viewports, Conne
 use shared_types::Coordinates;
 use tokio::time;
 use tower_http::compression::CompressionLayer;
+use tracing::instrument::WithSubscriber;
 use tracing::{trace, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use connectivity::websocket_handler::*;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use std::net::SocketAddr;
 use std::sync::*;
 use std::time::Duration;
@@ -82,12 +85,14 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
+    let tracing_filters = tracing_subscriber::filter::Targets::new().with_default(Level::TRACE).with_target("bevy_ecs", Level::WARN);
+
     let tracing = match args.verbose_logs {
         true => FmtSubscriber::builder().with_max_level(Level::TRACE),
         false => FmtSubscriber::builder().with_max_level(Level::INFO),
-    };
+    }.finish().with(tracing_filters);
 
-    tracing::subscriber::set_global_default(tracing.finish())
+    tracing::subscriber::set_global_default(tracing)
         .expect("Failed to initialize trace logging");
 
     let app = Router::new();

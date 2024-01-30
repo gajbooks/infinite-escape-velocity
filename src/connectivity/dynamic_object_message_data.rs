@@ -20,6 +20,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 #[derive(Serialize, Debug, TS)]
+#[ts(export, export_to = "webapp/bindings/")]
 pub struct ExternalEntity {
     pub generation: u32,
     pub index: u32,
