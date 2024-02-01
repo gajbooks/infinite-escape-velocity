@@ -1137,6 +1137,8 @@ dependencies = [
  "futures",
  "futures-util",
  "fxhash",
+ "mime",
+ "mime_guess",
  "num",
  "rand",
  "rayon",

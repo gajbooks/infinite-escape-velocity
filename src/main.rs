@@ -16,7 +16,7 @@
 */
 
 mod backend;
-mod configuration_loaders;
+mod configuration_file_structures;
 mod connectivity;
 mod shared_types;
 
@@ -41,13 +41,11 @@ use rand::Rng;
 use shared_types::{Coordinates, Speed, Velocity};
 use tokio::time;
 use tower_http::compression::CompressionLayer;
-use tracing::instrument::WithSubscriber;
 use tracing::{debug, trace, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use connectivity::websocket_handler::*;
 use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -174,15 +172,12 @@ async fn main() {
 
         let mut schedule = Schedule::default();
         schedule
-            .add_systems(increment_time)
-            .add_systems(update_rotations_with_angular_velocity.after(increment_time))
-            .add_systems(
-                update_velocities_with_semi_newtonian_physics
-                    .after(update_rotations_with_angular_velocity),
-            )
-            .add_systems(
-                update_positions_with_velocity.after(update_velocities_with_semi_newtonian_physics),
-            );
+            .add_systems((
+                increment_time,
+                update_rotations_with_angular_velocity,
+                update_velocities_with_semi_newtonian_physics,
+                update_positions_with_velocity
+            ).chain());
 
         build_collision_phase::<Displayable>(&mut schedule, &mut world);
 

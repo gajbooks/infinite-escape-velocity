@@ -17,7 +17,7 @@
 
 use std::sync::{atomic::AtomicBool, Arc};
 
-use bevy_ecs::{component::Component, system::In};
+use bevy_ecs::component::Component;
 use tokio::sync::broadcast;
 
 use crate::connectivity::user_session::ControlInputMessage;

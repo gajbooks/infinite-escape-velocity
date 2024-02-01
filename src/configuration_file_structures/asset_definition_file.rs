@@ -15,6 +15,37 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod graphics_configuration;
-pub mod object_configuration_file;
-pub mod object_configuration_record;
+use serde::Deserialize;
+
+#[derive(Deserialize, Debug)]
+pub struct ComplexSpriteSection {
+    pub top_left_x: u32,
+    pub top_left_y: u32,
+    pub width: u32,
+    pub height: u32
+}
+
+#[derive(Deserialize, Debug)]
+pub enum GraphicsType {
+    StaticImage,
+    SimpleSquareRotationalSpriteSheet {
+        sprite_count_x: u32,
+        sprite_count_y: u32
+    },
+    ComplexVariableSizeRotationalSpriteSheet {
+        sprite_sections: Vec<ComplexSpriteSection>
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub enum AssetType {
+    Graphics(GraphicsType),
+    Sound,
+    Music
+}
+
+#[derive(Deserialize, Debug)]
+pub struct AssetDefinitionFile {
+    pub asset_name: String,
+    pub asset_type: AssetType
+}

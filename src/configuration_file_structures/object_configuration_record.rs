@@ -18,11 +18,6 @@
 use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct GraphicsParameters {
-    pub simple: Option<SimpleTextureGraphic>,
+pub struct ObjectConfigurationRecord {
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct SimpleTextureGraphic {
-    pub filename: String,
-}

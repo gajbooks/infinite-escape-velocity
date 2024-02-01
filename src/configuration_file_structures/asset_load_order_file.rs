@@ -15,32 +15,9 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::time::Duration;
+use serde::Deserialize;
 
-use bevy_ecs::{
-    component::Component,
-    entity::Entity,
-    system::{ ParallelCommands, Query, Res},
-};
-
-use crate::backend::resources::delta_t_resource::DeltaTResource;
-
-#[derive(Component)]
-pub struct TimeoutComponent {
-    pub spawn_time: Duration,
-    pub lifetime: Duration,
-}
-
-pub fn check_despawn_times(
-    timeouts: Query<(Entity, &TimeoutComponent)>,
-    time: Res<DeltaTResource>,
-    commands: ParallelCommands,
-) {
-    timeouts.par_iter().for_each(|(entity, timeout)| {
-        if time.total_time - timeout.spawn_time > timeout.lifetime {
-            commands.command_scope(|mut commands| {
-                commands.entity(entity).despawn();
-            })
-        }
-    });
+#[derive(Deserialize, Debug)]
+pub struct AssetLoadOrderFile {
+    pub files: Vec<String>
 }

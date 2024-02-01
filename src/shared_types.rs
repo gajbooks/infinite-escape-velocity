@@ -23,7 +23,6 @@ pub type GlobalCoordinateType = f64;
 pub type LocalCoordinateType = f32;
 
 pub struct WorldCoordinates;
-pub struct RotationCoordinates;
 pub struct VelocityCoordinates;
 pub struct AccelerationCoordinates;
 

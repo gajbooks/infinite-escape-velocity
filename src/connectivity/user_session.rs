@@ -50,7 +50,6 @@ pub fn process_incoming_messages(mut user_sessions: Query<&mut UserSession>) {
                     // We can't do anything about send errors when there are no receive handles
                     let _ = session.control_input_sender.send(ControlInputMessage{input, pressed});
                 }
-                _ => (),
             }
         }
     });

@@ -19,7 +19,7 @@ use std::sync::atomic::Ordering;
 
 use bevy_ecs::{
     entity::Entity,
-    system::{Commands, Query, ResMut, Resource},
+    system::{Commands, ParallelCommands, Query, ResMut, Resource},
 };
 use futures::channel::mpsc::UnboundedReceiver;
 
@@ -46,10 +46,12 @@ pub fn spawn_user_sessions(
     }
 }
 
-pub fn check_alive_sessions(sessions: Query<(Entity, &UserSession)>, mut commands: Commands) {
-    sessions.for_each(|(entity, session)| {
+pub fn check_alive_sessions(sessions: Query<(Entity, &UserSession)>, commands: ParallelCommands) {
+    sessions.par_iter().for_each(|(entity, session)| {
         if session.cancel.load(Ordering::Relaxed) {
-            commands.entity(entity).despawn();
+            commands.command_scope(|mut commands| {
+                commands.entity(entity).despawn();
+            });
         }
     })
 }
