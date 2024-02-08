@@ -113,8 +113,8 @@ impl Shape {
         }
     }
 
-    pub fn aabb_iter<const HASH_CELL_SIZE: u32>(&self) -> AABBIterator<HASH_CELL_SIZE> {
-        return AABBIterator::new(self.aabb());
+    pub fn aabb_iter(&self, hash_cell_size: u32) -> AABBIterator {
+        return AABBIterator::new(self.aabb(), hash_cell_size);
     }
 
     pub fn collides(&self, other: &Shape) -> bool {

@@ -97,7 +97,7 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
     }
 }
 
-fn build_collision_phase<T: Send + Sync + HashSized + 'static, const HASH_CELL_SIZE: u32>(schedule: &mut Schedule, world: &mut World) {
+fn build_collision_phase<T: Send + Sync + HashSized + 'static>(schedule: &mut Schedule, world: &mut World) {
     world.insert_resource(CollisionOptimizer::<T>::new());
 
     schedule
@@ -107,7 +107,7 @@ fn build_collision_phase<T: Send + Sync + HashSized + 'static, const HASH_CELL_S
         )
         .add_systems(update_collisions_with_position::<T>.after(update_positions_with_velocity))
         .add_systems(
-            collision_system::<T, HASH_CELL_SIZE>
+            collision_system::<T>
                 .after(clear_old_collisions::<T>)
                 .after(update_collisions_with_position::<T>)
                 .after(update_collisions_with_rotation::<T>)
@@ -180,7 +180,7 @@ async fn main() {
                 update_positions_with_velocity
             ).chain());
 
-        build_collision_phase::<Displayable, {Displayable::HASH_CELL_SIZE}>(&mut schedule, &mut world);
+        build_collision_phase::<Displayable>(&mut schedule, &mut world);
 
         schedule
             .add_systems(post_collision_checkpoint)
