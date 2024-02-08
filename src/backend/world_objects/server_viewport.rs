@@ -16,6 +16,7 @@
 */
 
 use crate::backend::shrink_storage::ImmutableShrinkable;
+use crate::backend::spatial_optimizer::hash_sized::HashSized;
 use crate::backend::world_objects::components::collision_component::*;
 use crate::connectivity::controllable_object_message_data::ViewportFollowData;
 use crate::connectivity::dynamic_object_message_data::*;
@@ -42,6 +43,8 @@ pub struct ViewportBundle {
 pub struct Displayable {
     pub object_type: String,
 }
+
+impl HashSized for Displayable {}
 
 pub enum ViewportTrackingMode {
     Entity(Entity),

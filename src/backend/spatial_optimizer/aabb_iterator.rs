@@ -17,9 +17,7 @@
 use super::hash_coordinates::*;
 use crate::shared_types::*;
 
-const SQUARE_SIZE: HashCoordinateType = 1024;
-
-pub struct AABBIterator {
+pub struct AABBIterator<const HASH_CELL_SIZE: u32> {
     x_len: HashCoordinateType,
     end_x: HashCoordinateType,
     end_y: HashCoordinateType,
@@ -27,13 +25,14 @@ pub struct AABBIterator {
     current_y: HashCoordinateType,
 }
 
-impl AABBIterator {
-    pub fn new(bb: AABB) -> AABBIterator {
+impl<const HASH_CELL_SIZE: u32> AABBIterator<HASH_CELL_SIZE> {
+
+    pub fn new(bb: AABB) -> AABBIterator<HASH_CELL_SIZE> {
         let max = HashCoordinateType::MAX as f64;
-        let start_x = (bb.min.x % max) as HashCoordinateType / SQUARE_SIZE;
-        let start_y = (bb.min.y % max) as HashCoordinateType / SQUARE_SIZE;
-        let end_x = (bb.max.x % max) as HashCoordinateType / SQUARE_SIZE;
-        let end_y = (bb.max.y % max) as HashCoordinateType / SQUARE_SIZE;
+        let start_x = (bb.min.x % max) as HashCoordinateType / HASH_CELL_SIZE as i32;
+        let start_y = (bb.min.y % max) as HashCoordinateType / HASH_CELL_SIZE as i32;
+        let end_x = (bb.max.x % max) as HashCoordinateType / HASH_CELL_SIZE as i32;
+        let end_y = (bb.max.y % max) as HashCoordinateType / HASH_CELL_SIZE as i32;
 
         let x_len = (end_x - start_x) + 1;
         return AABBIterator {
@@ -46,7 +45,7 @@ impl AABBIterator {
     }
 }
 
-impl Iterator for AABBIterator {
+impl<const HASH_CELL_SIZE: u32> Iterator for AABBIterator<HASH_CELL_SIZE> {
     type Item = HashCoordinates;
 
     fn next(&mut self) -> Option<Self::Item> {

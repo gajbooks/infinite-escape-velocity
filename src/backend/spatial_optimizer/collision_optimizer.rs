@@ -19,7 +19,7 @@ use crate::backend::world_objects::components::collision_component::{
     CollidableComponent, CollisionMarker,
 };
 
-use super::hash_coordinates::*;
+use super::{hash_coordinates::*, hash_sized::HashSized};
 use bevy_ecs::prelude::*;
 use rayon::prelude::*;
 
@@ -34,7 +34,7 @@ struct ObjectWithinCell<'a, T: Send + Sync + 'static> {
     pub sender_receiver: SenderReceiver<'a, T>,
 }
 
-pub fn collision_system<T: Send + Sync>(
+pub fn collision_system<T: Send + Sync + HashSized, const HASH_CELL_SIZE: u32>(
     mut optimizer: ResMut<CollisionOptimizer<T>>,
     receivers: Query<(Entity, &CollidableComponent<T>)>,
     senders: Query<(Entity, &CollisionMarker<T>)>,
@@ -43,7 +43,7 @@ pub fn collision_system<T: Send + Sync>(
     list.extend(receivers.iter().flat_map(|(entity, collision_receiver)| {
         collision_receiver
             .shape
-            .aabb_iter()
+            .aabb_iter::<HASH_CELL_SIZE>()
             .map(move |coordinates| ObjectWithinCell {
                 cell: coordinates,
                 entity: entity.clone(),
@@ -54,7 +54,7 @@ pub fn collision_system<T: Send + Sync>(
     list.extend(senders.iter().flat_map(|(entity, collision_sender)| {
         collision_sender
             .shape
-            .aabb_iter()
+            .aabb_iter::<HASH_CELL_SIZE>()
             .map(move |coordinates| ObjectWithinCell {
                 cell: coordinates,
                 entity: entity.clone(),

@@ -113,7 +113,7 @@ impl Shape {
         }
     }
 
-    pub fn aabb_iter(&self) -> AABBIterator {
+    pub fn aabb_iter<const HASH_CELL_SIZE: u32>(&self) -> AABBIterator<HASH_CELL_SIZE> {
         return AABBIterator::new(self.aabb());
     }
 

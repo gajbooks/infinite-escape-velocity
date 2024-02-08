@@ -15,7 +15,8 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod aabb_iterator;
-pub mod hash_coordinates;
-pub mod collision_optimizer;
-pub mod hash_sized;
+const DEFAULT_HASH_CELL_SIZE: u32 = 1024;
+
+pub trait HashSized {
+    const HASH_CELL_SIZE: u32 = DEFAULT_HASH_CELL_SIZE;
+}
