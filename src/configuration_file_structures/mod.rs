@@ -16,6 +16,5 @@
 */
 
 pub mod asset_definition_file;
-pub mod asset_load_order_file;
-pub mod object_configuration_file;
-pub mod object_configuration_record;
+pub mod load_order_file;
+pub mod planetoid_configuration_file;

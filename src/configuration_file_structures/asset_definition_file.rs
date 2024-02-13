@@ -15,37 +15,32 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Deserialize, Debug)]
-pub struct ComplexSpriteSection {
-    pub top_left_x: u32,
-    pub top_left_y: u32,
-    pub width: u32,
-    pub height: u32
-}
-
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Copy, Deserialize, Debug, Serialize, TS)]
+#[ts(export, export_to = "webapp/bindings/assets/")]
 pub enum GraphicsType {
     StaticImage,
     SimpleSquareRotationalSpriteSheet {
         sprite_count_x: u32,
         sprite_count_y: u32
-    },
-    ComplexVariableSizeRotationalSpriteSheet {
-        sprite_sections: Vec<ComplexSpriteSection>
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Copy, Deserialize, Debug, Serialize, TS)]
+#[ts(export, export_to = "webapp/bindings/assets/")]
 pub enum AssetType {
     Graphics(GraphicsType),
     Sound,
-    Music
+    Music,
+    Text
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Clone, Deserialize, Debug, Serialize, TS)]
+#[ts(export, export_to = "webapp/bindings/assets/")]
 pub struct AssetDefinitionFile {
     pub asset_name: String,
-    pub asset_type: AssetType
+    pub asset_type: AssetType,
+    pub filename: String
 }

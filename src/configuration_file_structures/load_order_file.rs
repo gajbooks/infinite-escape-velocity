@@ -15,9 +15,11 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::path::PathBuf;
+
 use serde::Deserialize;
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct ObjectConfigurationRecord {
+#[derive(Deserialize, Debug)]
+pub struct LoadOrderFile {
+    pub files: Vec<PathBuf>
 }
-

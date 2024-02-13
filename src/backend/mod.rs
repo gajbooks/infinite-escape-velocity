@@ -15,6 +15,7 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+pub mod configuration_file_loaders;
 pub mod resources;
 pub mod shape;
 pub mod shrink_storage;

@@ -15,11 +15,5 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use super::object_configuration_record::*;
-use serde::Deserialize;
-
-#[derive(Deserialize)]
-pub struct ObjectConfigurationFile {
-    pub version: u32,
-    pub definitions: Vec<ObjectConfigurationRecord>,
-}
+pub mod asset_bundle_loader;
+pub mod asset_file_cache;

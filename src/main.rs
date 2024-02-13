@@ -21,6 +21,7 @@ mod connectivity;
 mod shared_types;
 
 use axum::{routing::get, Router};
+use backend::configuration_file_loaders::asset_bundle_loader::AssetBundleLoader;
 use backend::resources::delta_t_resource::{increment_time, DeltaTResource};
 use backend::spatial_optimizer::collision_optimizer::{collision_system, CollisionOptimizer};
 use backend::spatial_optimizer::hash_sized::HashSized;
@@ -46,13 +47,15 @@ use tracing::{debug, trace, Level};
 use tracing_subscriber::FmtSubscriber;
 
 use connectivity::websocket_handler::*;
-use tracing_subscriber::layer::SubscriberExt;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
+use tracing_subscriber::layer::SubscriberExt;
 
 use tower_http::services::ServeDir;
 
+use crate::backend::configuration_file_loaders::asset_file_cache::AssetFileCache;
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
 use crate::backend::systems::apply_player_control::apply_player_control;
 use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
@@ -61,6 +64,7 @@ use crate::backend::systems::update_collisions_with_rotation::update_collisions_
 use crate::backend::systems::update_positions_with_velocity::update_positions_with_velocity;
 use crate::backend::systems::update_rotations_with_angular_velocity::update_rotations_with_angular_velocity;
 use crate::backend::systems::update_velocities_with_semi_newtonian_physics::update_velocities_with_semi_newtonian_physics;
+use crate::connectivity::asset_server::{asset_handler, AssetServerState};
 use crate::connectivity::connected_users::{check_alive_sessions, spawn_user_sessions};
 use crate::connectivity::user_session::{process_incoming_messages, UserSession};
 
@@ -85,8 +89,12 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
                     plus_or_minus_random(100.0) as f32,
                     plus_or_minus_random(100.0) as f32,
                 )),
-                Some(Angle::radians(plus_or_minus_random(std::f64::consts::PI) as f32)),
-                Some(Angle::radians(plus_or_minus_random(std::f64::consts::PI) as f32)),
+                Some(Angle::radians(
+                    plus_or_minus_random(std::f64::consts::PI) as f32
+                )),
+                Some(Angle::radians(
+                    plus_or_minus_random(std::f64::consts::PI) as f32
+                )),
             ),
             SemiNewtonianPhysicsComponent::new(Speed::new(50.0)),
             TimeoutComponent {
@@ -97,7 +105,10 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
     }
 }
 
-fn build_collision_phase<T: Send + Sync + HashSized + 'static>(schedule: &mut Schedule, world: &mut World) {
+fn build_collision_phase<T: Send + Sync + HashSized + 'static>(
+    schedule: &mut Schedule,
+    world: &mut World,
+) {
     world.insert_resource(CollisionOptimizer::<T>::new());
 
     schedule
@@ -136,33 +147,54 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
-    let tracing_filters = tracing_subscriber::filter::Targets::new().with_default(Level::TRACE).with_target("bevy_ecs", Level::WARN);
+    let tracing_filters = tracing_subscriber::filter::Targets::new()
+        .with_default(Level::TRACE)
+        .with_target("bevy_ecs", Level::WARN);
 
     let tracing = match args.verbose_logs {
         true => FmtSubscriber::builder().with_max_level(Level::TRACE),
         false => FmtSubscriber::builder().with_max_level(Level::INFO),
-    }.finish().with(tracing_filters);
+    }
+    .finish()
+    .with(tracing_filters);
 
-    tracing::subscriber::set_global_default(tracing)
-        .expect("Failed to initialize trace logging");
+    tracing::subscriber::set_global_default(tracing).expect("Failed to initialize trace logging");
 
     debug!(
         "Using data directory: {:?}",
         args.data_directory.canonicalize().unwrap()
     );
 
+    let asset_loader =
+        match AssetBundleLoader::load_from_directory(args.data_directory.canonicalize().unwrap())
+            .await
+        {
+            Ok(ok) => ok,
+            Err(error) => {
+                panic!("Could not load asset bundles from disk: {}", error);
+            }
+        };
+
+    let mut asset_cache = AssetFileCache::new();
+
+    for bundle in asset_loader.get_assets() {
+        tracing::debug!("Loading asset bundle {}", bundle.path.to_string_lossy());
+        match asset_cache.load_asset_bundle(bundle).await {
+            Ok(()) => (),
+            Err(error) => {
+                panic!("Could not load asset bundle from disk: {}", error);
+            },
+        }
+    }
+
     let app = Router::new();
 
     let app = match &args.webapp_directory {
         Some(webapp_directory) => {
-            app.nest_service("/", ServeDir::new(webapp_directory.canonicalize().unwrap()))
+            app.nest_service("/", ServeDir::new(webapp_directory.canonicalize().unwrap())).layer(CompressionLayer::new())
         }
         None => app,
-    }
-    .nest_service(
-        "/data",
-        ServeDir::new(args.data_directory.canonicalize().unwrap()),
-    );
+    };
 
     let (user_session_sender, user_session_receiver) = unbounded::<UserSession>();
 
@@ -172,13 +204,15 @@ async fn main() {
         world.insert_resource(ConnectingUsersQueue::new(user_session_receiver));
 
         let mut schedule = Schedule::default();
-        schedule
-            .add_systems((
+        schedule.add_systems(
+            (
                 increment_time,
                 update_rotations_with_angular_velocity,
                 update_velocities_with_semi_newtonian_physics,
-                update_positions_with_velocity
-            ).chain());
+                update_positions_with_velocity,
+            )
+                .chain(),
+        );
 
         build_collision_phase::<Displayable>(&mut schedule, &mut world);
 
@@ -230,10 +264,16 @@ async fn main() {
         connections: user_session_sender,
     };
 
+    let asset_server_state = AssetServerState {
+        assets: Arc::new(asset_cache)
+    };
+
     let app = app
         .route("/ws", get(websocket_handler))
         .with_state(websocket_state)
-        .layer(CompressionLayer::new());
+        .route("/assets/:asset_name", get(asset_handler))
+        .with_state(asset_server_state)
+        ;
 
     axum::Server::bind(&"0.0.0.0:2718".parse().unwrap())
         .serve(app.into_make_service_with_connect_info::<SocketAddr>())

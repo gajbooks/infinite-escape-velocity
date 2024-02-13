@@ -15,6 +15,7 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+pub mod asset_server;
 pub mod client_server_message;
 pub mod connected_users;
 pub mod controllable_object_message_data;

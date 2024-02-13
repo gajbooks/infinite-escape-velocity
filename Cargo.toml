@@ -11,6 +11,7 @@ edition = "2021"
 axum = { version="0.6", features=["ws"] }
 axum-server = { version="*", features=["tls-rustls"] }
 bevy_ecs = "*"
+bytes = "*"
 ciborium = "*"
 clap = { version = "4", features = ["derive"] }
 dashmap = "5"
@@ -34,6 +35,7 @@ ts-rs = { version="7" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 walkdir = "2"
+async_zip = { version = "*", features = ["tokio", "tokio-fs", "deflate"] }
 
 [profile.release]
 lto = true
