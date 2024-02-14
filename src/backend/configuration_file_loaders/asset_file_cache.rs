@@ -25,7 +25,7 @@ use bytes::Bytes;
 use futures_util::{future::join_all, AsyncReadExt};
 use tokio::task::spawn_blocking;
 
-use crate::configuration_file_structures::asset_definition_file::AssetDefinitionFile;
+use crate::configuration_file_structures::asset_definition_file::{AssetDefinition, AssetDefinitionFile, AssetType};
 
 use super::asset_bundle_loader::AssetBundle;
 
@@ -182,17 +182,17 @@ impl GetFileData for FolderReader {
     }
 }
 pub struct AssetFileCache {
-    assets: HashMap<String, (AssetDefinitionFile, Bytes)>,
+    assets: HashMap<String, (AssetDefinition, Option<Bytes>)>
 }
 
 impl AssetFileCache {
     pub fn new() -> Self {
         Self {
-            assets: HashMap::new(),
+            assets: HashMap::new()
         }
     }
 
-    pub fn get_asset_data(&self, asset_name: &str) -> Option<(AssetDefinitionFile, Bytes)> {
+    pub fn get_asset_data_by_name(&self, asset_name: &str) -> Option<(AssetDefinition, Option<Bytes>)> {
         self.assets.get(asset_name).cloned()
     }
 
@@ -276,8 +276,10 @@ impl AssetFileCache {
         let mut duplicate_name_checker = HashSet::<String>::new();
 
         for (_path, asset_info) in &found_asset_files {
-            if duplicate_name_checker.insert(asset_info.asset_name.clone()) == false {
-                tracing::warn!("Duplicated asset name found within bundle {} with name {}, this could be an error or result in inconsistent load orders!", file.path.to_string_lossy(), asset_info.asset_name);
+            for asset in &asset_info.assets {
+                if duplicate_name_checker.insert(asset.asset_name.clone()) == false {
+                    tracing::warn!("Duplicated asset name found within bundle {} with name {}, this could be an error or result in inconsistent load orders!", file.path.to_string_lossy(), asset.asset_name);
+                }
             }
         }
 
@@ -285,16 +287,29 @@ impl AssetFileCache {
 
         let read_asset_file_tasks = found_asset_files
             .into_iter()
+            .flat_map(|(possible_directory, flatten_assets)| {
+                flatten_assets.assets.into_iter().map(move |asset| (possible_directory.clone(), asset))
+            })
             .map(|possible_directory| (possible_directory, &asset_loader))
             .map(
                 |((containing_directory, asset_definition), asset_loader)| async move {
-                    let name = asset_definition.filename.clone();
-                    (
-                        asset_definition,
-                        asset_loader
-                            .try_get_file(&PathBuf::from(&containing_directory).join(&name))
-                            .await,
-                    )
+                    let name = asset_definition.asset_type.try_get_filename();
+
+                    match name {
+                        Some(load_file) => {
+                            let loaded = asset_loader
+                            .try_get_file(&PathBuf::from(&containing_directory).join(&load_file))
+                            .await;
+
+                            (
+                                asset_definition,
+                                loaded,
+                            )
+                        },
+                        None => {
+                            (asset_definition, Ok(None))
+                        },
+                    }
                 },
             );
 
@@ -303,17 +318,26 @@ impl AssetFileCache {
                 Ok(read) => {
                     match read {
                         Some(has_file) => {
-                            Some((asset_definition, has_file))
+                            Some((asset_definition, Some(has_file)))
                         },
                         None => {
-                            tracing::error!("Associated asset file does not exist for asset json {}", &asset_definition.filename);
-                            error_reading_asset_files = true;
-                            None
+                            match asset_definition.asset_type {
+                                AssetType::Meta(ref _meta) => {
+                                    // Asset type is meta, no associated data should be present
+                                    Some((asset_definition, None))
+                                },
+                                _ => {
+                                    // Non-meta asset, means that a file could not be read
+                                    tracing::error!("Associated asset file {} does not exist for asset {}", asset_definition.asset_type.try_get_filename().unwrap_or_default(), &asset_definition.asset_name);
+                                    error_reading_asset_files = true;
+                                    None
+                                }
+                            }
                         },
                     }
                 },
                 Err(error_reading) => {
-                    tracing::error!("File read error reading asset data from bundle for asset specified as {} with error {}", &asset_definition.filename, error_reading);
+                    tracing::error!("File read error reading asset data file {} from bundle for asset specified as {} with error {}", asset_definition.asset_type.try_get_filename().unwrap_or_default(), &asset_definition.asset_name, error_reading);
                     error_reading_asset_files = true;
                     None
                 },

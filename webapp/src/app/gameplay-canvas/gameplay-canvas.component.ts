@@ -79,7 +79,7 @@ export class GameplayCanvasComponent {
   starfield_renderer!: StarfieldGenerator;
 
   constructor() {
-    this.shipImage.src = ENVIRONMENT.GAME_SERVER_URL + '/assets/default_image';
+    this.shipImage.src = ENVIRONMENT.GAME_SERVER_URL + '/assets/name/default_image';
   }
 
   object_offset_x(): number {

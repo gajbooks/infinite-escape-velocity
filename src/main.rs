@@ -64,7 +64,7 @@ use crate::backend::systems::update_collisions_with_rotation::update_collisions_
 use crate::backend::systems::update_positions_with_velocity::update_positions_with_velocity;
 use crate::backend::systems::update_rotations_with_angular_velocity::update_rotations_with_angular_velocity;
 use crate::backend::systems::update_velocities_with_semi_newtonian_physics::update_velocities_with_semi_newtonian_physics;
-use crate::connectivity::asset_server::{asset_handler, AssetServerState};
+use crate::connectivity::asset_server::{ asset_by_name, AssetServerState};
 use crate::connectivity::connected_users::{check_alive_sessions, spawn_user_sessions};
 use crate::connectivity::user_session::{process_incoming_messages, UserSession};
 
@@ -271,7 +271,7 @@ async fn main() {
     let app = app
         .route("/ws", get(websocket_handler))
         .with_state(websocket_state)
-        .route("/assets/:asset_name", get(asset_handler))
+        .route("/assets/name/:asset_name", get(asset_by_name))
         .with_state(asset_server_state)
         ;
 

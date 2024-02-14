@@ -18,29 +18,52 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-#[derive(Clone, Copy, Deserialize, Debug, Serialize, TS)]
+
+#[derive(Clone, Deserialize, Debug, Serialize, TS)]
 #[ts(export, export_to = "webapp/bindings/assets/")]
 pub enum GraphicsType {
-    StaticImage,
     SimpleSquareRotationalSpriteSheet {
         sprite_count_x: u32,
-        sprite_count_y: u32
+        sprite_count_y: u32,
+        image_data_asset: String
     }
 }
 
-#[derive(Clone, Copy, Deserialize, Debug, Serialize, TS)]
+#[derive(Clone, Deserialize, Debug, Serialize, TS)]
+#[ts(export, export_to = "webapp/bindings/assets/")]
+pub enum MetaAsset {
+    Graphics(GraphicsType)
+}
+
+#[derive(Clone, Deserialize, Debug, Serialize, TS)]
 #[ts(export, export_to = "webapp/bindings/assets/")]
 pub enum AssetType {
-    Graphics(GraphicsType),
-    Sound,
-    Music,
-    Text
+    Image(String),
+    Sound(String),
+    Text(String),
+    Meta(MetaAsset)
+}
+
+impl AssetType {
+    pub fn try_get_filename(&self) -> Option<&str> {
+        match self {
+            AssetType::Image(filename) => Some(filename),
+            AssetType::Sound(filename) => Some(filename),
+            AssetType::Text(filename) => Some(filename),
+            AssetType::Meta(_metadata) => None,
+        }
+    }
+}
+
+#[derive(Clone, Deserialize, Debug, Serialize, TS)]
+#[ts(export, export_to = "webapp/bindings/assets/")]
+pub struct AssetDefinition {
+    pub asset_name: String,
+    pub asset_type: AssetType
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
 #[ts(export, export_to = "webapp/bindings/assets/")]
 pub struct AssetDefinitionFile {
-    pub asset_name: String,
-    pub asset_type: AssetType,
-    pub filename: String
+    pub assets: Vec<AssetDefinition>
 }
