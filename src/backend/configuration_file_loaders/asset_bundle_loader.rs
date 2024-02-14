@@ -54,11 +54,12 @@ impl AssetBundleLoader {
         &self.bundles
     }
 
-    pub async fn load_from_directory(path: PathBuf) -> Result<Self, String> {
+    pub async fn load_from_directory(path: PathBuf) -> Result<Self, ()> {
         let path = match tokio::fs::canonicalize(&path).await {
             Ok(canonicalized) => canonicalized,
             Err(canon_error) => {
-                return Err(format!("Error canonicalizing asset directory path: {} {}", path.to_string_lossy(), canon_error));
+                tracing::error!("Error canonicalizing asset directory path: {} {}", path.to_string_lossy(), canon_error);
+                return Err(());
             },
         };
         
@@ -66,14 +67,16 @@ impl AssetBundleLoader {
         let load_order_file = match tokio::fs::read_to_string(&load_order_file_path).await {
             Ok(contents) => contents,
             Err(read_error) => {
-                return Err(format!("Error loading asset load order file from path: {} {}", load_order_file_path.to_string_lossy(), read_error));
+                tracing::error!("Error loading asset load order file from path: {} {}", load_order_file_path.to_string_lossy(), read_error);
+                return Err(());
             },
         };
 
         let load_order_file = match serde_json::de::from_str::<LoadOrderFile>(&load_order_file) {
             Ok(parsed) => parsed,
             Err(invalid_format) => {
-                return Err(format!("Asset load order file at {} is invalid format: {}", load_order_file_path.to_string_lossy(), invalid_format));
+                tracing::error!("Asset load order file at {} is invalid format: {}", load_order_file_path.to_string_lossy(), invalid_format);
+                return Err(());
             },
         };
 
@@ -81,18 +84,21 @@ impl AssetBundleLoader {
             let asset_file = match tokio::fs::canonicalize(path.join(asset_file)).await {
                 Ok(canonicalized) => canonicalized,
                 Err(canon_error) => {
-                    return Err(format!("Error canonicalizing asset path: {} {}", asset_file.to_string_lossy(), canon_error));
+                    tracing::error!("Error canonicalizing asset path: {} {}", asset_file.to_string_lossy(), canon_error);
+                    return Err(());
                 },
             };
 
             if asset_file.starts_with(&path) == false {
-                return Err(format!("Asset bundle path is outside specified config path: {}", asset_file.to_string_lossy()));
+                tracing::error!("Asset bundle path is outside specified config path: {}", asset_file.to_string_lossy());
+                return Err(());
             }
 
             let metadata = match tokio::fs::metadata(&asset_file).await {
                 Ok(metadata) => metadata,
                 Err(bad_file) => {
-                    return Err(format!("Asset bundle information could not be loaded for: {} with error {}", asset_file.to_string_lossy(), bad_file));
+                    tracing::error!("Asset bundle information could not be loaded for: {} with error {}", asset_file.to_string_lossy(), bad_file);
+                    return Err(());
                 },
             };
 
@@ -106,12 +112,14 @@ impl AssetBundleLoader {
                                     AssetBundleType::Zipped(valid)
                                 },
                                 None => {
-                                    return Err(format!("Asset file has an unsupported extension: {}", asset_file.to_string_lossy()));
+                                    tracing::error!("Asset file has an unsupported extension: {}", asset_file.to_string_lossy());
+                                    return Err(());
                                 },
                             }
                         },
                         None => {
-                            return Err(format!("Asset file does not have an extension, which is required: {}", asset_file.to_string_lossy()));
+                            tracing::error!("Asset file does not have an extension, which is required: {}", asset_file.to_string_lossy());
+                            return Err(());
                         },
                     }
                 },
@@ -123,7 +131,8 @@ impl AssetBundleLoader {
             let name = match asset_file.file_stem() {
                 Some(name) => name.to_string_lossy(),
                 None => {
-                    return Err(format!("Asset bundle does not have a name, which is required: {}", asset_file.to_string_lossy()));
+                    tracing::error!("Asset bundle does not have a name, which is required: {}", asset_file.to_string_lossy());
+                    return Err(());
                 },
             };
 
@@ -147,9 +156,8 @@ impl AssetBundleLoader {
                         Some(valid)
                     }
                 },
-                Err(error) => {
+                Err(()) => {
                     error_loading = true;
-                    tracing::error!(error);
                     None
                 }
             }
@@ -157,7 +165,8 @@ impl AssetBundleLoader {
 
         match error_loading {
             true => {
-                Err(format!("Error loading asset bundles from file {}", path.to_string_lossy()))
+                tracing::error!("Error loading asset bundles from file {}", path.to_string_lossy());
+                Err(())
             },
             false => {
                 Ok(AssetBundleLoader{bundles: loaded})

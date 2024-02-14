@@ -32,7 +32,6 @@ use backend::world_objects::components::timeout_component::{
 };
 use backend::world_objects::server_viewport::{tick_viewport, Displayable};
 use backend::world_objects::ship::ShipBundle;
-use bevy_ecs::bundle;
 use bevy_ecs::schedule::{IntoSystemConfigs, Schedule};
 use bevy_ecs::system::{Commands, Local, Res};
 use bevy_ecs::world::World;
@@ -161,18 +160,25 @@ async fn main() {
 
     tracing::subscriber::set_global_default(tracing).expect("Failed to initialize trace logging");
 
+    let data_directory = match tokio::fs::canonicalize(args.data_directory).await {
+        Ok(canon) => canon,
+        Err(canon_error) => {
+            panic!("Data directory not found! {}", canon_error.to_string());
+        }
+    };
+
     debug!(
-        "Using data directory: {:?}",
-        args.data_directory.canonicalize().unwrap()
+        "Using data directory: {}",
+        data_directory.to_string_lossy()
     );
 
     let asset_loader =
-        match AssetBundleLoader::load_from_directory(args.data_directory.canonicalize().unwrap())
+        match AssetBundleLoader::load_from_directory(data_directory)
             .await
         {
             Ok(ok) => ok,
-            Err(error) => {
-                panic!("Could not load asset bundles from disk: {}", error);
+            Err(()) => {
+                panic!("Could not load asset bundles from disk");
             }
         };
 
@@ -182,27 +188,24 @@ async fn main() {
         tracing::debug!("Loading asset bundle {}", bundle.path.to_string_lossy());
         match asset_cache.load_asset_bundle(bundle).await {
             Ok(()) => (),
-            Err(error) => {
-                panic!("Could not load asset bundle from disk: {}", error);
+            Err(()) => {
+                panic!("Could not load asset bundle from disk: {}", bundle.path.to_string_lossy());
             },
         }
     }
 
-    let verified = asset_cache.verify_assets();
-
-    if verified.len() > 0 {
-        for error in verified {
-            tracing::error!("{}", error);
+    match asset_cache.verify_assets() {
+        Ok(()) => (),
+        Err(()) => {
+            panic!("Asset bundles currently loaded failed verification");
         }
-
-        panic!("Asset bundles currently loaded vailed verification");
     }
 
     let app = Router::new();
 
     let app = match &args.webapp_directory {
         Some(webapp_directory) => {
-            app.nest_service("/", ServeDir::new(webapp_directory.canonicalize().unwrap())).layer(CompressionLayer::new())
+            app.nest_service("/", ServeDir::new(tokio::fs::canonicalize(webapp_directory).await.unwrap())).layer(CompressionLayer::new())
         }
         None => app,
     };

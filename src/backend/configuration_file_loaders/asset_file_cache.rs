@@ -25,7 +25,9 @@ use bytes::Bytes;
 use futures_util::{future::join_all, AsyncReadExt};
 use tokio::task::spawn_blocking;
 
-use crate::configuration_file_structures::asset_definition_file::{AssetDefinition, AssetDefinitionFile, AssetType, GraphicsType, MetaAsset};
+use crate::configuration_file_structures::asset_definition_file::{
+    AssetDefinition, AssetDefinitionFile, AssetType, GraphicsType, MetaAsset,
+};
 
 use super::asset_bundle_loader::AssetBundle;
 
@@ -33,7 +35,7 @@ trait GetFileData {
     async fn get_directories(&self) -> Vec<String>;
 
     // Even though Zip operates entirely on strings, we need the component parsing for normalizing inconsistent directories for the filesystem implementation
-    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, String>;
+    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, ()>;
 }
 
 struct ZipReader {
@@ -42,7 +44,7 @@ struct ZipReader {
 }
 
 impl ZipReader {
-    pub async fn new(path: &Path) -> Result<Self, String> {
+    pub async fn new(path: &Path) -> Result<Self, ()> {
         match ZipFileReader::new(path).await {
             Ok(file) => {
                 let index = file
@@ -55,8 +57,9 @@ impl ZipReader {
                             Ok(valid) => Some((valid.to_string(), index)),
                             Err(not_utf8) => {
                                 tracing::error!(
-                                    "File name is not UTF 8 in asset bundle zip: {}",
-                                    not_utf8.to_string()
+                                    "File name {} is not UTF 8 in asset bundle zip {}",
+                                    not_utf8.to_string(),
+                                    path.to_string_lossy()
                                 );
                                 None
                             }
@@ -65,7 +68,14 @@ impl ZipReader {
                     .collect();
                 Ok(Self { file: file, index })
             }
-            Err(error) => Err(error.to_string()),
+            Err(error) => {
+                tracing::error!(
+                    "Error reading zip data from asset zip {} with error {}",
+                    path.to_string_lossy(),
+                    error.to_string()
+                );
+                Err(())
+            }
         }
     }
 }
@@ -81,7 +91,7 @@ impl GetFileData for ZipReader {
             .collect()
     }
 
-    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, String> {
+    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, ()> {
         //We don't have real paths in Zip land
         let name = name.to_string_lossy();
         match self.index.get(&*name) {
@@ -94,20 +104,23 @@ impl GetFileData for ZipReader {
                             Ok(_completed) => Ok(Some(buf.into())),
                             Err(read_error) => {
                                 // File read has failed
-                                Err(format!(
+                                tracing::error!(
                                     "Error reading file {} from zip asset bundle: {}",
-                                    name, read_error
-                                ))
+                                    name,
+                                    read_error
+                                );
+                                Err(())
                             }
                         }
                     }
                     Err(no_reader) => {
                         // Something interesting has happened between filename and index association and an attempted read
-                        Err(format!(
+                        tracing::error!(
                             "Invalid zip index for asset bundle {} with error {}",
                             self.file.path().to_string_lossy(),
                             no_reader.to_string()
-                        ))
+                        );
+                        Err(())
                     }
                 }
             }
@@ -122,10 +135,17 @@ struct FolderReader {
 }
 
 impl FolderReader {
-    pub fn new(path: &Path) -> Result<Self, String> {
-        match path.canonicalize() {
+    pub async fn new(path: &Path) -> Result<Self, ()> {
+        match tokio::fs::canonicalize(path).await {
             Ok(exists) => Ok(Self { file: exists }),
-            Err(error) => Err(error.to_string()),
+            Err(error) => {
+                tracing::error!(
+                    "Error canonicalizing path for asset folder {} with error {}",
+                    path.to_string_lossy(),
+                    error.to_string()
+                );
+                Err(())
+            }
         }
     }
 }
@@ -138,9 +158,7 @@ impl GetFileData for FolderReader {
                 .into_iter()
                 .filter_map(|dir| match dir {
                     Ok(path) => match path.file_type().is_dir() {
-                        true => {
-                            Some(path.path().join("").to_string_lossy().to_string())
-                        }
+                        true => Some(path.path().join("").to_string_lossy().to_string()),
                         false => None,
                     },
                     Err(error) => {
@@ -155,7 +173,7 @@ impl GetFileData for FolderReader {
         directories
     }
 
-    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, String> {
+    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, ()> {
         let search_path = self.file.join(PathBuf::from(name));
         let canon_path = match tokio::fs::canonicalize(&search_path).await {
             Ok(canon) => canon,
@@ -166,37 +184,41 @@ impl GetFileData for FolderReader {
         };
 
         if canon_path.starts_with(&self.file) == false {
-            return Err(format!(
+            tracing::error!(
                 "Directory traversal forbidden for path {}",
                 canon_path.to_string_lossy()
-            ));
+            );
+            return Err(());
         }
 
         match tokio::fs::read(canon_path).await {
             Ok(read) => Ok(Some(read.into())),
-            Err(error) => Err(format!(
-                "Error reading asset file from directory: {}",
-                error
-            )),
+            Err(error) => {
+                tracing::error!("Error reading asset file from directory: {}", error);
+                Err(())
+            }
         }
     }
 }
 pub struct AssetFileCache {
-    assets: HashMap<String, (AssetDefinition, Option<Bytes>)>
+    assets: HashMap<String, (AssetDefinition, Option<Bytes>)>,
 }
 
 impl AssetFileCache {
     pub fn new() -> Self {
         Self {
-            assets: HashMap::new()
+            assets: HashMap::new(),
         }
     }
 
-    pub fn get_asset_data_by_name(&self, asset_name: &str) -> Option<(AssetDefinition, Option<Bytes>)> {
+    pub fn get_asset_data_by_name(
+        &self,
+        asset_name: &str,
+    ) -> Option<(AssetDefinition, Option<Bytes>)> {
         self.assets.get(asset_name).cloned()
     }
 
-    pub fn verify_assets(&self) -> Vec<String> {
+    pub fn verify_assets(&self) -> Result<(), ()> {
         self.assets.iter().filter_map(|(name, (asset_info, _data))| {
             // Potentially we will want to validate file extensions here as files which are compatible with web browsers or which respect their intended asset types, but for now it is unimportant
             match &asset_info.asset_type {
@@ -205,7 +227,7 @@ impl AssetFileCache {
                 },
                 _=> None
             }
-        }).filter_map(|(name, meta)| {
+        }).map(|(name, meta)| {
             match meta {
                 MetaAsset::Graphics(graphics) => {
                     match graphics {
@@ -215,16 +237,18 @@ impl AssetFileCache {
                                     match linked_info.asset_type {
                                         AssetType::Meta(_) => {
                                             // We will potentially invalidate this assumption in the future, but for now, meta-resources only need to reference data resources
-                                            Some(format!("Meta-asset {} cannot have another meta-asset {} as a data value", name, linked_info.asset_name))
+                                            tracing::error!("Meta-asset {} cannot have another meta-asset {} as a data value", name, linked_info.asset_name);
+                                            Err(())
                                         },
                                         _ => {
-                                            None
+                                            Ok(())
                                         }
                                     }
                                 },
                                 None => {
                                     // We will potentially loosen this restriction in the future with regards to asset bundle loading, but for now it is enforced
-                                    Some(format!("Graphics meta-asset {} references an image asset {} which does not exist", name, image_data_asset))
+                                    tracing::error!("Graphics meta-asset {} references an image asset {} which does not exist", name, image_data_asset);
+                                    Err(())
                                 },
                             }
                         }
@@ -234,13 +258,13 @@ impl AssetFileCache {
         }).collect()
     }
 
-    pub async fn load_asset_bundle(&mut self, file: &AssetBundle) -> Result<(), String> {
+    pub async fn load_asset_bundle(&mut self, file: &AssetBundle) -> Result<(), ()> {
         match &file.bundle_type {
             super::asset_bundle_loader::AssetBundleType::Folder => {
-                match FolderReader::new(&file.path) {
+                match FolderReader::new(&file.path).await {
                     Ok(has) => self.load_asset_bundle_generic(file, has).await,
-                    Err(error) => {
-                        return Err(error);
+                    Err(()) => {
+                        return Err(());
                     }
                 }
             }
@@ -248,8 +272,8 @@ impl AssetFileCache {
                 super::asset_bundle_loader::AssetBundleFileType::Zip => {
                     match ZipReader::new(&file.path).await {
                         Ok(has) => self.load_asset_bundle_generic(file, has).await,
-                        Err(error) => {
-                            return Err(error);
+                        Err(()) => {
+                            return Err(());
                         }
                     }
                 }
@@ -261,14 +285,15 @@ impl AssetFileCache {
         &mut self,
         file: &AssetBundle,
         asset_loader: impl GetFileData,
-    ) -> Result<(), String> {
+    ) -> Result<(), ()> {
         let file_get_tasks = asset_loader
             .get_directories()
             .await
             .into_iter()
             .map(|possible_directory| (possible_directory, &asset_loader))
             .map(|(possible_directory, asset_loader)| async move {
-                let possible_asset_file = PathBuf::from(possible_directory.to_owned()).join("asset.json");
+                let possible_asset_file =
+                    PathBuf::from(possible_directory.to_owned()).join("asset.json");
                 match asset_loader.try_get_file(&possible_asset_file).await {
                     Ok(tried_to_read_asset_json) => match tried_to_read_asset_json {
                         Some(has_asset_json) => Ok(Some((possible_directory, has_asset_json))),
@@ -285,8 +310,7 @@ impl AssetFileCache {
             .into_iter()
             .filter_map(|found| match found {
                 Ok(has) => has.to_owned(),
-                Err(errored) => {
-                    tracing::error!("Error reading asset json file: {}", errored);
+                Err(()) => {
                     error_reading_asset_json = true;
                     None
                 }
@@ -305,10 +329,11 @@ impl AssetFileCache {
         }).collect();
 
         if error_reading_asset_json {
-            return Err(format!(
+            tracing::error!(
                 "Error reading all asset.json files from bundle {}",
                 file.path.to_string_lossy()
-            ));
+            );
+            return Err(());
         }
 
         let mut duplicate_name_checker = HashSet::<String>::new();
@@ -326,7 +351,10 @@ impl AssetFileCache {
         let read_asset_file_tasks = found_asset_files
             .into_iter()
             .flat_map(|(possible_directory, flatten_assets)| {
-                flatten_assets.assets.into_iter().map(move |asset| (possible_directory.clone(), asset))
+                flatten_assets
+                    .assets
+                    .into_iter()
+                    .map(move |asset| (possible_directory.clone(), asset))
             })
             .map(|possible_directory| (possible_directory, &asset_loader))
             .map(
@@ -336,17 +364,14 @@ impl AssetFileCache {
                     match name {
                         Some(load_file) => {
                             let loaded = asset_loader
-                            .try_get_file(&PathBuf::from(&containing_directory).join(&load_file))
-                            .await;
+                                .try_get_file(
+                                    &PathBuf::from(&containing_directory).join(&load_file),
+                                )
+                                .await;
 
-                            (
-                                asset_definition,
-                                loaded,
-                            )
-                        },
-                        None => {
-                            (asset_definition, Ok(None))
-                        },
+                            (asset_definition, loaded)
+                        }
+                        None => (asset_definition, Ok(None)),
                     }
                 },
             );
@@ -374,8 +399,8 @@ impl AssetFileCache {
                         },
                     }
                 },
-                Err(error_reading) => {
-                    tracing::error!("File read error reading asset data file {} from bundle for asset specified as {} with error {}", asset_definition.asset_type.try_get_filename().unwrap_or_default(), &asset_definition.asset_name, error_reading);
+                Err(()) => {
+                    tracing::error!("File read error reading asset data file {} from bundle for asset specified as {}", asset_definition.asset_type.try_get_filename().unwrap_or_default(), &asset_definition.asset_name);
                     error_reading_asset_files = true;
                     None
                 },
@@ -383,10 +408,11 @@ impl AssetFileCache {
         }).filter_map(|x| x).collect();
 
         if error_reading_asset_files {
-            return Err(format!(
+            tracing::error!(
                 "Error reading associated asset files for asset.json files from bundle {}",
                 file.path.to_string_lossy()
-            ));
+            );
+            return Err(());
         }
 
         for (asset_info, data) in read_asset_files {
