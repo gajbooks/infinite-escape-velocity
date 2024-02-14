@@ -32,6 +32,7 @@ use backend::world_objects::components::timeout_component::{
 };
 use backend::world_objects::server_viewport::{tick_viewport, Displayable};
 use backend::world_objects::ship::ShipBundle;
+use bevy_ecs::bundle;
 use bevy_ecs::schedule::{IntoSystemConfigs, Schedule};
 use bevy_ecs::system::{Commands, Local, Res};
 use bevy_ecs::world::World;
@@ -185,6 +186,16 @@ async fn main() {
                 panic!("Could not load asset bundle from disk: {}", error);
             },
         }
+    }
+
+    let verified = asset_cache.verify_assets();
+
+    if verified.len() > 0 {
+        for error in verified {
+            tracing::error!("{}", error);
+        }
+
+        panic!("Asset bundles currently loaded vailed verification");
     }
 
     let app = Router::new();

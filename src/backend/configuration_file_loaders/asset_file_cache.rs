@@ -25,7 +25,7 @@ use bytes::Bytes;
 use futures_util::{future::join_all, AsyncReadExt};
 use tokio::task::spawn_blocking;
 
-use crate::configuration_file_structures::asset_definition_file::{AssetDefinition, AssetDefinitionFile, AssetType};
+use crate::configuration_file_structures::asset_definition_file::{AssetDefinition, AssetDefinitionFile, AssetType, GraphicsType, MetaAsset};
 
 use super::asset_bundle_loader::AssetBundle;
 
@@ -194,6 +194,44 @@ impl AssetFileCache {
 
     pub fn get_asset_data_by_name(&self, asset_name: &str) -> Option<(AssetDefinition, Option<Bytes>)> {
         self.assets.get(asset_name).cloned()
+    }
+
+    pub fn verify_assets(&self) -> Vec<String> {
+        self.assets.iter().filter_map(|(name, (asset_info, _data))| {
+            // Potentially we will want to validate file extensions here as files which are compatible with web browsers or which respect their intended asset types, but for now it is unimportant
+            match &asset_info.asset_type {
+                AssetType::Meta(meta) => {
+                    Some((name, meta))
+                },
+                _=> None
+            }
+        }).filter_map(|(name, meta)| {
+            match meta {
+                MetaAsset::Graphics(graphics) => {
+                    match graphics {
+                        GraphicsType::SimpleSquareRotationalSpriteSheet { sprite_count_x: _, sprite_count_y: _, image_data_asset } => {
+                            match self.assets.get(image_data_asset) {
+                                Some((linked_info, _data)) => {
+                                    match linked_info.asset_type {
+                                        AssetType::Meta(_) => {
+                                            // We will potentially invalidate this assumption in the future, but for now, meta-resources only need to reference data resources
+                                            Some(format!("Meta-asset {} cannot have another meta-asset {} as a data value", name, linked_info.asset_name))
+                                        },
+                                        _ => {
+                                            None
+                                        }
+                                    }
+                                },
+                                None => {
+                                    // We will potentially loosen this restriction in the future with regards to asset bundle loading, but for now it is enforced
+                                    Some(format!("Graphics meta-asset {} references an image asset {} which does not exist", name, image_data_asset))
+                                },
+                            }
+                        }
+                    }
+                }
+            }
+        }).collect()
     }
 
     pub async fn load_asset_bundle(&mut self, file: &AssetBundle) -> Result<(), String> {
