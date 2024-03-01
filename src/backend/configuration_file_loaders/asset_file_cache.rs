@@ -17,191 +17,19 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
 };
-
-use async_zip::tokio::read::fs::ZipFileReader;
 use bytes::Bytes;
-use futures_util::{future::join_all, AsyncReadExt};
-use tokio::task::spawn_blocking;
+use futures_util::future::join_all;
 
-use crate::configuration_file_structures::asset_definition_file::{
+use crate::configuration_file_structures::{asset_definition_file::{
     AssetDefinition, AssetDefinitionFile, AssetType, GraphicsType, MetaAsset,
-};
+}, reference_string_types::AssetReference};
 
-use super::asset_bundle_loader::AssetBundle;
+use super::{archive_readers::{archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader}, asset_bundle_loader::AssetBundle};
 
-trait GetFileData {
-    async fn get_directories(&self) -> Vec<String>;
-
-    // Even though Zip operates entirely on strings, we need the component parsing for normalizing inconsistent directories for the filesystem implementation
-    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, ()>;
-}
-
-struct ZipReader {
-    file: ZipFileReader,
-    index: HashMap<String, usize>,
-}
-
-impl ZipReader {
-    pub async fn new(path: &Path) -> Result<Self, ()> {
-        match ZipFileReader::new(path).await {
-            Ok(file) => {
-                let index = file
-                    .file()
-                    .entries()
-                    .iter()
-                    .enumerate()
-                    .filter_map(
-                        |(index, zip_contents)| match zip_contents.filename().as_str() {
-                            Ok(valid) => Some((valid.to_string(), index)),
-                            Err(not_utf8) => {
-                                tracing::error!(
-                                    "File name {} is not UTF 8 in asset bundle zip {}",
-                                    not_utf8.to_string(),
-                                    path.to_string_lossy()
-                                );
-                                None
-                            }
-                        },
-                    )
-                    .collect();
-                Ok(Self { file: file, index })
-            }
-            Err(error) => {
-                tracing::error!(
-                    "Error reading zip data from asset zip {} with error {}",
-                    path.to_string_lossy(),
-                    error.to_string()
-                );
-                Err(())
-            }
-        }
-    }
-}
-
-impl GetFileData for ZipReader {
-    async fn get_directories(&self) -> Vec<String> {
-        // Verbatim the logic used to determine if a file is a directory per async-zip crate
-        self.index
-            .iter()
-            .filter(|(filename, _index)| filename.ends_with('/'))
-            .map(|(filename, _index)| filename)
-            .cloned()
-            .collect()
-    }
-
-    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, ()> {
-        //We don't have real paths in Zip land
-        let name = name.to_string_lossy();
-        match self.index.get(&*name) {
-            Some(has) => {
-                match self.file.reader_with_entry(*has).await {
-                    Ok(mut has_entry) => {
-                        let mut buf =
-                            Vec::with_capacity(has_entry.entry().uncompressed_size() as usize);
-                        match has_entry.read_to_end(&mut buf).await {
-                            Ok(_completed) => Ok(Some(buf.into())),
-                            Err(read_error) => {
-                                // File read has failed
-                                tracing::error!(
-                                    "Error reading file {} from zip asset bundle: {}",
-                                    name,
-                                    read_error
-                                );
-                                Err(())
-                            }
-                        }
-                    }
-                    Err(no_reader) => {
-                        // Something interesting has happened between filename and index association and an attempted read
-                        tracing::error!(
-                            "Invalid zip index for asset bundle {} with error {}",
-                            self.file.path().to_string_lossy(),
-                            no_reader.to_string()
-                        );
-                        Err(())
-                    }
-                }
-            }
-            // Zip simply does not have this file, not an error condition
-            None => Ok(None),
-        }
-    }
-}
-
-struct FolderReader {
-    file: PathBuf,
-}
-
-impl FolderReader {
-    pub async fn new(path: &Path) -> Result<Self, ()> {
-        match tokio::fs::canonicalize(path).await {
-            Ok(exists) => Ok(Self { file: exists }),
-            Err(error) => {
-                tracing::error!(
-                    "Error canonicalizing path for asset folder {} with error {}",
-                    path.to_string_lossy(),
-                    error.to_string()
-                );
-                Err(())
-            }
-        }
-    }
-}
-
-impl GetFileData for FolderReader {
-    async fn get_directories(&self) -> Vec<String> {
-        let base_path = self.file.clone();
-        let directories: Vec<_> = spawn_blocking(|| {
-            walkdir::WalkDir::new(base_path)
-                .into_iter()
-                .filter_map(|dir| match dir {
-                    Ok(path) => match path.file_type().is_dir() {
-                        true => Some(path.path().join("").to_string_lossy().to_string()),
-                        false => None,
-                    },
-                    Err(error) => {
-                        tracing::error!("Error walking directory entry {}", error);
-                        None
-                    }
-                })
-                .collect()
-        })
-        .await
-        .unwrap();
-        directories
-    }
-
-    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, ()> {
-        let search_path = self.file.join(PathBuf::from(name));
-        let canon_path = match tokio::fs::canonicalize(&search_path).await {
-            Ok(canon) => canon,
-            Err(_error) => {
-                // Path does not exist
-                return Ok(None);
-            }
-        };
-
-        if canon_path.starts_with(&self.file) == false {
-            tracing::error!(
-                "Directory traversal forbidden for path {}",
-                canon_path.to_string_lossy()
-            );
-            return Err(());
-        }
-
-        match tokio::fs::read(canon_path).await {
-            Ok(read) => Ok(Some(read.into())),
-            Err(error) => {
-                tracing::error!("Error reading asset file from directory: {}", error);
-                Err(())
-            }
-        }
-    }
-}
 pub struct AssetFileCache {
-    assets: HashMap<String, (AssetDefinition, Option<Bytes>)>,
+    assets: HashMap<AssetReference, (AssetDefinition, Option<Bytes>)>,
 }
 
 impl AssetFileCache {
@@ -261,7 +89,7 @@ impl AssetFileCache {
     pub async fn load_asset_bundle(&mut self, file: &AssetBundle) -> Result<(), ()> {
         match &file.bundle_type {
             super::asset_bundle_loader::AssetBundleType::Folder => {
-                match FolderReader::new(&file.path).await {
+                match FilesystemReader::new(&file.path).await {
                     Ok(has) => self.load_asset_bundle_generic(file, has).await,
                     Err(()) => {
                         return Err(());
@@ -284,7 +112,7 @@ impl AssetFileCache {
     async fn load_asset_bundle_generic(
         &mut self,
         file: &AssetBundle,
-        asset_loader: impl GetFileData,
+        asset_loader: impl ArchiveReader,
     ) -> Result<(), ()> {
         let file_get_tasks = asset_loader
             .get_directories()
@@ -321,7 +149,7 @@ impl AssetFileCache {
             match serde_json::de::from_slice::<AssetDefinitionFile>(&asset_json_data) {
                 Ok(deserialized) => Some((containing_directory, deserialized)),
                 Err(error_deserializing) => {
-                    tracing::error!("Error deserializing asset.json from asset bundle {} with path {} and error {}", file.path.to_string_lossy(), containing_directory, error_deserializing);
+                    tracing::error!("Error deserializing asset.json from asset bundle {} with path {} and error {}", file.path.to_string_lossy(), containing_directory.to_string_lossy(), error_deserializing);
                     error_reading_asset_json = true;
                     None
                 },
@@ -336,7 +164,7 @@ impl AssetFileCache {
             return Err(());
         }
 
-        let mut duplicate_name_checker = HashSet::<String>::new();
+        let mut duplicate_name_checker = HashSet::<AssetReference>::new();
 
         for (_path, asset_info) in &found_asset_files {
             for asset in &asset_info.assets {

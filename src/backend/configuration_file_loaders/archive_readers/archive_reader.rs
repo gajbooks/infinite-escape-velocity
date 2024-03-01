@@ -15,7 +15,19 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod asset_definition_file;
-pub mod load_order_file;
-pub mod planetoid_configuration_file;
-pub mod reference_string_types;
+use std::path::{Path, PathBuf};
+
+use bytes::Bytes;
+
+pub trait ArchiveReader {
+    // Even though some implementations use pure Strings (Zip), we need the Path component parsing for normalizing inconsistent directories for the filesystem implementation
+
+    // Returns a list of all directories in the structure
+    async fn get_directories(&self) -> Vec<PathBuf>;
+
+    // Returns a list of all non-directory files in the structure
+    async fn get_files(&self) -> Vec<PathBuf>;
+
+    // Attempts to retrieve the file data for a given file
+    async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, ()>;
+}

@@ -15,5 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+pub mod archive_readers;
 pub mod asset_bundle_loader;
 pub mod asset_file_cache;

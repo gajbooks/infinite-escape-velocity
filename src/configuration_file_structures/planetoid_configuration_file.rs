@@ -17,11 +17,13 @@
 
 use serde::Deserialize;
 
+use super::reference_string_types::AssetReference;
+
 #[derive(Deserialize)]
 pub struct PlanetoidMayBeLandedOn {
     landing_radius: f32,
-    backdrop_image_asset: String,
-    text_description_asset: String,
+    backdrop_image_asset: AssetReference,
+    text_description_asset: AssetReference,
     features: Option<PlanetoidFeatures>,
     opinion: Option<String> // Eventually will describe the "politics" of a planet and will decide if you are allowed to land, default to yes
 }
@@ -34,7 +36,7 @@ pub struct PlanetoidFeatures {
 #[derive(Deserialize)]
 pub struct PlanetoidRecord {
     planetoid_name: String,
-    asset_name: String,
+    display_asset: AssetReference,
     display_radius: f32,
     x: f64,
     y: f64,

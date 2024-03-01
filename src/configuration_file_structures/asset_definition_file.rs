@@ -18,6 +18,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use super::reference_string_types::AssetReference;
+
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
 #[ts(export, export_to = "webapp/bindings/assets/")]
@@ -25,7 +27,7 @@ pub enum GraphicsType {
     SimpleSquareRotationalSpriteSheet {
         sprite_count_x: u32,
         sprite_count_y: u32,
-        image_data_asset: String
+        image_data_asset: AssetReference
     }
 }
 
@@ -58,7 +60,7 @@ impl AssetType {
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
 #[ts(export, export_to = "webapp/bindings/assets/")]
 pub struct AssetDefinition {
-    pub asset_name: String,
+    pub asset_name: AssetReference,
     pub asset_type: AssetType
 }
 

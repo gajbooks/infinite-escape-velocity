@@ -15,7 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod asset_definition_file;
-pub mod load_order_file;
-pub mod planetoid_configuration_file;
-pub mod reference_string_types;
+pub mod archive_reader;
+pub mod filesystem_reader;
+pub mod zip_reader;
