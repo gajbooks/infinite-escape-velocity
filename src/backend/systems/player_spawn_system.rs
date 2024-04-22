@@ -40,7 +40,7 @@ pub fn spawn_player_ship_and_viewports(
     mut viewports: Query<&mut ServerViewport>,
     mut commands: Commands,
 ) {
-    sessions.for_each_mut(|(session_entity, mut session)| {
+    sessions.iter_mut().for_each(|(session_entity, mut session)| {
         let following_id = match session.should_follow {
             Some(following) => following,
             None => {

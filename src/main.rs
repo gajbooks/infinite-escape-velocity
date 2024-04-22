@@ -289,8 +289,6 @@ async fn main() {
         .with_state(asset_server_state)
         ;
 
-    axum::Server::bind(&"0.0.0.0:2718".parse().unwrap())
-        .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:2718").await.unwrap();
+    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
 }

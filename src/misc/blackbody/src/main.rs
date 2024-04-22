@@ -45,7 +45,6 @@ fn integrate_CIE_tristimulus(temperature: f64) -> ColorTriple {
     let mut X: f64 = 0.0;
     let mut Y: f64 = 0.0;
     let mut Z: f64 = 0.0;
-    let mut total_irradiance: f64 = 0.0;
 
     for wavelength in 380..780 {
         let meter_wavelength = wavelength as f64 / 1e9;
@@ -56,7 +55,6 @@ fn integrate_CIE_tristimulus(temperature: f64) -> ColorTriple {
         X += stimulus.0 * irradiance;
         Y += stimulus.1 * irradiance;
         Z += stimulus.2 * irradiance;
-        total_irradiance += irradiance;
     }
 
     let normalize = 1.0 / Y;
@@ -69,7 +67,7 @@ fn blackbody_energy_density_at_wavelength(wavelength: f64, temperature: f64) -> 
     let exponent = (PLANCK_CONSTANT * C) / (wavelength * BOLTZMANN_CONSTANT * temperature);
     let right = 1.0 / (exponent.exp() - 1.0);
 
-    return (left * right);
+    return left * right;
 }
 
 fn blackbody_radiance_at_wavelength(wavelength: f64, temperature: f64) -> f64 {
