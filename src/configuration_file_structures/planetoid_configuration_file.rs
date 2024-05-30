@@ -21,11 +21,11 @@ use super::reference_string_types::AssetReference;
 
 #[derive(Deserialize)]
 pub struct PlanetoidMayBeLandedOn {
-    landing_radius: f32,
-    backdrop_image_asset: AssetReference,
-    text_description_asset: AssetReference,
-    features: Option<PlanetoidFeatures>,
-    opinion: Option<String> // Eventually will describe the "politics" of a planet and will decide if you are allowed to land, default to yes
+    pub landing_radius: f32,
+    pub backdrop_image_asset: AssetReference,
+    pub text_description_asset: AssetReference,
+    pub features: Option<PlanetoidFeatures>,
+    pub opinion: Option<String> // Eventually will describe the "politics" of a planet and will decide if you are allowed to land, default to yes
 }
 
 #[derive(Deserialize)]
@@ -35,12 +35,12 @@ pub struct PlanetoidFeatures {
 
 #[derive(Deserialize)]
 pub struct PlanetoidRecord {
-    planetoid_name: String,
-    display_asset: AssetReference,
-    display_radius: f32,
-    x: f64,
-    y: f64,
-    may_be_landed_on: Option<PlanetoidMayBeLandedOn>
+    pub planetoid_name: String,
+    pub display_asset: AssetReference,
+    pub display_radius: f32,
+    pub x: f64,
+    pub y: f64,
+    pub may_be_landed_on: Option<PlanetoidMayBeLandedOn>
 }
 
 #[derive(Deserialize)]

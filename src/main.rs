@@ -56,6 +56,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tower_http::services::ServeDir;
 
 use crate::backend::configuration_file_loaders::asset_file_cache::AssetFileCache;
+use crate::backend::configuration_file_loaders::definition_file_cache::DefinitionFileCache;
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
 use crate::backend::systems::apply_player_control::apply_player_control;
 use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
@@ -173,7 +174,7 @@ async fn main() {
     );
 
     let asset_loader =
-        match AssetBundleLoader::load_from_directory(data_directory)
+        match AssetBundleLoader::load_from_directory(data_directory.join("assets"))
             .await
         {
             Ok(ok) => ok,
@@ -198,6 +199,28 @@ async fn main() {
         Ok(()) => (),
         Err(()) => {
             panic!("Asset bundles currently loaded failed verification");
+        }
+    }
+
+    let mut definition_file_cache = DefinitionFileCache::new();
+
+    let definition_loader =
+    match AssetBundleLoader::load_from_directory(data_directory.join("definitions"))
+        .await
+    {
+        Ok(ok) => ok,
+        Err(()) => {
+            panic!("Could not load definition bundles from disk");
+        }
+    };
+
+    for bundle in definition_loader.get_assets() {
+        tracing::debug!("Loading definition bundle {}", bundle.path.to_string_lossy());
+        match definition_file_cache.load_definition_bundle(bundle).await {
+            Ok(()) => (),
+            Err(()) => {
+                panic!("Could not load definition bundle from disk: {}", bundle.path.to_string_lossy());
+            },
         }
     }
 
