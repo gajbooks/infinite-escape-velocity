@@ -56,6 +56,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tower_http::services::ServeDir;
 
 use crate::backend::configuration_file_loaders::asset_file_cache::AssetFileCache;
+use crate::backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets;
 use crate::backend::configuration_file_loaders::definition_file_cache::DefinitionFileCache;
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
 use crate::backend::systems::apply_player_control::apply_player_control;
@@ -142,6 +143,10 @@ struct Args {
     /// Display more in-depth logs
     #[clap(long, action)]
     verbose_logs: bool,
+
+    /// Verify all required assets are loaded for the definitions
+    #[clap(long, action)]
+    verify_assets: bool,
 }
 
 #[tokio::main]
@@ -210,6 +215,7 @@ async fn main() {
     {
         Ok(ok) => ok,
         Err(()) => {
+            tracing::error!("Could not load definition bundles from disk");
             panic!("Could not load definition bundles from disk");
         }
     };
@@ -219,8 +225,34 @@ async fn main() {
         match definition_file_cache.load_definition_bundle(bundle).await {
             Ok(()) => (),
             Err(()) => {
+                tracing::error!("Could not load definition bundle from disk: {}", bundle.path.to_string_lossy());
                 panic!("Could not load definition bundle from disk: {}", bundle.path.to_string_lossy());
             },
+        }
+    }
+
+    if args.verify_assets {
+        let mut loading_error = false;
+        for required_asset in definition_file_cache.get_required_asset_list() {
+            match asset_cache.get_asset_definition_by_name(required_asset.0) {
+                Some(has_asset) => {
+                    if has_asset.asset_type.get_asset_type_from_resource() == required_asset.1 {
+                        // All good
+                    } else {
+                        tracing::error!("Mismatch between the type of loaded asset {} with {:?} being loaded and {:?} being required", required_asset.0, has_asset, required_asset.1);
+                        loading_error = true;
+                    }
+                },
+                None => {
+                    tracing::error!("Loaded asset bundles do not contain required asset {} of type {:?}", required_asset.0, required_asset.1);
+                    loading_error = true;
+                },
+            }
+        }
+
+        if loading_error {
+            tracing::error!("Not all required assets are loaded or correct!");
+            panic!("Not all required assets are loaded or correct!");
         }
     }
 

@@ -19,7 +19,7 @@ use std::{collections::HashMap, ffi::OsStr, path::PathBuf};
 
 use crate::configuration_file_structures::planetoid_configuration_file::PlanetoidConfigurationFile;
 
-use super::{archive_readers::{archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader}, asset_bundle_loader::AssetBundle, definition_caches::planetoid_definition_cache::PlanetoidDefinitionCache};
+use super::{archive_readers::{archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader}, asset_bundle_loader::AssetBundle, definition_caches::{list_required_assets::ListRequiredAssets, planetoid_definition_cache::PlanetoidDefinitionCache}};
 
 enum DefinitionFileNames {
     Planetoids
@@ -110,7 +110,7 @@ impl DefinitionFileCache {
                                                                 // No problem here
                                                             },
                                                             Err(()) => {
-                                                                tracing::error!("Error loading file {} from definition bundle {}", planetoid_record.to_string_lossy(), file.name);
+                                                                tracing::error!("Error loading planetoid file {} from definition bundle {}", planetoid_record.to_string_lossy(), file.name);
                                                                 return Err(());
                                                             },
                                                         }
@@ -142,5 +142,11 @@ impl DefinitionFileCache {
         }
 
         Ok(())
+    }
+}
+
+impl ListRequiredAssets for DefinitionFileCache {
+    fn get_required_asset_list(&self) -> Vec<(&crate::configuration_file_structures::reference_string_types::AssetReference, crate::configuration_file_structures::asset_definition_file::AssetType)> {
+        self.planetoids.get_required_asset_list()
     }
 }

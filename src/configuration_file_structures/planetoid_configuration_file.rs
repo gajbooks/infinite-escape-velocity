@@ -17,7 +17,9 @@
 
 use serde::Deserialize;
 
-use super::reference_string_types::AssetReference;
+use crate::backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets;
+
+use super::{asset_definition_file::AssetType, reference_string_types::{AssetReference, PlanetoidReference}};
 
 #[derive(Deserialize)]
 pub struct PlanetoidMayBeLandedOn {
@@ -28,6 +30,15 @@ pub struct PlanetoidMayBeLandedOn {
     pub opinion: Option<String> // Eventually will describe the "politics" of a planet and will decide if you are allowed to land, default to yes
 }
 
+impl ListRequiredAssets for PlanetoidMayBeLandedOn {
+    fn get_required_asset_list(&self) -> Vec<(&AssetReference, AssetType)> {
+        vec![
+            (&self.backdrop_image_asset, AssetType::Image),
+            (&self.text_description_asset, AssetType::Text)
+            ]
+    }
+}
+
 #[derive(Deserialize)]
 pub struct PlanetoidFeatures {
     // Eventually should be string identifiers for ship features, like pre-defined shipyards, outfitters, bar, BBS, etc which can be modified by quests or other events and are potentially reusable
@@ -35,12 +46,28 @@ pub struct PlanetoidFeatures {
 
 #[derive(Deserialize)]
 pub struct PlanetoidRecord {
-    pub planetoid_name: String,
+    pub planetoid_reference: PlanetoidReference,
+    pub planetoid_display_name: String,
     pub display_asset: AssetReference,
     pub display_radius: f32,
     pub x: f64,
     pub y: f64,
     pub may_be_landed_on: Option<PlanetoidMayBeLandedOn>
+}
+
+impl ListRequiredAssets for PlanetoidRecord {
+    fn get_required_asset_list(&self) -> Vec<(&AssetReference, AssetType)> {
+        let mut required_assets = vec![(&self.display_asset, AssetType::Image)];
+
+        match &self.may_be_landed_on {
+            Some(has) => {
+                required_assets.extend(has.get_required_asset_list());
+            },
+            None => (),
+        }
+
+        required_assets
+    }
 }
 
 #[derive(Deserialize)]

@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use axum::{extract::{Path, State}, http::{header, StatusCode}, response::{IntoResponse, Response}};
 
-use crate::{backend::configuration_file_loaders::asset_file_cache::AssetFileCache, configuration_file_structures::asset_definition_file::AssetType};
+use crate::{backend::configuration_file_loaders::asset_file_cache::AssetFileCache, configuration_file_structures::asset_definition_file::AssetResources};
 
 #[derive(Clone)]
 pub struct AssetServerState {
@@ -34,7 +34,7 @@ pub async fn asset_by_name(
     match assets.get_asset_data_by_name(&asset_name) {
         Some((asset_info, data)) => {
             match asset_info.asset_type {
-                AssetType::Meta(meta) => {
+                AssetResources::Meta(meta) => {
                     (StatusCode::OK, [(header::CONTENT_TYPE, mime::APPLICATION_JSON.essence_str())], axum::Json(meta)).into_response()
                 },
                 _ => {

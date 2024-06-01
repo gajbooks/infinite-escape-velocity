@@ -15,5 +15,15 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod list_required_assets;
-pub mod planetoid_definition_cache;
+/*
+Trait requiring the implementation of a method to list all the assets that a definition requires.
+Servers may not always serve assets or keep them loaded,
+    but the required assets and their types needs to be known to generate string->ID dictionaries for lower network overhead,
+    as well as other tasks like optionally verifying if a server does in fact have all the required resources loaded for development and debugging purposes.
+ */
+
+use crate::configuration_file_structures::{asset_definition_file::AssetType, reference_string_types::AssetReference};
+
+pub trait ListRequiredAssets {
+    fn get_required_asset_list(&self) -> Vec<(&AssetReference, AssetType)>;
+}

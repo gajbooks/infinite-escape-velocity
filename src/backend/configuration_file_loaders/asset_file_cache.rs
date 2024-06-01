@@ -23,7 +23,7 @@ use bytes::Bytes;
 use futures_util::future::join_all;
 
 use crate::configuration_file_structures::{asset_definition_file::{
-    AssetDefinition, AssetDefinitionFile, AssetType, GraphicsType, MetaAsset,
+    AssetDefinition, AssetDefinitionFile, AssetResources, GraphicsType, MetaAsset,
 }, reference_string_types::AssetReference};
 
 use super::{archive_readers::{archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader}, asset_bundle_loader::AssetBundle};
@@ -46,11 +46,18 @@ impl AssetFileCache {
         self.assets.get(asset_name).cloned()
     }
 
+    pub fn get_asset_definition_by_name(
+        &self,
+        asset_name: &str,
+    ) -> Option<AssetDefinition> {
+        self.assets.get(asset_name).map(|x| x.0.clone())
+    }
+
     pub fn verify_assets(&self) -> Result<(), ()> {
         self.assets.iter().filter_map(|(name, (asset_info, _data))| {
             // Potentially we will want to validate file extensions here as files which are compatible with web browsers or which respect their intended asset types, but for now it is unimportant
             match &asset_info.asset_type {
-                AssetType::Meta(meta) => {
+                AssetResources::Meta(meta) => {
                     Some((name, meta))
                 },
                 _=> None
@@ -63,7 +70,7 @@ impl AssetFileCache {
                             match self.assets.get(image_data_asset) {
                                 Some((linked_info, _data)) => {
                                     match linked_info.asset_type {
-                                        AssetType::Meta(_) => {
+                                        AssetResources::Meta(_) => {
                                             // We will potentially invalidate this assumption in the future, but for now, meta-resources only need to reference data resources
                                             tracing::error!("Meta-asset {} cannot have another meta-asset {} as a data value", name, linked_info.asset_name);
                                             Err(())
@@ -213,7 +220,7 @@ impl AssetFileCache {
                         },
                         None => {
                             match asset_definition.asset_type {
-                                AssetType::Meta(ref _meta) => {
+                                AssetResources::Meta(ref _meta) => {
                                     // Asset type is meta, no associated data should be present
                                     Some((asset_definition, None))
                                 },

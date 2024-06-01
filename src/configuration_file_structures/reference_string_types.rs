@@ -19,3 +19,6 @@
 
 // Reference to an Asset
 pub type AssetReference = String;
+
+// Reference to a planetoid
+pub type PlanetoidReference = String;

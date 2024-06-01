@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["../infinite-escape-velocity-data/game_data", "--verbose-logs"],
+            "args": ["../infinite-escape-velocity-data/game_data", "--verify-assets", "--verbose-logs"],
             "cwd": "${workspaceFolder}"
         },
         {

@@ -37,22 +37,42 @@ pub enum MetaAsset {
     Graphics(GraphicsType)
 }
 
-#[derive(Clone, Deserialize, Debug, Serialize, TS)]
+#[derive(Clone, Deserialize, Debug, Serialize, TS, Eq, PartialEq)]
 #[ts(export, export_to = "webapp/bindings/assets/")]
 pub enum AssetType {
+    Image,
+    Sound,
+    Text,
+    Meta
+}
+
+#[derive(Clone, Deserialize, Debug, Serialize, TS)]
+#[ts(export, export_to = "webapp/bindings/assets/")]
+pub enum AssetResources {
     Image(String),
     Sound(String),
     Text(String),
     Meta(MetaAsset)
 }
 
-impl AssetType {
+impl AssetResources {
+    pub fn get_asset_type_from_resource(&self) -> AssetType {
+        match self {
+            AssetResources::Image(_) => AssetType::Image,
+            AssetResources::Sound(_) => AssetType::Sound,
+            AssetResources::Text(_) => AssetType::Text,
+            AssetResources::Meta(_) => AssetType::Meta,
+        }
+    }
+}
+
+impl AssetResources {
     pub fn try_get_filename(&self) -> Option<&str> {
         match self {
-            AssetType::Image(filename) => Some(filename),
-            AssetType::Sound(filename) => Some(filename),
-            AssetType::Text(filename) => Some(filename),
-            AssetType::Meta(_metadata) => None,
+            AssetResources::Image(filename) => Some(filename),
+            AssetResources::Sound(filename) => Some(filename),
+            AssetResources::Text(filename) => Some(filename),
+            AssetResources::Meta(_metadata) => None,
         }
     }
 }
@@ -61,7 +81,7 @@ impl AssetType {
 #[ts(export, export_to = "webapp/bindings/assets/")]
 pub struct AssetDefinition {
     pub asset_name: AssetReference,
-    pub asset_type: AssetType
+    pub asset_type: AssetResources
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
