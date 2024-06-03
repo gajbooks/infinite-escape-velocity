@@ -17,46 +17,44 @@
 use serde::Serialize;
 use ts_rs::TS;
 
+use crate::configuration_file_structures::reference_types::{AssetIndexReference, ObjectId};
+
 #[derive(Serialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
 pub struct VelocityMessage {
     pub vx: f32,
-    pub vy: f32
+    pub vy: f32,
 }
 
 #[derive(Serialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
 pub struct RotationMessage {
     pub rotation: f32,
 }
 
 #[derive(Serialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
 pub struct AngularVelocityMessage {
     pub angular_velocity: f32,
 }
 
-
 #[derive(Serialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
+#[ts(export)]
 pub struct DynamicObjectMessageData {
     pub x: f64,
     pub y: f64,
     pub rotation: Option<RotationMessage>,
     pub velocity: Option<VelocityMessage>,
     pub angular_velocity: Option<AngularVelocityMessage>,
-    pub object_type: String,
-    pub id: u64,
+    pub object_asset: AssetIndexReference,
+    pub id: ObjectId,
 }
 
 #[derive(Serialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
+#[ts(export)]
 pub struct DynamicObjectCreationData {
-    pub id: u64,
+    pub id: ObjectId,
 }
 
 #[derive(Serialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
+#[ts(export)]
 pub struct DynamicObjectDestructionData {
-    pub id: u64,
+    pub id: ObjectId,
 }

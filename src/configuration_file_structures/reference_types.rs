@@ -15,10 +15,16 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-// Misc renamed String types for different reference types when loading from file
+// Misc renamed types for different reference types
 
 // Reference to an Asset
 pub type AssetReference = String;
 
 // Reference to a planetoid
 pub type PlanetoidReference = String;
+
+// Pre-determined Id for an Asset
+pub type AssetIndexReference = u64;
+
+// Id type for objects
+pub type ObjectId = u64;

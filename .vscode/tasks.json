@@ -16,6 +16,12 @@
 			"path": "webapp",
 			"label": "Open Release In Browser",
 			"problemMatcher": []
+		},
+		{
+			"type": "cargo",
+			"command": "test",
+			"env": {"TS_RS_EXPORT_DIR": "webapp/bindings"},
+			"label": "Export Bindings/Run Tests"
 		}
 	]
 }

@@ -17,7 +17,6 @@
 
 use euclid::*;
 use serde::Serialize;
-use ts_rs::TS;
 
 pub type GlobalCoordinateType = f64;
 pub type LocalCoordinateType = f32;
@@ -26,8 +25,7 @@ pub struct WorldCoordinates;
 pub struct VelocityCoordinates;
 pub struct AccelerationCoordinates;
 
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize)]
 pub struct ObjectType {
     name: String,
 }

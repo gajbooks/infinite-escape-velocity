@@ -33,7 +33,7 @@ use backend::world_objects::components::timeout_component::{
 use backend::world_objects::server_viewport::{tick_viewport, Displayable};
 use backend::world_objects::ship::ShipBundle;
 use bevy_ecs::schedule::{IntoSystemConfigs, Schedule};
-use bevy_ecs::system::{Commands, Local, Res};
+use bevy_ecs::system::{Commands, Local, Res, Resource};
 use bevy_ecs::world::World;
 use clap::Parser;
 use connectivity::connected_users::ConnectingUsersQueue;
@@ -66,7 +66,9 @@ use crate::backend::systems::update_collisions_with_rotation::update_collisions_
 use crate::backend::systems::update_positions_with_velocity::update_positions_with_velocity;
 use crate::backend::systems::update_rotations_with_angular_velocity::update_rotations_with_angular_velocity;
 use crate::backend::systems::update_velocities_with_semi_newtonian_physics::update_velocities_with_semi_newtonian_physics;
-use crate::connectivity::asset_server::{ asset_by_name, AssetServerState};
+use crate::backend::world_objects::planetoid::PlanetoidBundle;
+use crate::connectivity::asset_index::{get_asset_index, AssetIndex, AssetIndexState};
+use crate::connectivity::asset_server::{asset_by_name, AssetServerState};
 use crate::connectivity::connected_users::{check_alive_sessions, spawn_user_sessions};
 use crate::connectivity::user_session::{process_incoming_messages, UserSession};
 
@@ -76,7 +78,17 @@ fn plus_or_minus_random(radius: f64) -> f64 {
     (range * value) - radius
 }
 
-fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut commands: Commands) {
+#[derive(Resource)]
+struct AssetIndexResource {
+    asset_index: Arc<AssetIndex>,
+}
+
+fn spawn_a_ship_idk(
+    mut spawned: Local<u32>,
+    asset_index: Res<AssetIndexResource>,
+    time: Res<DeltaTResource>,
+    mut commands: Commands,
+) {
     if *spawned == 0 {
         *spawned = 1;
     }
@@ -85,7 +97,6 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
         *spawned += 1;
         commands.spawn((
             ShipBundle::new(
-                &spawned.to_string(),
                 Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0)),
                 Some(Velocity::new(
                     plus_or_minus_random(100.0) as f32,
@@ -97,7 +108,9 @@ fn spawn_a_ship_idk(mut spawned: Local<u32>, time: Res<DeltaTResource>, mut comm
                 Some(Angle::radians(
                     plus_or_minus_random(std::f64::consts::PI) as f32
                 )),
-            ),
+                &asset_index.asset_index,
+            )
+            .unwrap(),
             SemiNewtonianPhysicsComponent::new(Speed::new(50.0)),
             TimeoutComponent {
                 spawn_time: time.total_time,
@@ -173,15 +186,10 @@ async fn main() {
         }
     };
 
-    debug!(
-        "Using data directory: {}",
-        data_directory.to_string_lossy()
-    );
+    debug!("Using data directory: {}", data_directory.to_string_lossy());
 
     let asset_loader =
-        match AssetBundleLoader::load_from_directory(data_directory.join("assets"))
-            .await
-        {
+        match AssetBundleLoader::load_from_directory(data_directory.join("assets")).await {
             Ok(ok) => ok,
             Err(()) => {
                 panic!("Could not load asset bundles from disk");
@@ -195,8 +203,11 @@ async fn main() {
         match asset_cache.load_asset_bundle(bundle).await {
             Ok(()) => (),
             Err(()) => {
-                panic!("Could not load asset bundle from disk: {}", bundle.path.to_string_lossy());
-            },
+                panic!(
+                    "Could not load asset bundle from disk: {}",
+                    bundle.path.to_string_lossy()
+                );
+            }
         }
     }
 
@@ -210,24 +221,31 @@ async fn main() {
     let mut definition_file_cache = DefinitionFileCache::new();
 
     let definition_loader =
-    match AssetBundleLoader::load_from_directory(data_directory.join("definitions"))
-        .await
-    {
-        Ok(ok) => ok,
-        Err(()) => {
-            tracing::error!("Could not load definition bundles from disk");
-            panic!("Could not load definition bundles from disk");
-        }
-    };
+        match AssetBundleLoader::load_from_directory(data_directory.join("definitions")).await {
+            Ok(ok) => ok,
+            Err(()) => {
+                tracing::error!("Could not load definition bundles from disk");
+                panic!("Could not load definition bundles from disk");
+            }
+        };
 
     for bundle in definition_loader.get_assets() {
-        tracing::debug!("Loading definition bundle {}", bundle.path.to_string_lossy());
+        tracing::debug!(
+            "Loading definition bundle {}",
+            bundle.path.to_string_lossy()
+        );
         match definition_file_cache.load_definition_bundle(bundle).await {
             Ok(()) => (),
             Err(()) => {
-                tracing::error!("Could not load definition bundle from disk: {}", bundle.path.to_string_lossy());
-                panic!("Could not load definition bundle from disk: {}", bundle.path.to_string_lossy());
-            },
+                tracing::error!(
+                    "Could not load definition bundle from disk: {}",
+                    bundle.path.to_string_lossy()
+                );
+                panic!(
+                    "Could not load definition bundle from disk: {}",
+                    bundle.path.to_string_lossy()
+                );
+            }
         }
     }
 
@@ -242,11 +260,15 @@ async fn main() {
                         tracing::error!("Mismatch between the type of loaded asset {} with {:?} being loaded and {:?} being required", required_asset.0, has_asset, required_asset.1);
                         loading_error = true;
                     }
-                },
+                }
                 None => {
-                    tracing::error!("Loaded asset bundles do not contain required asset {} of type {:?}", required_asset.0, required_asset.1);
+                    tracing::error!(
+                        "Loaded asset bundles do not contain required asset {} of type {:?}",
+                        required_asset.0,
+                        required_asset.1
+                    );
                     loading_error = true;
-                },
+                }
             }
         }
 
@@ -256,21 +278,43 @@ async fn main() {
         }
     }
 
+    let asset_index = Arc::new(AssetIndex::new(
+        definition_file_cache
+            .get_required_asset_list()
+            .iter()
+            .map(|asset| asset.0)
+            .cloned(),
+    ));
+
     let app = Router::new();
 
     let app = match &args.webapp_directory {
-        Some(webapp_directory) => {
-            app.nest_service("/", ServeDir::new(tokio::fs::canonicalize(webapp_directory).await.unwrap())).layer(CompressionLayer::new())
-        }
+        Some(webapp_directory) => app
+            .nest_service(
+                "/",
+                ServeDir::new(tokio::fs::canonicalize(webapp_directory).await.unwrap()),
+            )
+            .layer(CompressionLayer::new()),
         None => app,
     };
 
     let (user_session_sender, user_session_receiver) = unbounded::<UserSession>();
+    let resource_asset_index = asset_index.clone();
 
     tokio::spawn(async move {
         let mut world = World::new();
+
+        world.spawn_batch(
+            definition_file_cache
+                .get_planetoids()
+                .iter()
+                .map(|planetoid| PlanetoidBundle::new(planetoid, &resource_asset_index).unwrap()),
+        );
         world.insert_resource(DeltaTResource::new());
         world.insert_resource(ConnectingUsersQueue::new(user_session_receiver));
+        world.insert_resource(AssetIndexResource {
+            asset_index: resource_asset_index,
+        });
 
         let mut schedule = Schedule::default();
         schedule.add_systems(
@@ -334,7 +378,11 @@ async fn main() {
     };
 
     let asset_server_state = AssetServerState {
-        assets: Arc::new(asset_cache)
+        assets: Arc::new(asset_cache),
+    };
+
+    let asset_index_state = AssetIndexState {
+        assets: asset_index,
     };
 
     let app = app
@@ -342,8 +390,14 @@ async fn main() {
         .with_state(websocket_state)
         .route("/assets/name/:asset_name", get(asset_by_name))
         .with_state(asset_server_state)
-        ;
+        .route("/assets/index", get(get_asset_index))
+        .with_state(asset_index_state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:2718").await.unwrap();
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }

@@ -18,12 +18,11 @@
 use serde::Serialize;
 use ts_rs::TS;
 
-
 #[derive(Serialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
+#[ts(export)]
 #[serde(tag = "subtype")]
 pub enum ViewportFollowData {
-    Entity{id: u64},
-    Static{x: f64, y: f64},
-    Disconnected
+    Entity { id: u64 },
+    Static { x: f64, y: f64 },
+    Disconnected,
 }

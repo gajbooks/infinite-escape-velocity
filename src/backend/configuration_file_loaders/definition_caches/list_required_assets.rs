@@ -22,7 +22,9 @@ Servers may not always serve assets or keep them loaded,
     as well as other tasks like optionally verifying if a server does in fact have all the required resources loaded for development and debugging purposes.
  */
 
-use crate::configuration_file_structures::{asset_definition_file::AssetType, reference_string_types::AssetReference};
+use crate::configuration_file_structures::{
+    asset_definition_file::AssetType, reference_types::AssetReference,
+};
 
 pub trait ListRequiredAssets {
     fn get_required_asset_list(&self) -> Vec<(&AssetReference, AssetType)>;

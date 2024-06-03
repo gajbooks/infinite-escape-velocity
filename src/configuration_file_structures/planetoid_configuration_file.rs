@@ -19,7 +19,10 @@ use serde::Deserialize;
 
 use crate::backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets;
 
-use super::{asset_definition_file::AssetType, reference_string_types::{AssetReference, PlanetoidReference}};
+use super::{
+    asset_definition_file::AssetType,
+    reference_types::{AssetReference, PlanetoidReference},
+};
 
 #[derive(Deserialize)]
 pub struct PlanetoidMayBeLandedOn {
@@ -27,15 +30,15 @@ pub struct PlanetoidMayBeLandedOn {
     pub backdrop_image_asset: AssetReference,
     pub text_description_asset: AssetReference,
     pub features: Option<PlanetoidFeatures>,
-    pub opinion: Option<String> // Eventually will describe the "politics" of a planet and will decide if you are allowed to land, default to yes
+    pub opinion: Option<String>, // Eventually will describe the "politics" of a planet and will decide if you are allowed to land, default to yes
 }
 
 impl ListRequiredAssets for PlanetoidMayBeLandedOn {
     fn get_required_asset_list(&self) -> Vec<(&AssetReference, AssetType)> {
         vec![
             (&self.backdrop_image_asset, AssetType::Image),
-            (&self.text_description_asset, AssetType::Text)
-            ]
+            (&self.text_description_asset, AssetType::Text),
+        ]
     }
 }
 
@@ -52,7 +55,7 @@ pub struct PlanetoidRecord {
     pub display_radius: f32,
     pub x: f64,
     pub y: f64,
-    pub may_be_landed_on: Option<PlanetoidMayBeLandedOn>
+    pub may_be_landed_on: Option<PlanetoidMayBeLandedOn>,
 }
 
 impl ListRequiredAssets for PlanetoidRecord {
@@ -62,7 +65,7 @@ impl ListRequiredAssets for PlanetoidRecord {
         match &self.may_be_landed_on {
             Some(has) => {
                 required_assets.extend(has.get_required_asset_list());
-            },
+            }
             None => (),
         }
 

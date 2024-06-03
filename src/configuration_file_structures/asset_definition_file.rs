@@ -18,41 +18,40 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::reference_string_types::AssetReference;
-
+use super::reference_types::AssetReference;
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
-#[ts(export, export_to = "webapp/bindings/assets/")]
+#[ts(export, export_to = "assets/")]
 pub enum GraphicsType {
     SimpleSquareRotationalSpriteSheet {
         sprite_count_x: u32,
         sprite_count_y: u32,
-        image_data_asset: AssetReference
-    }
+        image_data_asset: AssetReference,
+    },
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
-#[ts(export, export_to = "webapp/bindings/assets/")]
+#[ts(export, export_to = "assets/")]
 pub enum MetaAsset {
-    Graphics(GraphicsType)
+    Graphics(GraphicsType),
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS, Eq, PartialEq)]
-#[ts(export, export_to = "webapp/bindings/assets/")]
+#[ts(export, export_to = "assets/")]
 pub enum AssetType {
     Image,
     Sound,
     Text,
-    Meta
+    Meta,
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
-#[ts(export, export_to = "webapp/bindings/assets/")]
+#[ts(export, export_to = "assets/")]
 pub enum AssetResources {
     Image(String),
     Sound(String),
     Text(String),
-    Meta(MetaAsset)
+    Meta(MetaAsset),
 }
 
 impl AssetResources {
@@ -78,14 +77,14 @@ impl AssetResources {
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
-#[ts(export, export_to = "webapp/bindings/assets/")]
+#[ts(export, export_to = "assets/")]
 pub struct AssetDefinition {
     pub asset_name: AssetReference,
-    pub asset_type: AssetResources
+    pub asset_type: AssetResources,
 }
 
 #[derive(Clone, Deserialize, Debug, Serialize, TS)]
-#[ts(export, export_to = "webapp/bindings/assets/")]
+#[ts(export, export_to = "assets/")]
 pub struct AssetDefinitionFile {
-    pub assets: Vec<AssetDefinition>
+    pub assets: Vec<AssetDefinition>,
 }

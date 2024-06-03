@@ -18,6 +18,7 @@
 use crate::backend::shrink_storage::ImmutableShrinkable;
 use crate::backend::spatial_optimizer::hash_sized::HashSized;
 use crate::backend::world_objects::components::collision_component::*;
+use crate::configuration_file_structures::reference_types::AssetIndexReference;
 use crate::connectivity::controllable_object_message_data::ViewportFollowData;
 use crate::connectivity::dynamic_object_message_data::*;
 use crate::connectivity::server_client_message::*;
@@ -36,12 +37,12 @@ use super::components::velocity_component::VelocityComponent;
 #[derive(Bundle)]
 pub struct ViewportBundle {
     pub viewport: ServerViewport,
-    pub collidable: CollidableComponent<Displayable>
+    pub collidable: CollidableComponent<Displayable>,
 }
 
 #[derive(Component)]
 pub struct Displayable {
-    pub object_type: String,
+    pub object_asset: AssetIndexReference,
 }
 
 impl HashSized for Displayable {}
@@ -49,7 +50,7 @@ impl HashSized for Displayable {}
 pub enum ViewportTrackingMode {
     Entity(Entity),
     Static(Coordinates),
-    Disconnected
+    Disconnected,
 }
 
 #[derive(Component)]
@@ -69,27 +70,26 @@ impl ServerViewport {
             player,
             last_tick_ids: DashSet::new(),
             outgoing_messages: outgoing_queue,
-            tracking_mode: ViewportTrackingMode::Static(Coordinates::new(0.0, 0.0))
+            tracking_mode: ViewportTrackingMode::Static(Coordinates::new(0.0, 0.0)),
         };
     }
 
     pub fn set_tracking_mode(&mut self, new_tracking_mode: ViewportTrackingMode) {
         self.tracking_mode = new_tracking_mode;
         let tracking_message_data = match self.tracking_mode {
-            ViewportTrackingMode::Entity(entity) => {
-                ViewportFollowData::Entity{id: entity.to_bits()}
+            ViewportTrackingMode::Entity(entity) => ViewportFollowData::Entity {
+                id: entity.to_bits(),
             },
-            ViewportTrackingMode::Static(location) => {
-                ViewportFollowData::Static { x: location.x, y: location.y }
+            ViewportTrackingMode::Static(location) => ViewportFollowData::Static {
+                x: location.x,
+                y: location.y,
             },
-            ViewportTrackingMode::Disconnected => {
-                ViewportFollowData::Disconnected
-            },
+            ViewportTrackingMode::Disconnected => ViewportFollowData::Disconnected,
         };
 
-        let _ = self.outgoing_messages.send(
-            ServerClientMessage::ViewportFollow(tracking_message_data),
-        ); // Nothing we can do about send errors for users disconnected
+        let _ = self
+            .outgoing_messages
+            .send(ServerClientMessage::ViewportFollow(tracking_message_data)); // Nothing we can do about send errors for users disconnected
     }
 }
 
@@ -99,7 +99,11 @@ pub fn tick_viewport(
         &mut ServerViewport,
         &mut CollidableComponent<Displayable>,
     )>,
-    displayables: Query<(&CollisionMarker<Displayable>, &PositionComponent, &Displayable)>,
+    displayables: Query<(
+        &CollisionMarker<Displayable>,
+        &PositionComponent,
+        &Displayable,
+    )>,
     optional_velocity: Query<&VelocityComponent>,
     optional_rotation: Query<&RotationComponent>,
     optional_angular_velocity: Query<&AngularVelocityComponent>,
@@ -107,7 +111,6 @@ pub fn tick_viewport(
     mut commands: Commands,
 ) {
     for (viewport_entity, mut viewport, mut collide_with) in all_viewports.iter_mut() {
-
         // Despawn the viewport if the owning user session no longer exists
         if sessions.contains(viewport.player) == false {
             commands.entity(viewport_entity).despawn();
@@ -120,16 +123,16 @@ pub fn tick_viewport(
                 match displayables.get(entity) {
                     Ok((_, position, _)) => {
                         collide_with.shape = collide_with.shape.move_center(position.position);
-                    },
+                    }
                     Err(_lost_track) => {
                         viewport.tracking_mode = ViewportTrackingMode::Disconnected;
-                    },
+                    }
                 }
-            },
+            }
             ViewportTrackingMode::Static(location) => {
                 // Presumably some external force may want to move the viewport to a fixed position unrelated to any entity
                 collide_with.shape = collide_with.shape.move_center(location);
-            },
+            }
             ViewportTrackingMode::Disconnected => {
                 // Potentially do something if the viewport has lost contact with its assigned entity
             }
@@ -142,7 +145,7 @@ pub fn tick_viewport(
                 Err(_) => {
                     warn!("Entity collided with Viewport which does not have the required components: {:?}", collision);
                     continue;
-                },
+                }
             };
 
             // Send a creation frame for each object not previously within the viewport's range
@@ -158,23 +161,24 @@ pub fn tick_viewport(
             }
 
             let velocity = match optional_velocity.get(collision) {
-                Ok(has) => {
-                    Some(VelocityMessage{vx: has.velocity.x, vy: has.velocity.y})
-                },
+                Ok(has) => Some(VelocityMessage {
+                    vx: has.velocity.x,
+                    vy: has.velocity.y,
+                }),
                 Err(_) => None,
             };
 
             let rotation = match optional_rotation.get(collision) {
-                Ok(has) => {
-                    Some(RotationMessage{rotation: has.rotation.get()})
-                },
+                Ok(has) => Some(RotationMessage {
+                    rotation: has.rotation.get(),
+                }),
                 Err(_) => None,
             };
 
             let angular_velocity = match optional_angular_velocity.get(collision) {
-                Ok(has) => {
-                    Some(AngularVelocityMessage{angular_velocity: has.angular_velocity.get()})
-                },
+                Ok(has) => Some(AngularVelocityMessage {
+                    angular_velocity: has.angular_velocity.get(),
+                }),
                 Err(_) => None,
             };
 
@@ -189,7 +193,7 @@ pub fn tick_viewport(
                         rotation: rotation,
                         velocity: velocity,
                         angular_velocity: angular_velocity,
-                        object_type: displayable.object_type.clone(),
+                        object_asset: displayable.object_asset,
                     },
                 )); // Nothing we can do about send errors for users disconnected
         }

@@ -19,22 +19,24 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 #[derive(Clone, Deserialize, Debug, TS)]
-#[ts(export, export_to = "webapp/bindings/")]
 pub enum ControlInput {
     Forward,
     Backward,
     Left,
     Right,
-    Fire
+    Fire,
 }
 
 pub type ControlInputStatus = bool;
 
 #[derive(TS)]
-#[ts(export, export_to = "webapp/bindings/")]
+#[ts(export)]
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientServerMessage {
-    ControlInput{input: ControlInput, pressed: ControlInputStatus},
+    ControlInput {
+        input: ControlInput,
+        pressed: ControlInputStatus,
+    },
     Disconnect,
 }

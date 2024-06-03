@@ -1,5 +1,4 @@
-import { group } from '@angular/animations';
-import { Component, ElementRef, HostListener, Input, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, ViewChild } from '@angular/core';
 import { ClientServerMessage } from 'bindings/ClientServerMessage';
 import { ControlInput } from 'bindings/ControlInput';
 import { DynamicObjectCreationData } from 'bindings/DynamicObjectCreationData';
@@ -11,6 +10,7 @@ import Konva from 'konva';
 import { Subject, interval } from 'rxjs';
 import { ENVIRONMENT } from 'src/environments/environment';
 import { StarfieldGenerator } from './starfield-generator';
+import { AssetIndexValue } from 'bindings/AssetIndexValue';
 
 type SendMessageFunction = (input: ControlInput, pressed: boolean) => void;
 
@@ -18,7 +18,7 @@ class KeyStatus {
   pressed: boolean = false;
   input: ControlInput;
   send_message: SendMessageFunction;
-  
+
   constructor(input: ControlInput, send: SendMessageFunction) {
     this.input = input;
     this.send_message = send;
@@ -63,12 +63,14 @@ class RenderShip {
 export class GameplayCanvasComponent {
   @Input({ required: true }) incomingMessages!: Subject<ServerClientMessage>;
   @Input({ required: true }) outgoingMessages!: Subject<ClientServerMessage>;
+  @Input({ required: true }) assetIndexList!: Promise<AssetIndexValue[]>;
   @ViewChild('gameWindow') gameWindow!: ElementRef;
 
   renderer!: Konva.Stage;
   shipLayer!: Konva.Layer;
   renderLoop = interval(16);
-  shipImage = new Image();
+  assetCache: Map<BigInt, HTMLImageElement> = new Map();
+  assetIdToName: Map<BigInt, string> = new Map();
   ships: Map<BigInt, RenderShip> = new Map();
   half_screen_width: number = 0.0;
   half_screen_height: number = 0.0;
@@ -79,7 +81,6 @@ export class GameplayCanvasComponent {
   starfield_renderer!: StarfieldGenerator;
 
   constructor() {
-    this.shipImage.src = ENVIRONMENT.GAME_SERVER_URL + '/assets/name/default_image';
   }
 
   object_offset_x(): number {
@@ -140,7 +141,7 @@ export class GameplayCanvasComponent {
       height: 1000
     });
 
-    let star_layer = new Konva.Layer({listening: false});
+    let star_layer = new Konva.Layer({ listening: false });
     this.renderer.add(star_layer);
     this.starfield_renderer = new StarfieldGenerator(star_layer);
 
@@ -149,6 +150,15 @@ export class GameplayCanvasComponent {
     this.renderLoop.subscribe(() => {
       this.refreshScreen();
     });
+
+    let assetIdToName = this.assetIdToName;
+
+    this.assetIndexList.then(index => {
+      index.forEach((asset, _ignored) => {
+        assetIdToName.set(asset.id, asset.name);
+      });
+    });
+
 
     let canvas = this;
     this.incomingMessages.subscribe({
@@ -167,21 +177,57 @@ export class GameplayCanvasComponent {
           }
 
           if (canvas.ships.has(updated_ship.id) == false) {
-            canvas.ships.set(updated_ship.id, new RenderShip(
-              updated_ship.x,
-              updated_ship.y,
-              updated_ship.rotation?.rotation ?? 0.0,
-              new Konva.Image({
-                image: canvas.shipImage,
-                offsetX: canvas.shipImage.width / 2,
-                offsetY: canvas.shipImage.height / 2,
-                x: updated_ship.x + canvas.object_offset_x(),
-                y: updated_ship.y + canvas.object_offset_y(),
-                rotation: updated_ship.rotation?.rotation
-              })
-            ));
-            let ship = <RenderShip>canvas.ships.get(updated_ship.id);
-            canvas.shipLayer.add(ship.graphics);
+            if (canvas.assetCache.has(updated_ship.object_asset) == false) {
+              let index_has = canvas.assetIdToName.get(updated_ship.object_asset);
+              if (typeof index_has !== 'undefined') {
+                let new_image = new Image();
+                new_image.src = `${ENVIRONMENT.GAME_SERVER_URL}/assets/name/${index_has}`;
+                canvas.assetCache.set(updated_ship.object_asset, new_image);
+              } else {
+                console.error(`Tried to use missing asset Id ${updated_ship.object_asset}`);
+              }
+            }
+
+            let shipImage = canvas.assetCache.get(updated_ship.object_asset);
+
+            if (typeof shipImage !== 'undefined') {
+              let konvaImage = new Konva.Image({
+                image: shipImage
+              });
+              let setAttributes = () => {
+                konvaImage.setAttrs({
+                  offsetX: shipImage.width / 2,
+                  offsetY: shipImage.height / 2,
+                  x: updated_ship.x + canvas.object_offset_x(),
+                  y: updated_ship.y + canvas.object_offset_y(),
+                  rotation: updated_ship.rotation?.rotation
+                })
+              };
+
+              let loadedEventEmitter: Subject<null>;
+              if (typeof (shipImage as any).onLoadEventHandler === 'undefined') {
+                loadedEventEmitter = new Subject();
+                (shipImage as any).onLoadEventHandler = loadedEventEmitter;
+                shipImage.onload = () => {
+                  loadedEventEmitter.next(null);
+                }
+              } else {
+                loadedEventEmitter = (shipImage as any).onLoadEventHandler;
+              }
+
+              loadedEventEmitter.subscribe(setAttributes);
+
+              setAttributes();
+
+              canvas.ships.set(updated_ship.id, new RenderShip(
+                updated_ship.x,
+                updated_ship.y,
+                updated_ship.rotation?.rotation ?? 0.0,
+                konvaImage
+              ));
+              let ship = <RenderShip>canvas.ships.get(updated_ship.id);
+              canvas.shipLayer.add(ship.graphics);
+            }
           }
 
           let ship = canvas.ships.get(updated_ship.id);
@@ -220,7 +266,7 @@ export class GameplayCanvasComponent {
     })
 
     let send_message = (input: ControlInput, pressed: boolean) => {
-      this.outgoingMessages.next({type: 'ControlInput', input: input, pressed: pressed});
+      this.outgoingMessages.next({ type: 'ControlInput', input: input, pressed: pressed });
     };
 
     this.key_status.set('ArrowDown', new KeyStatus('Backward', send_message));

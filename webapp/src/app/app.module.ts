@@ -3,6 +3,7 @@ import { BrowserModule } from '@angular/platform-browser';
 
 import { AppComponent } from './app.component';
 import { GameplayCanvasComponent } from './gameplay-canvas/gameplay-canvas.component';
+import { provideHttpClient } from '@angular/common/http';
 
 @NgModule({
   declarations: [
@@ -12,7 +13,7 @@ import { GameplayCanvasComponent } from './gameplay-canvas/gameplay-canvas.compo
     BrowserModule,
     GameplayCanvasComponent
   ],
-  providers: [],
+  providers: [provideHttpClient()],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

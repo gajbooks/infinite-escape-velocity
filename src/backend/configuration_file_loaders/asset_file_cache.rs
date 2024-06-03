@@ -15,18 +15,26 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use bytes::Bytes;
+use futures_util::future::join_all;
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
 };
-use bytes::Bytes;
-use futures_util::future::join_all;
 
-use crate::configuration_file_structures::{asset_definition_file::{
-    AssetDefinition, AssetDefinitionFile, AssetResources, GraphicsType, MetaAsset,
-}, reference_string_types::AssetReference};
+use crate::configuration_file_structures::{
+    asset_definition_file::{
+        AssetDefinition, AssetDefinitionFile, AssetResources, GraphicsType, MetaAsset,
+    },
+    reference_types::AssetReference,
+};
 
-use super::{archive_readers::{archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader}, asset_bundle_loader::AssetBundle};
+use super::{
+    archive_readers::{
+        archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader,
+    },
+    asset_bundle_loader::AssetBundle,
+};
 
 pub struct AssetFileCache {
     assets: HashMap<AssetReference, (AssetDefinition, Option<Bytes>)>,
@@ -46,10 +54,7 @@ impl AssetFileCache {
         self.assets.get(asset_name).cloned()
     }
 
-    pub fn get_asset_definition_by_name(
-        &self,
-        asset_name: &str,
-    ) -> Option<AssetDefinition> {
+    pub fn get_asset_definition_by_name(&self, asset_name: &str) -> Option<AssetDefinition> {
         self.assets.get(asset_name).map(|x| x.0.clone())
     }
 
@@ -70,13 +75,17 @@ impl AssetFileCache {
                             match self.assets.get(image_data_asset) {
                                 Some((linked_info, _data)) => {
                                     match linked_info.asset_type {
+                                        AssetResources::Image(_) => {
+                                            // This graphics type only has a use for Image asset references
+                                            Ok(())
+                                        },
                                         AssetResources::Meta(_) => {
                                             // We will potentially invalidate this assumption in the future, but for now, meta-resources only need to reference data resources
                                             tracing::error!("Meta-asset {} cannot have another meta-asset {} as a data value", name, linked_info.asset_name);
                                             Err(())
                                         },
                                         _ => {
-                                            Ok(())
+                                            Err(())
                                         }
                                     }
                                 },

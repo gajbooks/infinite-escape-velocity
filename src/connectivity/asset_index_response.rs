@@ -15,7 +15,17 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod components;
-pub mod planetoid;
-pub mod server_viewport;
-pub mod ship;
+use serde::Serialize;
+use ts_rs::TS;
+
+#[derive(Clone, Serialize, Debug, TS)]
+pub struct AssetIndexValue {
+    pub id: u64,
+    pub name: String,
+}
+
+#[derive(Serialize, Debug, TS)]
+#[ts(export)]
+pub struct AssetIndexResponse {
+    pub asset_index_list: Vec<AssetIndexValue>,
+}
