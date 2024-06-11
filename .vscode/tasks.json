@@ -8,7 +8,8 @@
 			"group": "build",
 			"problemMatcher": [],
 			"label": "Build Webapp",
-			"detail": "ng build"
+			"detail": "ng build",
+			"dependsOn": "Export Bindings/Run Tests"
 		},
 		{
 			"type": "npm",

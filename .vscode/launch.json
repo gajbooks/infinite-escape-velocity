@@ -51,6 +51,7 @@
             "runtimeArgs": [
                 "run-script", "open"
             ],
+            "preLaunchTask": "Export Bindings/Run Tests"
         },
         {
             "name": "Release Infinite Escape Velocity Frontend",
