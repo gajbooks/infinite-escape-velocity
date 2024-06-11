@@ -15,12 +15,35 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-#[macro_export]
-macro_rules! shrink_storage {
-    ( $shrink_var:expr ) => {
-        let len = $shrink_var.len();
-        if $shrink_var.capacity() > (len * 5) && len > 10 {
-            $shrink_var.shrink_to_fit();
-        }
-    };
+use std::ops::DerefMut;
+
+use dashmap::{DashMap, DashSet};
+
+pub trait ImmutableShrinkable {
+    fn shrink_storage(&self);
+}
+
+impl<K: std::cmp::Eq + std::hash::Hash, S: std::hash::BuildHasher + Clone> ImmutableShrinkable
+    for DashSet<K, S>
+{
+    fn shrink_storage(&self) {
+        self.shrink_to_fit();
+    }
+}
+
+impl<K: std::cmp::Eq + std::hash::Hash, S> ImmutableShrinkable for DashMap<K, S> {
+    fn shrink_storage(&self) {
+        self.shrink_to_fit();
+    }
+}
+
+pub trait MutableShrinkable {
+    fn shrink_storage(&mut self);
+}
+
+impl<T: DerefMut<Target = Vec<K>>, K> MutableShrinkable for T {
+    fn shrink_storage(&mut self) {
+        let shrink_size = ::std::cmp::max(::std::cmp::max(self.len() * 2, self.capacity() / 4), 10);
+        self.shrink_to(shrink_size);
+    }
 }

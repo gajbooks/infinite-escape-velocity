@@ -1,3 +1,4 @@
+workspace = { members = ["src/misc/blackbody"] }
 [package]
 name = "infinite-escape-velocity"
 version = "0.1.0"
@@ -7,19 +8,41 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fxhash = "0.2.1"
-dashmap = { version = "4.0.2", features= ["rayon"] }
-crossbeam-channel = "0.5.1"
-rayon = "1.5"
-macroquad = "0.3"
-webp = "0.2.0"
-euclid = "0.22"
-num = "0.4"
+axum = { version="0.7", features=["ws"] }
+axum-server = { version="*", features=["tls-rustls"] }
+bevy_ecs = "*"
+bytes = "*"
+ciborium = "*"
+clap = { version = "4", features = ["derive"] }
+dashmap = "5"
+euclid = {version = "0.22", features = ["serde"]}
+fxhash = "0.2"
+futures = "*"
+futures-util = "*"
+mime = "*"
+mime_guess = "*"
+num = "*"
+rand = "*"
+rayon = "1"
+rmp-serde = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+spin_sleep = "1"
+tokio = { version = "1", features = ["full"] }
+tower = { version = "*", features = ["util"] }
+tower-http = { version = "*", features = ["fs", "trace", "compression-br", "compression-deflate", "compression-gzip"] }
+ts-rs = { version="8" }
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3" }
+walkdir = "2"
+async_zip = { version = "*", features = ["tokio", "tokio-fs", "deflate"] }
 
 [profile.release]
 lto = true
 codegen-units=1
 debug = true
+split-debuginfo = "packed"
+strip = "symbols"
 
 [profile.dev.package."*"]
 opt-level = 3

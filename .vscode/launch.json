@@ -1,0 +1,73 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug Infinite Escape Velocity Backend",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=infinite-escape-velocity",
+                    "--package=infinite-escape-velocity"
+                ],
+                "filter": {
+                    "name": "infinite-escape-velocity",
+                    "kind": "bin"
+                }
+            },
+            "args": ["../infinite-escape-velocity-data/game_data", "--verify-assets", "--verbose-logs"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Release Infinite Escape Velocity Backend",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=infinite-escape-velocity",
+                    "--package=infinite-escape-velocity",
+                    "--release"
+                ],
+                "filter": {
+                    "name": "infinite-escape-velocity",
+                    "kind": "bin"
+                }
+            },
+            "args": ["../infinite-escape-velocity-data/game_data", "--webapp-directory", "webapp/dist/webapp"],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build Webapp",
+        },
+        {
+            "name": "Debug Infinite Escape Velocity Frontend",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceRoot}/webapp",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run-script", "open"
+            ],
+            "preLaunchTask": "Export Bindings/Run Tests"
+        },
+        {
+            "name": "Release Infinite Escape Velocity Frontend",
+            "type": "node",
+            "request": "launch",
+            "cwd": "${workspaceRoot}/webapp",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run-script", "open-release"
+            ],
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Debug Both Components",
+            "configurations": ["Debug Infinite Escape Velocity Frontend", "Debug Infinite Escape Velocity Backend"]
+        }
+    ]
+}

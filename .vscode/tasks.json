@@ -1,0 +1,28 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "build",
+			"path": "webapp",
+			"group": "build",
+			"problemMatcher": [],
+			"label": "Build Webapp",
+			"detail": "ng build",
+			"dependsOn": "Export Bindings/Run Tests"
+		},
+		{
+			"type": "npm",
+			"script": "open-release",
+			"path": "webapp",
+			"label": "Open Release In Browser",
+			"problemMatcher": []
+		},
+		{
+			"type": "cargo",
+			"command": "test",
+			"env": {"TS_RS_EXPORT_DIR": "webapp/bindings"},
+			"label": "Export Bindings/Run Tests"
+		}
+	]
+}
