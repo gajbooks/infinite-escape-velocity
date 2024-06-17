@@ -19,7 +19,7 @@ use bevy_ecs::bundle::Bundle;
 
 use crate::{
     backend::shape::{PointData, Shape},
-    connectivity::asset_index::AssetIndex,
+    connectivity::{asset_index::AssetIndex, view_layers::ViewLayers},
     shared_types::{AngularVelocity, Coordinates, Rotation, Velocity},
 };
 
@@ -65,7 +65,9 @@ impl ShipBundle {
 
         Ok(Self {
             displayable: Displayable {
+                display_radius: 25.0,
                 object_asset: display_asset,
+                view_layer: ViewLayers::Ships
             },
             displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(
                 PointData { point: position },

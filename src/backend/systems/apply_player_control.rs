@@ -27,7 +27,7 @@ pub trait PlayerControllablePhysics {
 }
 
 const PLAYER_ACCELERATION_PLACEHOLDER: f32 = 40.0;
-const PLAYER_ANGULAR_VELOCITY_PLACEHOLDER: f32 = std::f32::consts::PI / 4.0;
+const PLAYER_ANGULAR_VELOCITY_PLACEHOLDER: f32 = std::f32::consts::PI / 2.0;
 
 pub fn apply_player_control<T: PlayerControllablePhysics + Component>(mut controllable: Query<(Entity, &mut PlayerControlledComponent, &mut T)>, mut angular_velocity_components: Query<&mut AngularVelocityComponent>, mut commands: Commands) {
     controllable.iter_mut().for_each(|(entity, mut player_controls, mut physics_component)| {

@@ -15,14 +15,13 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod asset_index;
-pub mod asset_index_response;
-pub mod asset_server;
-pub mod client_server_message;
-pub mod connected_users;
-pub mod controllable_object_message_data;
-pub mod dynamic_object_message_data;
-pub mod server_client_message;
-pub mod user_session;
-pub mod view_layers;
-pub mod websocket_handler;
+use serde::Serialize;
+use ts_rs::TS;
+
+#[derive(Clone, Copy, Serialize, Debug, TS)]
+pub enum ViewLayers {
+    Background = 0,
+    Planetoids = 1,
+    Ships = 2,
+    Weapons = 3
+}

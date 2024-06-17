@@ -23,6 +23,7 @@ use crate::connectivity::controllable_object_message_data::ViewportFollowData;
 use crate::connectivity::dynamic_object_message_data::*;
 use crate::connectivity::server_client_message::*;
 use crate::connectivity::user_session::UserSession;
+use crate::connectivity::view_layers::ViewLayers;
 use crate::shared_types::Coordinates;
 use bevy_ecs::prelude::*;
 use dashmap::DashSet;
@@ -42,7 +43,9 @@ pub struct ViewportBundle {
 
 #[derive(Component)]
 pub struct Displayable {
+    pub display_radius: f32,
     pub object_asset: AssetIndexReference,
+    pub view_layer: ViewLayers,
 }
 
 impl HashSized for Displayable {}
@@ -155,6 +158,9 @@ pub fn tick_viewport(
                     let _ = viewport.outgoing_messages.send(
                         ServerClientMessage::DynamicObjectCreation(DynamicObjectCreationData {
                             id: collision.to_bits(),
+                            object_asset: displayable.object_asset,
+                            view_layer: displayable.view_layer,
+                            display_radius: displayable.display_radius
                         }),
                     ); // Nothing we can do about send errors for users disconnected
                 }
@@ -186,14 +192,13 @@ pub fn tick_viewport(
             let _ = viewport
                 .outgoing_messages
                 .send(ServerClientMessage::DynamicObjectUpdate(
-                    DynamicObjectMessageData {
+                    DynamicObjectUpdateData {
                         id: collision.to_bits(),
                         x: position.position.x,
                         y: position.position.y,
                         rotation: rotation,
                         velocity: velocity,
                         angular_velocity: angular_velocity,
-                        object_asset: displayable.object_asset,
                     },
                 )); // Nothing we can do about send errors for users disconnected
         }
