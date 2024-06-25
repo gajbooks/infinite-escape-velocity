@@ -1,0 +1,69 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
+[config]
+default_to_workspace = false
+
+[tasks.npm-install]
+script = "npm install"
+cwd = "webapp"
+
+[tasks.npm-ci]
+script = "npm ci"
+cwd = "webapp"
+
+[tasks.build-tests]
+command = "cargo"
+args = ["test"]
+env = { TS_RS_EXPORT_DIR = "webapp/bindings" }
+
+[tasks.build-webapp-release]
+script = "npm run ng build"
+cwd = "webapp"
+dependencies = ["npm-ci", "build-tests"]
+
+[tasks.build-webapp-debug]
+dependencies = ["npm-install", "build-tests"]
+
+[tasks.build-server-debug]
+command = "cargo"
+args = ["build"]
+
+[tasks.build-server-release]
+command = "cargo"
+args = ["build", "--release"]
+
+[tasks.build-release]
+dependencies = ["build-server-release", "build-webapp-release"]
+
+[tasks.open-release]
+script = "npm run open-release http://localhost:2718"
+cwd = "webapp"
+
+[tasks.build-debug]
+dependencies = ["build-server-debug", "build-webapp-debug"]
+
+[tasks.clean-output-dir]
+script_runner = "@shell"
+script = "rm -Rf Build"
+
+[tasks.create-output-dir]
+script_runner = "@shell"
+script = "mkdir Build"
+dependencies = ["clean-output-dir"]
+
+[tasks.copy-webapp-to-output]
+script_runner = "@shell"
+script = "cp -R webapp/dist/* Build/"
+dependencies = ["build-release", "create-output-dir"]
+
+[tasks.copy-server-to-output]
+script_runner = "@shell"
+script = "cp target/release/infinite-escape-velocity Build/"
+dependencies = ["build-release", "create-output-dir"]
+
+[tasks.copy-server-to-output.windows]
+script = "cp target/release/infinite-escape-velocity.exe Build/"
+
+[tasks.package-release]
+dependencies = ["copy-webapp-to-output", "copy-server-to-output"]
