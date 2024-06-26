@@ -23,6 +23,12 @@ function generateWebsocket(url: string): WebSocketSubject<unknown> {
   });
 }
 
+function generateWebsocketUrl(): string {
+  let prefix = location.protocol == 'https:' ? 'wss://' : 'ws://';
+  let host = ENVIRONMENT.PRODUCTION ? location.host : ENVIRONMENT.GAME_SERVER_HOST;
+  return `${prefix}${host}/ws`;
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -30,7 +36,7 @@ function generateWebsocket(url: string): WebSocketSubject<unknown> {
 })
 export class AppComponent {
   title = 'Infinite Escape Velocity';
-  socket = ENVIRONMENT.PRODUCTION ? generateWebsocket('ws://' + location.host + '/ws') : generateWebsocket('ws://' + ENVIRONMENT.GAME_SERVER_HOST + '/ws');
+  socket = generateWebsocket(generateWebsocketUrl());
   apiBaseUrl = ENVIRONMENT.PRODUCTION ? location.origin : ENVIRONMENT.GAME_SERVER_URL;
 
   public incomingMessages = new Subject<ServerClientMessage>();
