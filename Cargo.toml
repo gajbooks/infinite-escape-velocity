@@ -6,14 +6,15 @@ authors = ["Grant Jennings <gajbooks@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-axum = { version="0.7", features=["ws"] }
-axum-server = { version="*", features=["tls-rustls"] }
+async_zip = { version = "*", features = ["tokio", "tokio-fs", "deflate"] }
+axum = { version = "0.7", features = ["ws"] }
+axum-server = { version = "*", features = ["tls-rustls"] }
 bevy_ecs = "*"
 bytes = "*"
 ciborium = "*"
 clap = { version = "4", features = ["derive"] }
 dashmap = "6"
-euclid = {version = "0.22", features = ["serde"]}
+euclid = { version = "0.22", features = ["serde"] }
 fxhash = "0.2"
 futures = "*"
 futures-util = "*"
@@ -28,16 +29,23 @@ serde_json = "1"
 spin_sleep = "1"
 tokio = { version = "1", features = ["full"] }
 tower = { version = "*", features = ["util"] }
-tower-http = { version = "*", features = ["fs", "trace", "compression-br", "compression-deflate", "compression-gzip"] }
-ts-rs = { version="9" }
+tower-http = { version = "*", features = [
+    "fs",
+    "trace",
+    "compression-br",
+    "compression-deflate",
+    "compression-gzip",
+] }
+ts-rs = { version = "9" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
+uuid = { version = "*", features = ["v4"] }
 walkdir = "2"
-async_zip = { version = "*", features = ["tokio", "tokio-fs", "deflate"] }
+
 
 [profile.release]
 lto = true
-codegen-units=1
+codegen-units = 1
 debug = true
 split-debuginfo = "packed"
 strip = "symbols"

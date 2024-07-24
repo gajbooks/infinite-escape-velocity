@@ -35,7 +35,6 @@ function generateWebsocketUrl(): string {
   styleUrls: ['./app.component.less']
 })
 export class AppComponent {
-  title = 'Infinite Escape Velocity';
   socket = generateWebsocket(generateWebsocketUrl());
   apiBaseUrl = ENVIRONMENT.PRODUCTION ? location.origin : ENVIRONMENT.GAME_SERVER_URL;
 

@@ -42,6 +42,9 @@ pub fn process_incoming_messages(mut user_sessions: Query<&mut UserSession>) {
 
         while let Ok(message) = session.from_remote.try_recv() {
             match message {
+                ClientServerMessage::Authorize(_) => {
+                    // We don't want to handle authorize messages here, but we are required to send them over the websocket
+                },
                 ClientServerMessage::Disconnect => {
                     let _ = session.cancel.store(true, Ordering::Relaxed);
                     continue;
