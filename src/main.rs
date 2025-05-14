@@ -33,8 +33,8 @@ use backend::world_objects::components::timeout_component::{
 };
 use backend::world_objects::server_viewport::{tick_viewport, Displayable};
 use backend::world_objects::ship::ShipBundle;
-use bevy_ecs::schedule::{IntoSystemConfigs, Schedule};
-use bevy_ecs::system::{Commands, Local, Res, Resource};
+use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule};
+use bevy_ecs::prelude::{Commands, Local, Res, Resource};
 use bevy_ecs::world::World;
 use clap::Parser;
 use connectivity::connected_users::ConnectingUsersQueue;
@@ -78,7 +78,7 @@ use crate::connectivity::connected_users::{check_alive_sessions, spawn_user_sess
 use crate::connectivity::user_session::{process_incoming_messages, UserSession};
 
 fn plus_or_minus_random(radius: f64) -> f64 {
-    let value = rand::thread_rng().gen::<f64>();
+    let value = rand::rng().random::<f64>();
     let range = radius * 2.0;
     (range * value) - radius
 }

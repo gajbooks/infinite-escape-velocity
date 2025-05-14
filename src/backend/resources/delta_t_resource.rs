@@ -17,7 +17,7 @@
 
 use std::time::{self, Duration};
 
-use bevy_ecs::system::{ResMut, Resource};
+use bevy_ecs::prelude::{ResMut, Resource};
 
 const MICROSECONDS_PER_SECOND: u64 = 1_000_000;
 const FRACTIONAL_MAX_TICK_TIME: u64 = 20;

@@ -19,7 +19,7 @@ use std::sync::atomic::Ordering;
 
 use bevy_ecs::{
     entity::Entity,
-    system::{Commands, ParallelCommands, Query, ResMut, Resource},
+    prelude::{Commands, ParallelCommands, Query, ResMut, Resource},
 };
 use futures::channel::mpsc::UnboundedReceiver;
 
