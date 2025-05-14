@@ -396,7 +396,7 @@ async fn main() {
     let app = app
         .route("/ws", get(websocket_handler))
         .with_state(websocket_state)
-        .route("/assets/name/:asset_name", get(asset_by_name))
+        .route("/assets/name/{asset_name}", get(asset_by_name))
         .with_state(asset_server_state)
         .route("/assets/index", get(get_asset_index))
         .with_state(asset_index_state)
