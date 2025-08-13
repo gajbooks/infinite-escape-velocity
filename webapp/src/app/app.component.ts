@@ -6,9 +6,11 @@ import { ServerClientMessage } from 'bindings/ServerClientMessage';
 import { ENVIRONMENT } from 'src/environments/environment';
 // @ts-ignore
 import * as CBOR from 'cbor-web/dist/cbor';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, provideHttpClient } from '@angular/common/http';
 import { AssetIndexResponse } from 'bindings/AssetIndexResponse';
 import { AssetIndexValue } from 'bindings/AssetIndexValue';
+import { GameplayCanvasComponent } from './gameplay-canvas/gameplay-canvas.component';
+import { CommonModule } from '@angular/common';
 
 function generateWebsocket(url: string): WebSocketSubject<unknown> {
   return webSocket({
@@ -25,6 +27,8 @@ function generateWebsocket(url: string): WebSocketSubject<unknown> {
 
 @Component({
   selector: 'app-root',
+  standalone: true,
+  imports: [CommonModule, GameplayCanvasComponent],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.less']
 })

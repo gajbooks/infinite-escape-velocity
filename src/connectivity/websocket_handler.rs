@@ -84,7 +84,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                     // It would be very difficult for a serialization to fail, and would likely be a programming issue on the server
                     ciborium::into_writer(&outgoing_message, &mut serialized).unwrap();
 
-                    if sender.send(Message::Binary(serialized)).await.is_err() {
+                    if sender.send(Message::Binary(serialized.into())).await.is_err() {
                         tracing::warn!("Websocket send failed to {}", who);
                         outbound_task_cancel.store(true, atomic::Ordering::Relaxed);
                     }
@@ -123,7 +123,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                                 Ok(incoming) => {
                                     match incoming {
                                         Message::Binary(bin) => {
-                                            match ciborium::from_reader(bin.as_slice()) {
+                                            match ciborium::from_reader(&*bin) {
                                                 Ok(deserialized) => {
                                                     match inbound_messages_sender.send(deserialized)
                                                     {

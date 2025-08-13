@@ -17,7 +17,7 @@
 
 use std::sync::atomic::Ordering;
 
-use bevy_ecs::{component::Component, entity::Entity, system::{Commands, Query}};
+use bevy_ecs::{component::{Component, Mutable}, entity::Entity, system::{Commands, Query}};
 use euclid::num::Zero;
 
 use crate::{backend::world_objects::components::{angular_velocity_component::AngularVelocityComponent, player_controlled_component::PlayerControlledComponent}, shared_types::{AccelerationScalar, AngularVelocity}};
@@ -29,7 +29,7 @@ pub trait PlayerControllablePhysics {
 const PLAYER_ACCELERATION_PLACEHOLDER: f32 = 40.0;
 const PLAYER_ANGULAR_VELOCITY_PLACEHOLDER: f32 = std::f32::consts::PI / 4.0;
 
-pub fn apply_player_control<T: PlayerControllablePhysics + Component>(mut controllable: Query<(Entity, &mut PlayerControlledComponent, &mut T)>, mut angular_velocity_components: Query<&mut AngularVelocityComponent>, mut commands: Commands) {
+pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability = Mutable>>(mut controllable: Query<(Entity, &mut PlayerControlledComponent, &mut T)>, mut angular_velocity_components: Query<&mut AngularVelocityComponent>, mut commands: Commands) {
     controllable.iter_mut().for_each(|(entity, mut player_controls, mut physics_component)| {
         if player_controls.cancel.load(Ordering::Relaxed) == true {
             commands.entity(entity).despawn();

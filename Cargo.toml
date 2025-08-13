@@ -8,13 +8,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum = { version="0.7", features=["ws"] }
+axum = { version="0.8", features=["ws"] }
 axum-server = { version="*", features=["tls-rustls"] }
 bevy_ecs = "*"
 bytes = "*"
 ciborium = "*"
 clap = { version = "4", features = ["derive"] }
-dashmap = "5"
+dashmap = "6"
 euclid = {version = "0.22", features = ["serde"]}
 fxhash = "0.2"
 futures = "*"
@@ -31,7 +31,7 @@ spin_sleep = "1"
 tokio = { version = "1", features = ["full"] }
 tower = { version = "*", features = ["util"] }
 tower-http = { version = "*", features = ["fs", "trace", "compression-br", "compression-deflate", "compression-gzip"] }
-ts-rs = { version="8" }
+ts-rs = { version="11" }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3" }
 walkdir = "2"

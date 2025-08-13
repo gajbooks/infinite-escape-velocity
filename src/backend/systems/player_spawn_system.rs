@@ -17,7 +17,7 @@
 
 use bevy_ecs::{
     entity::Entity,
-    system::{Commands, Query, Res},
+    prelude::{Commands, Query, Res},
 };
 
 use crate::{
