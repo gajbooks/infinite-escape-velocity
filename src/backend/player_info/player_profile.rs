@@ -16,28 +16,21 @@
 */
 
 use serde::Deserialize;
-use ts_rs::TS;
 
-#[derive(Clone, Deserialize, Debug, TS)]
-pub enum ControlInput {
-    Forward,
-    Backward,
-    Left,
-    Right,
-    Fire,
+#[derive(Deserialize, PartialEq)]
+pub enum AuthType {
+    BasicToken{token: String},
+    UsernameAndPassword{username: String, password: String}
 }
 
-pub type ControlInputStatus = bool;
+pub struct PlayerProfile {
+    pub authentication: AuthType
+}
 
-#[derive(TS)]
-#[ts(export)]
-#[derive(Deserialize, Debug)]
-#[serde(tag = "type")]
-pub enum ClientServerMessage {
-    Authorize(String),
-    ControlInput {
-        input: ControlInput,
-        pressed: ControlInputStatus,
-    },
-    Disconnect,
+impl PlayerProfile {
+    pub fn new(auth: AuthType) -> Self {
+        PlayerProfile {
+            authentication: auth
+        }
+    }
 }

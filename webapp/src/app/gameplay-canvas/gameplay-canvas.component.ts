@@ -3,7 +3,7 @@ import { ClientServerMessage } from 'bindings/ClientServerMessage';
 import { ControlInput } from 'bindings/ControlInput';
 import { DynamicObjectCreationData } from 'bindings/DynamicObjectCreationData';
 import { DynamicObjectDestructionData } from 'bindings/DynamicObjectDestructionData';
-import { DynamicObjectMessageData } from 'bindings/DynamicObjectMessageData';
+import { DynamicObjectUpdateData } from 'bindings/DynamicObjectUpdateData';
 import { ServerClientMessage } from 'bindings/ServerClientMessage';
 import { ViewportFollowData } from 'bindings/ViewportFollowData';
 import Konva from 'konva';
@@ -39,7 +39,7 @@ class KeyStatus {
   }
 }
 
-class RenderShip {
+class RenderedObject {
   x: number;
   y: number;
   rotation: number;
@@ -68,10 +68,11 @@ export class GameplayCanvasComponent {
 
   renderer!: Konva.Stage;
   shipLayer!: Konva.Layer;
+  planetoidLayer!: Konva.Layer;
   renderLoop = interval(16);
   assetCache: Map<BigInt, HTMLImageElement> = new Map();
   assetIdToName: Map<BigInt, string> = new Map();
-  ships: Map<BigInt, RenderShip> = new Map();
+  dynamicObjects: Map<BigInt, RenderedObject> = new Map();
   half_screen_width: number = 0.0;
   half_screen_height: number = 0.0;
   camera_center_x: number = 0.0;
@@ -93,7 +94,7 @@ export class GameplayCanvasComponent {
 
   refreshScreen() {
     if (this.camera_center_entity != null) {
-      let center_entity = this.ships.get(this.camera_center_entity);
+      let center_entity = this.dynamicObjects.get(this.camera_center_entity);
       if (typeof center_entity !== 'undefined') {
         this.camera_center_x = center_entity.x;
         this.camera_center_y = center_entity.y;
@@ -102,7 +103,7 @@ export class GameplayCanvasComponent {
 
     this.starfield_renderer.draw_stars(this.camera_center_x, this.camera_center_y, this.renderer.width(), this.renderer.height());
 
-    this.ships.forEach((val) => {
+    this.dynamicObjects.forEach((val) => {
       val.graphics.x(val.x + this.object_offset_x());
       val.graphics.y(val.y + this.object_offset_y());
       val.graphics.rotation(val.rotation);
@@ -145,8 +146,12 @@ export class GameplayCanvasComponent {
     this.renderer.add(star_layer);
     this.starfield_renderer = new StarfieldGenerator(star_layer);
 
+    this.planetoidLayer = new Konva.Layer();
+    this.renderer.add(this.planetoidLayer);
+
     this.shipLayer = new Konva.Layer();
     this.renderer.add(this.shipLayer);
+
     this.renderLoop.subscribe(() => {
       this.refreshScreen();
     });
@@ -164,89 +169,103 @@ export class GameplayCanvasComponent {
     this.incomingMessages.subscribe({
       next(val) {
         if (val.type == 'DynamicObjectCreation') {
-          let new_ship = val.data as DynamicObjectCreationData;
-          // We don't care about imaginary ships right now
-        }
+          let new_dynamic_object = val.data as DynamicObjectCreationData;
 
-        else if (val.type == 'DynamicObjectUpdate') {
-          let updated_ship = val.data as DynamicObjectMessageData;
-
-          // Correct rotational coordinates from radians to degrees for Konva rendering
-          if (updated_ship.rotation != null) {
-            updated_ship.rotation.rotation = updated_ship.rotation.rotation * (180 / Math.PI);
-          }
-
-          if (canvas.ships.has(updated_ship.id) == false) {
-            if (canvas.assetCache.has(updated_ship.object_asset) == false) {
-              let index_has = canvas.assetIdToName.get(updated_ship.object_asset);
+          if (canvas.dynamicObjects.has(new_dynamic_object.id) == false) {
+            if (canvas.assetCache.has(new_dynamic_object.object_asset) == false) {
+              let index_has = canvas.assetIdToName.get(new_dynamic_object.object_asset);
               if (typeof index_has !== 'undefined') {
                 let new_image = new Image();
                 new_image.src = `${ENVIRONMENT.GAME_SERVER_URL}/assets/name/${index_has}`;
-                canvas.assetCache.set(updated_ship.object_asset, new_image);
+                canvas.assetCache.set(new_dynamic_object.object_asset, new_image);
               } else {
-                console.error(`Tried to use missing asset Id ${updated_ship.object_asset}`);
+                console.error(`Tried to use missing asset Id ${new_dynamic_object.object_asset}`);
               }
             }
 
-            let shipImage = canvas.assetCache.get(updated_ship.object_asset);
+            let dynamic_object_image = canvas.assetCache.get(new_dynamic_object.object_asset);
 
-            if (typeof shipImage !== 'undefined') {
-              let konvaImage = new Konva.Image({
-                image: shipImage
+            if (typeof dynamic_object_image !== 'undefined') {
+              let konva_image = new Konva.Image({
+                image: dynamic_object_image,
+                width: new_dynamic_object.display_radius,
+                height: new_dynamic_object.display_radius,
+                visible: false,
               });
+
               let setAttributes = () => {
-                konvaImage.setAttrs({
-                  offsetX: shipImage.width / 2,
-                  offsetY: shipImage.height / 2,
-                  x: updated_ship.x + canvas.object_offset_x(),
-                  y: updated_ship.y + canvas.object_offset_y(),
-                  rotation: updated_ship.rotation?.rotation
+                konva_image.setAttrs({
+                  offsetX: konva_image.width() / 2,
+                  offsetY: konva_image.height() / 2,
                 })
               };
 
               let loadedEventEmitter: Subject<null>;
-              if (typeof (shipImage as any).onLoadEventHandler === 'undefined') {
+              if (typeof (dynamic_object_image as any).onLoadEventHandler === 'undefined') {
                 loadedEventEmitter = new Subject();
-                (shipImage as any).onLoadEventHandler = loadedEventEmitter;
-                shipImage.onload = () => {
+                (dynamic_object_image as any).onLoadEventHandler = loadedEventEmitter;
+                dynamic_object_image.onload = () => {
                   loadedEventEmitter.next(null);
                 }
               } else {
-                loadedEventEmitter = (shipImage as any).onLoadEventHandler;
+                loadedEventEmitter = (dynamic_object_image as any).onLoadEventHandler;
               }
 
               loadedEventEmitter.subscribe(setAttributes);
 
               setAttributes();
 
-              canvas.ships.set(updated_ship.id, new RenderShip(
-                updated_ship.x,
-                updated_ship.y,
-                updated_ship.rotation?.rotation ?? 0.0,
-                konvaImage
+              canvas.dynamicObjects.set(new_dynamic_object.id, new RenderedObject(
+                -10000.0,
+                -10000.0,
+                0.0,
+                konva_image
               ));
-              let ship = <RenderShip>canvas.ships.get(updated_ship.id);
-              canvas.shipLayer.add(ship.graphics);
+
+              let rendered_object = <RenderedObject>canvas.dynamicObjects.get(new_dynamic_object.id);
+
+              switch (new_dynamic_object.view_layer) {
+                case 'Background':
+                  break;
+                case 'Planetoids':
+                  canvas.planetoidLayer.add(rendered_object.graphics);
+                  break;
+                case 'Ships':
+                  canvas.shipLayer.add(rendered_object.graphics);
+                  break;
+                case 'Weapons':
+                  break;
+              };
             }
           }
+        }
 
-          let ship = canvas.ships.get(updated_ship.id);
+        else if (val.type == 'DynamicObjectUpdate') {
+          let updated_object = val.data as DynamicObjectUpdateData;
 
-          if (typeof ship !== 'undefined') {
-            ship.x = updated_ship.x;
-            ship.y = updated_ship.y;
-            ship.rotation = updated_ship.rotation?.rotation ?? 0;
+          // Correct rotational coordinates from radians to degrees for Konva rendering
+          if (updated_object.rotation != null) {
+            updated_object.rotation.rotation = updated_object.rotation.rotation * (180 / Math.PI);
           }
 
+          let dynamic_object = canvas.dynamicObjects.get(updated_object.id);
+
+          if (typeof dynamic_object !== 'undefined') {
+            dynamic_object.x = updated_object.x;
+            dynamic_object.y = updated_object.y;
+            dynamic_object.rotation = updated_object.rotation?.rotation ?? 0.0;
+
+            dynamic_object.graphics.show();
+          }
         }
 
         else if (val.type == 'DynamicObjectDestruction') {
-          let deleted_ship = val.data as DynamicObjectDestructionData;
-          let ship = canvas.ships.get(deleted_ship.id);
+          let deleted_object = val.data as DynamicObjectDestructionData;
+          let deleted_dynamic_object = canvas.dynamicObjects.get(deleted_object.id);
 
-          if (typeof ship !== 'undefined') {
-            ship.graphics.remove();
-            canvas.ships.delete(deleted_ship.id);
+          if (typeof deleted_dynamic_object !== 'undefined') {
+            deleted_dynamic_object.graphics.remove();
+            canvas.dynamicObjects.delete(deleted_object.id);
           }
         }
 

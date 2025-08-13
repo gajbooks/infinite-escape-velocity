@@ -26,7 +26,7 @@ use crate::connectivity::dynamic_object_message_data::*;
 #[serde(tag = "type", content = "data")]
 pub enum ServerClientMessage {
     ViewportFollow(ViewportFollowData),
-    DynamicObjectUpdate(DynamicObjectMessageData),
+    DynamicObjectUpdate(DynamicObjectUpdateData),
     DynamicObjectCreation(DynamicObjectCreationData),
     DynamicObjectDestruction(DynamicObjectDestructionData),
 }

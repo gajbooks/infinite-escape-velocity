@@ -15,29 +15,5 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use serde::Deserialize;
-use ts_rs::TS;
-
-#[derive(Clone, Deserialize, Debug, TS)]
-pub enum ControlInput {
-    Forward,
-    Backward,
-    Left,
-    Right,
-    Fire,
-}
-
-pub type ControlInputStatus = bool;
-
-#[derive(TS)]
-#[ts(export)]
-#[derive(Deserialize, Debug)]
-#[serde(tag = "type")]
-pub enum ClientServerMessage {
-    Authorize(String),
-    ControlInput {
-        input: ControlInput,
-        pressed: ControlInputStatus,
-    },
-    Disconnect,
-}
+pub mod player_profile;
+pub mod player_session;

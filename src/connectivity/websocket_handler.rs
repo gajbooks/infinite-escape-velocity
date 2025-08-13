@@ -21,6 +21,7 @@ use crate::connectivity::user_session::*;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
+use bytes::Bytes;
 use futures::channel::mpsc::UnboundedSender;
 use tokio::time::timeout;
 
@@ -84,7 +85,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                     // It would be very difficult for a serialization to fail, and would likely be a programming issue on the server
                     ciborium::into_writer(&outgoing_message, &mut serialized).unwrap();
 
-                    if sender.send(Message::Binary(serialized.into())).await.is_err() {
+                    if sender.send(Message::Binary(Bytes::from(serialized))).await.is_err() {
                         tracing::warn!("Websocket send failed to {}", who);
                         outbound_task_cancel.store(true, atomic::Ordering::Relaxed);
                     }

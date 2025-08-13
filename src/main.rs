@@ -20,6 +20,7 @@ mod configuration_file_structures;
 mod connectivity;
 mod shared_types;
 
+use axum::routing::post;
 use axum::{routing::get, Router};
 use backend::configuration_file_loaders::asset_bundle_loader::AssetBundleLoader;
 use backend::resources::delta_t_resource::{increment_time, DeltaTResource};
@@ -32,12 +33,15 @@ use backend::world_objects::components::timeout_component::{
 };
 use backend::world_objects::server_viewport::{tick_viewport, Displayable};
 use backend::world_objects::ship::ShipBundle;
-
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule};
 use bevy_ecs::prelude::{Commands, Local, Res, Resource};
 use bevy_ecs::world::World;
 use clap::Parser;
 use connectivity::connected_users::ConnectingUsersQueue;
+use connectivity::player_profile_handlers::{create_new_ephemeral_player, create_new_username_player};
+use connectivity::player_profiles::PlayerProfiles;
+use connectivity::player_session_handlers::login_player;
+use connectivity::player_sessions::PlayerSessions;
 use euclid::Angle;
 use futures::channel::mpsc::unbounded;
 use rand::Rng;
@@ -386,13 +390,21 @@ async fn main() {
         assets: asset_index,
     };
 
+    let player_profile_state = PlayerProfiles::default();
+    let player_session_state = PlayerSessions::default();
+
     let app = app
         .route("/ws", get(websocket_handler))
         .with_state(websocket_state)
         .route("/assets/name/{asset_name}", get(asset_by_name))
         .with_state(asset_server_state)
         .route("/assets/index", get(get_asset_index))
-        .with_state(asset_index_state);
+        .with_state(asset_index_state)
+        .route("/players/newephemeralplayer", post(create_new_ephemeral_player))
+        .route("/players/newplayer", post(create_new_username_player))
+        .with_state(player_profile_state.clone())
+        .route("/players/login", post(login_player))
+        .with_state((player_profile_state, player_session_state));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:2718").await.unwrap();
     axum::serve(

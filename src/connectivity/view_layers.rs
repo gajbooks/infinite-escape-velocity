@@ -15,29 +15,13 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use serde::Deserialize;
+use serde::Serialize;
 use ts_rs::TS;
 
-#[derive(Clone, Deserialize, Debug, TS)]
-pub enum ControlInput {
-    Forward,
-    Backward,
-    Left,
-    Right,
-    Fire,
-}
-
-pub type ControlInputStatus = bool;
-
-#[derive(TS)]
-#[ts(export)]
-#[derive(Deserialize, Debug)]
-#[serde(tag = "type")]
-pub enum ClientServerMessage {
-    Authorize(String),
-    ControlInput {
-        input: ControlInput,
-        pressed: ControlInputStatus,
-    },
-    Disconnect,
+#[derive(Clone, Copy, Serialize, Debug, TS)]
+pub enum ViewLayers {
+    Background = 0,
+    Planetoids = 1,
+    Ships = 2,
+    Weapons = 3
 }
