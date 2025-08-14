@@ -1,0 +1,8 @@
+<div>
+    @for (message of messages; track message) {
+        <div>{{message.name}}: {{message.message}}</div>
+    }
+</div>
+<form [formGroup]="chatSubmitGroup" (ngSubmit)="send()">
+    <input type="text" [formControl]="chatInputBox">
+</form>
