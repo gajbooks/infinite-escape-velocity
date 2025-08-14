@@ -19,7 +19,7 @@ use axum::{extract::State, http::StatusCode, Json};
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::backend::player_info::{player_profile::AuthType, player_session::PlayerSession};
+use crate::backend::player_info::player_profile::AuthType;
 
 use super::{player_profiles::PlayerProfiles, player_sessions::PlayerSessions};
 
@@ -35,7 +35,7 @@ pub async fn login_player(
 ) -> Result<Json<LoginPlayerResponse>, StatusCode> {
     match player_profiles.validate_login_request(&request).await {
         Ok(valid_profile) => {
-            let session_token = player_sessions.add_session(PlayerSession::new(valid_profile)).await;
+            let session_token = player_sessions.create_session(valid_profile).await;
             Ok(LoginPlayerResponse{session_token}.into())
         },
         Err(()) => Err(StatusCode::UNAUTHORIZED),

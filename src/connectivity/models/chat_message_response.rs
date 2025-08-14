@@ -15,33 +15,19 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use serde::Deserialize;
+use serde::Serialize;
 use ts_rs::TS;
 
-#[derive(Deserialize, PartialEq, TS)]
-#[ts(export, export_to = "players/")]
-pub enum AuthType {
-    BasicToken{token: String},
-    UsernameAndPassword{username: String, password: String}
+#[derive(Clone, Serialize, TS)]
+#[ts(export, export_to = "players/messaging/")]
+pub struct ChatMessageResponse {
+    pub message: String,
+    pub player_name: Option<String>,
 }
 
-impl AuthType {
-    pub fn get_username(&self) -> Option<&str> {
-        match self {
-            AuthType::BasicToken { token: _ } => None,
-            AuthType::UsernameAndPassword { username, password: _ } => Some(&username),
-        }
-    }
-}
-
-pub struct PlayerProfile {
-    pub authentication: AuthType
-}
-
-impl PlayerProfile {
-    pub fn new(auth: AuthType) -> Self {
-        PlayerProfile {
-            authentication: auth
-        }
+impl ToString for ChatMessageResponse {
+    fn to_string(&self) -> String {
+        let username = self.player_name.as_deref().unwrap_or("???");
+        format!("{}: {}", username, self.message)
     }
 }

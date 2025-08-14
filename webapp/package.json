@@ -16,6 +16,7 @@
     "@angular/router": "^20.0.0",
     "cbor-web": "^10.0.1",
     "konva": "^9.2.3",
+    "ngx-sse-client": "^20.0.0",
     "rxjs": "^7.5.0",
     "tslib": "^2.3.0",
     "zone.js": "^0.15.0"

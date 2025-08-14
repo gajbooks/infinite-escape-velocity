@@ -19,7 +19,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use uuid::Uuid;
 
-use crate::backend::player_info::player_session::{PlayerSession, PlayerSessionTimeout};
+use crate::backend::player_info::{player_profile::PlayerProfile, player_session::{PlayerSession, PlayerSessionTimeout}};
 
 #[derive(Default, Clone)]
 pub struct PlayerSessions {
@@ -44,7 +44,7 @@ impl PlayerSessions {
         }
     }
 
-    pub async fn add_session(&self, session: PlayerSession) -> String {
+    pub async fn create_session(&self, profile: Arc<PlayerProfile>) -> String {
         let mut session_table = self.player_logins.lock().await;
 
         let mut session_id = Uuid::new_v4().to_string();
@@ -59,7 +59,7 @@ impl PlayerSessions {
                 unreachable!("Session identifiers should be pre-checked")
             },
             std::collections::hash_map::Entry::Vacant(add_session) => {
-                add_session.insert(Arc::new(PlayerSessionTimeout::new(session)));
+                add_session.insert(Arc::new(PlayerSessionTimeout::new(PlayerSession::new(profile, session_id.clone()))));
                 session_id
             },
         }

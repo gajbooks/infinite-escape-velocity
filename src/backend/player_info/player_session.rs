@@ -85,11 +85,12 @@ impl PlayerSessionTimeout {
 }
 
 pub struct PlayerSession {
-    player_profile: Arc<PlayerProfile>,
+    pub player_profile: Arc<PlayerProfile>,
+    pub session_id: String,
 }
 
 impl PlayerSession {
-    pub fn new(profile: Arc<PlayerProfile>) -> Self {
-        Self{player_profile: profile}
+    pub fn new(profile: Arc<PlayerProfile>, id: String) -> Self {
+        Self{player_profile: profile, session_id: id}
     }
 }

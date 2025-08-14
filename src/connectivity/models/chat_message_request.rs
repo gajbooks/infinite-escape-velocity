@@ -18,30 +18,8 @@
 use serde::Deserialize;
 use ts_rs::TS;
 
-#[derive(Deserialize, PartialEq, TS)]
-#[ts(export, export_to = "players/")]
-pub enum AuthType {
-    BasicToken{token: String},
-    UsernameAndPassword{username: String, password: String}
-}
-
-impl AuthType {
-    pub fn get_username(&self) -> Option<&str> {
-        match self {
-            AuthType::BasicToken { token: _ } => None,
-            AuthType::UsernameAndPassword { username, password: _ } => Some(&username),
-        }
-    }
-}
-
-pub struct PlayerProfile {
-    pub authentication: AuthType
-}
-
-impl PlayerProfile {
-    pub fn new(auth: AuthType) -> Self {
-        PlayerProfile {
-            authentication: auth
-        }
-    }
+#[derive(Deserialize, TS)]
+#[ts(export, export_to = "players/messaging/")]
+pub struct ChatMessageRequest {
+    pub message: String
 }

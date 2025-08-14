@@ -75,7 +75,9 @@ use crate::backend::world_objects::planetoid::PlanetoidBundle;
 use crate::connectivity::asset_index::{get_asset_index, AssetIndex, AssetIndexState};
 use crate::connectivity::asset_server::{asset_by_name, AssetServerState};
 use crate::connectivity::connected_users::{check_alive_sessions, spawn_user_sessions};
+use crate::connectivity::services::chat_service::ChatService;
 use crate::connectivity::user_session::{process_incoming_messages, UserSession};
+use crate::connectivity::handlers::chat_handlers::{send_message, subscribe_message};
 
 fn plus_or_minus_random(radius: f64) -> f64 {
     let value = rand::rng().random::<f64>();
@@ -392,6 +394,7 @@ async fn main() {
 
     let player_profile_state = PlayerProfiles::default();
     let player_session_state = PlayerSessions::default();
+    let chat_service = ChatService::default();
 
     let app = app
         .route("/ws", get(websocket_handler))
@@ -404,7 +407,11 @@ async fn main() {
         .route("/players/newplayer", post(create_new_username_player))
         .with_state(player_profile_state.clone())
         .route("/players/login", post(login_player))
-        .with_state((player_profile_state, player_session_state));
+        .with_state((player_profile_state, player_session_state.clone()))
+        .route("/players/messaging/send-message", post(send_message))
+        .with_state((chat_service.clone(), player_session_state.clone()))
+        .route("/players/messaging/subscribe-message", get(subscribe_message))
+        .with_state((chat_service.clone(), player_session_state.clone()));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:2718").await.unwrap();
     axum::serve(

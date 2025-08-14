@@ -1,4 +1,4 @@
-import { Component, Output } from '@angular/core';
+import { Component, inject, Output } from '@angular/core';
 import { Subject } from 'rxjs';
 import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
 import { ClientServerMessage } from 'bindings/ClientServerMessage';
@@ -6,11 +6,15 @@ import { ServerClientMessage } from 'bindings/ServerClientMessage';
 import { ENVIRONMENT } from 'src/environments/environment';
 // @ts-ignore
 import * as CBOR from 'cbor-web/dist/cbor';
-import { HttpClient, provideHttpClient } from '@angular/common/http';
+import { HTTP_INTERCEPTORS, HttpClient, provideHttpClient } from '@angular/common/http';
 import { AssetIndexResponse } from 'bindings/AssetIndexResponse';
 import { AssetIndexValue } from 'bindings/AssetIndexValue';
 import { GameplayCanvasComponent } from './gameplay-canvas/gameplay-canvas.component';
 import { CommonModule } from '@angular/common';
+import { ChatBoxComponent } from './chat-box/chat-box.component';
+import { ChatService } from './services/chat.service';
+import { BaseUrlService } from './services/base-url.service';
+import { APIClient } from './services/api-client.service';
 
 function generateWebsocket(url: string): WebSocketSubject<unknown> {
   return webSocket({
@@ -25,22 +29,16 @@ function generateWebsocket(url: string): WebSocketSubject<unknown> {
   });
 }
 
-function generateWebsocketUrl(): string {
-  let prefix = location.protocol == 'https:' ? 'wss://' : 'ws://';
-  let host = ENVIRONMENT.PRODUCTION ? location.host : ENVIRONMENT.GAME_SERVER_HOST;
-  return `${prefix}${host}/ws`;
-}
-
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, GameplayCanvasComponent],
+  imports: [CommonModule, ChatBoxComponent, GameplayCanvasComponent],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.less']
 })
 export class AppComponent {
-  socket = generateWebsocket(generateWebsocketUrl());
-  apiBaseUrl = ENVIRONMENT.PRODUCTION ? location.origin : ENVIRONMENT.GAME_SERVER_URL;
+  private baseUrlService = inject(BaseUrlService);
+  socket = generateWebsocket(this.baseUrlService.generateWebsocketUrl());
 
   public incomingMessages = new Subject<ServerClientMessage>();
   public outgoingMessages = new Subject<ClientServerMessage>();
@@ -50,7 +48,7 @@ export class AppComponent {
   constructor(private http: HttpClient) {
     let self = this;
     this.assetIndex = new Promise((resolve, reject) => {
-      http.get<AssetIndexResponse>(`${this.apiBaseUrl}/assets/index`).subscribe(index => {
+      http.get<AssetIndexResponse>("/assets/index").subscribe(index => {
         resolve(index.asset_index_list);
         self.subscribeToWebsocket(self);
       });
