@@ -16,3 +16,6 @@
 */
 
 pub mod chat_handlers;
+pub mod player_profile_handlers;
+pub mod player_session_handlers;
+pub mod websocket_handler;

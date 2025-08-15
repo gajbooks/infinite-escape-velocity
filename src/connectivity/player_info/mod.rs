@@ -16,4 +16,6 @@
 */
 
 pub mod player_profile;
+pub mod player_profiles;
 pub mod player_session;
+pub mod player_sessions;

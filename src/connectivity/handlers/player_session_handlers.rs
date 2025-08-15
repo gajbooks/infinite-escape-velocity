@@ -15,29 +15,31 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::Serialize;
 use ts_rs::TS;
 
-use crate::backend::player_info::player_profile::AuthType;
+use crate::connectivity::player_info::player_profile::AuthType;
 
-use super::{player_profiles::PlayerProfiles, player_sessions::PlayerSessions};
+use crate::connectivity::player_info::{
+    player_profiles::PlayerProfiles, player_sessions::PlayerSessions,
+};
 
 #[derive(Serialize, TS)]
 #[ts(export, export_to = "players/")]
 pub struct LoginPlayerResponse {
-    session_token: String
+    session_token: String,
 }
 
 pub async fn login_player(
     State((player_profiles, player_sessions)): State<(PlayerProfiles, PlayerSessions)>,
-    Json(request): Json<AuthType>
+    Json(request): Json<AuthType>,
 ) -> Result<Json<LoginPlayerResponse>, StatusCode> {
     match player_profiles.validate_login_request(&request).await {
         Ok(valid_profile) => {
             let session_token = player_sessions.create_session(valid_profile).await;
-            Ok(LoginPlayerResponse{session_token}.into())
-        },
+            Ok(LoginPlayerResponse { session_token }.into())
+        }
         Err(()) => Err(StatusCode::UNAUTHORIZED),
     }
 }

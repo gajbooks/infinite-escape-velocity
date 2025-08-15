@@ -28,7 +28,7 @@ use tokio::time::timeout;
 use tracing::warn;
 
 use crate::connectivity::models::chat_message_request::ChatMessageRequest;
-use crate::connectivity::player_sessions::PlayerSessions;
+use crate::connectivity::player_info::player_sessions::PlayerSessions;
 use crate::connectivity::services::chat_service::ChatService;
 
 const MAX_MESSAGE_LENGTH: usize = 2048;

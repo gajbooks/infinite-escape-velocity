@@ -65,7 +65,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
         inbound_messages_receiver,
         who,
         external_task_cancel,
-    )).await.unwrap(); // Can't do anything if the ECS portion is disconnected
+    )).await.unwrap(); // Can't do anything if the other portion is disconnected
 
     let outbound_task = tokio::spawn(async move {
         loop {

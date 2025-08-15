@@ -19,7 +19,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use uuid::Uuid;
 
-use crate::backend::player_info::player_profile::{AuthType, PlayerProfile};
+use crate::connectivity::player_info::player_profile::{AuthType, PlayerProfile};
 
 #[derive(Clone, Default)]
 pub struct PlayerProfiles {

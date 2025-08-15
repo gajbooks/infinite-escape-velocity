@@ -16,7 +16,6 @@
 */
 
 pub mod configuration_file_loaders;
-pub mod player_info;
 pub mod resources;
 pub mod shape;
 pub mod shrink_storage;

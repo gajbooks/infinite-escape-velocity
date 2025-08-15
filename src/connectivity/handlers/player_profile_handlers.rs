@@ -19,7 +19,7 @@ use axum::{extract::State, http::StatusCode, Json};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use super::player_profiles::PlayerProfiles;
+use crate::connectivity::player_info::player_profiles::PlayerProfiles;
 
 #[derive(Serialize, TS)]
 #[ts(export, export_to = "players/")]

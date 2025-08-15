@@ -19,7 +19,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use uuid::Uuid;
 
-use crate::backend::player_info::{player_profile::PlayerProfile, player_session::{PlayerSession, PlayerSessionTimeout}};
+use crate::connectivity::player_info::{player_profile::PlayerProfile, player_session::{PlayerSession, PlayerSessionTimeout}};
 
 #[derive(Default, Clone)]
 pub struct PlayerSessions {

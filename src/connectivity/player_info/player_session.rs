@@ -21,8 +21,6 @@ use tokio::sync::{Mutex, MutexGuard};
 
 use super::player_profile::PlayerProfile;
 
-type InternalSessionType = Arc<tokio::sync::Mutex<PlayerSession>>;
-
 const SESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
 pub struct PlayerSessionTimeout {
