@@ -18,30 +18,41 @@
 use serde::Deserialize;
 use ts_rs::TS;
 
+use crate::connectivity::player_info::player_session::PlayerSessionTimeout;
+
 #[derive(Deserialize, PartialEq, TS)]
 #[ts(export, export_to = "players/")]
 pub enum AuthType {
-    BasicToken{token: String},
-    UsernameAndPassword{username: String, password: String}
+    BasicToken { token: String },
+    UsernameAndPassword { username: String, password: String },
 }
 
 impl AuthType {
     pub fn get_username(&self) -> Option<&str> {
         match self {
             AuthType::BasicToken { token: _ } => None,
-            AuthType::UsernameAndPassword { username, password: _ } => Some(&username),
+            AuthType::UsernameAndPassword {
+                username,
+                password: _,
+            } => Some(&username),
         }
     }
 }
 
 pub struct PlayerProfile {
-    pub authentication: AuthType
+    pub authentication: AuthType,
+    pub session: PlayerSessionTimeout,
 }
 
 impl PlayerProfile {
     pub fn new(auth: AuthType) -> Self {
         PlayerProfile {
-            authentication: auth
+            authentication: auth,
+            session: PlayerSessionTimeout::new(None),
         }
+    }
+
+    pub fn cleanup_expired_sessions(&self) -> bool {
+        self.session.retain_if_valid()
     }
 }

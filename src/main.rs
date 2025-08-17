@@ -392,7 +392,7 @@ async fn main() {
         assets: asset_index,
     };
 
-    let player_profile_state = PlayerProfiles::default();
+    let player_profile_state = PlayerProfiles::new();
     let player_session_state = PlayerSessions::default();
     let chat_service = ChatService::default();
 

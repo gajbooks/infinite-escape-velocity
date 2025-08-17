@@ -45,15 +45,19 @@ pub async fn send_message(
 
     match headers.get("Authorization") {
         Some(auth_header) => match auth_header.to_str() {
-            Ok(auth_header_string) => match player_sessions.get_session(auth_header_string).await {
-                Some(existing_session) => match existing_session.get_session_async().await {
-                    Some(valid_session) => {
-                        let username = valid_session.player_profile.authentication.get_username();
-                        chat_service.send_message(&message.message, username);
-                        StatusCode::NO_CONTENT
-                    }
-                    None => StatusCode::UNAUTHORIZED,
-                },
+            Ok(auth_header_string) => match player_sessions
+                .get_session(auth_header_string)
+                .await
+                .upgrade()
+            {
+                Some(existing_session) => {
+                    let username = existing_session
+                        .player_profile
+                        .authentication
+                        .get_username();
+                    chat_service.send_message(&message.message, username);
+                    StatusCode::NO_CONTENT
+                }
                 None => StatusCode::UNAUTHORIZED,
             },
             Err(_) => StatusCode::UNAUTHORIZED,
@@ -68,18 +72,23 @@ pub async fn subscribe_message(
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
     match headers.get("Authorization") {
         Some(auth_header) => match auth_header.to_str() {
-            Ok(auth_header_string) => match player_sessions.get_session(auth_header_string).await {
-                Some(existing_session) => {
+            Ok(auth_header_string) => {
+                if let Some(player_profile) = player_sessions
+                        .get_session(auth_header_string)
+                        .await
+                        .upgrade()
+                        .map(|x| x.player_profile.clone()) {
                     let chat_subscription = chat_service.get_receiving_handle();
 
                     // This stream takes in the needed state and automatically times out and retries in case a session has expired
                     let stream =
-                        stream::unfold((chat_subscription, existing_session), async |mut state| {
-                            match state.1.get_session_async().await {
-                                Some(_valid_session) => {
-                                    match timeout(Duration::from_secs(MESSAGE_REDRIVE_TIMEOUT_SECONDS), async {
-                                        state.0.recv().await
-                                    })
+                        stream::unfold((chat_subscription, player_profile), async |mut state| {
+                            match state.1.session.extend_session() {
+                                true => {
+                                    match timeout(
+                                        Duration::from_secs(MESSAGE_REDRIVE_TIMEOUT_SECONDS),
+                                        async { state.0.recv().await },
+                                    )
                                     .await
                                     {
                                         Ok(received_message) => match received_message {
@@ -106,14 +115,15 @@ pub async fn subscribe_message(
                                         }
                                     }
                                 }
-                                None => None,
+                                false => None,
                             }
                         });
 
                     Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+                } else {
+                    Err(StatusCode::UNAUTHORIZED)
                 }
-                None => Err(StatusCode::UNAUTHORIZED),
-            },
+            }
             Err(_) => Err(StatusCode::UNAUTHORIZED),
         },
         None => Err(StatusCode::UNAUTHORIZED),

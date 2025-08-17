@@ -15,25 +15,49 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::{collections::HashMap, sync::Arc};
+const PROFILE_CLEANUP_DURATION: u64 = 1;
 
+use std::{
+    collections::HashMap,
+    sync::{Arc, Weak},
+    time::Duration,
+};
+
+use tracing::trace;
 use uuid::Uuid;
 
 use crate::connectivity::player_info::player_profile::{AuthType, PlayerProfile};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct PlayerProfiles {
-    player_list: Arc<tokio::sync::RwLock<HashMap<String, Arc<PlayerProfile>>>>
+    player_list: Arc<tokio::sync::RwLock<HashMap<String, Arc<PlayerProfile>>>>,
 }
 
 impl PlayerProfiles {
-    pub async fn create_player_with_token(&self) -> Result<String, ()> {
-        let id = Uuid::new_v4();
-        self.create_player(AuthType::BasicToken{token: id.to_string()}).await
+    pub fn new() -> PlayerProfiles {
+        let list = Arc::default();
+        tokio::spawn(Self::cleanup_profiles_task(Arc::downgrade(&list)));
+        PlayerProfiles { player_list: list }
     }
 
-    pub async fn create_player_with_username_and_password(&self, desired_username: &str, desired_password: &str) -> Result<String, ()> {
-        self.create_player(AuthType::UsernameAndPassword{username: desired_username.to_string(), password: desired_password.to_string()}).await
+    pub async fn create_player_with_token(&self) -> Result<String, ()> {
+        let id = Uuid::new_v4();
+        self.create_player(AuthType::BasicToken {
+            token: id.to_string(),
+        })
+        .await
+    }
+
+    pub async fn create_player_with_username_and_password(
+        &self,
+        desired_username: &str,
+        desired_password: &str,
+    ) -> Result<String, ()> {
+        self.create_player(AuthType::UsernameAndPassword {
+            username: desired_username.to_string(),
+            password: desired_password.to_string(),
+        })
+        .await
     }
 
     pub async fn create_player(&self, auth: AuthType) -> Result<String, ()> {
@@ -45,14 +69,17 @@ impl PlayerProfiles {
             std::collections::hash_map::Entry::Vacant(empty) => {
                 empty.insert(Arc::new(PlayerProfile::new(auth)));
                 Ok(identifier)
-            },
+            }
         }
     }
 
     fn extract_identifier(auth: &AuthType) -> &str {
         match &auth {
-            AuthType::BasicToken{token} => token,
-            AuthType::UsernameAndPassword{username, password: _} => username,
+            AuthType::BasicToken { token } => token,
+            AuthType::UsernameAndPassword {
+                username,
+                password: _,
+            } => username,
         }
     }
 
@@ -67,8 +94,23 @@ impl PlayerProfiles {
                 } else {
                     Err(())
                 }
-            },
+            }
             None => Err(()),
+        }
+    }
+
+    async fn cleanup_profiles_task(
+        state: Weak<tokio::sync::RwLock<HashMap<String, Arc<PlayerProfile>>>>,
+    ) {
+        loop {
+            tokio::time::sleep(Duration::from_secs(PROFILE_CLEANUP_DURATION)).await;
+            if let Some(exists) = state.upgrade() {
+                for (_identifier, profile) in &*exists.read().await {
+                    profile.cleanup_expired_sessions();
+                }
+            } else {
+                return;
+            }
         }
     }
 }

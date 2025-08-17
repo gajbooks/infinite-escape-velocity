@@ -15,42 +15,55 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::{sync::Arc, time::Instant};
+use std::{
+    sync::{Arc, Mutex, MutexGuard, Weak},
+    time::Instant,
+};
 
-use tokio::sync::{Mutex, MutexGuard};
+use tracing::trace;
 
 use super::player_profile::PlayerProfile;
 
-const SESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+const SESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
+struct PlayerSessionData {
+    last_connected_time: Instant,
+    player_session: Option<Arc<PlayerSession>>,
+}
 
 pub struct PlayerSessionTimeout {
-    last_connected_time: Mutex<Instant>,
-    player_session: PlayerSession,
+    data: Mutex<PlayerSessionData>,
 }
 
 impl PlayerSessionTimeout {
-    pub fn new(session: PlayerSession) -> Self {
-        Self {last_connected_time: Mutex::new(std::time::Instant::now()), player_session: session}
+    pub fn new(session: Option<PlayerSession>) -> Self {
+        Self {
+            data: Mutex::new(PlayerSessionData {
+                last_connected_time: std::time::Instant::now(),
+                player_session: session.map(|x| Arc::new(x)),
+            }),
+        }
     }
 
-    pub async fn is_within_session_async(&self) -> bool {
-        let locked_instant = self.last_connected_time.lock().await;
-        Self::is_within_session_check(&locked_instant)
+    pub fn get_session(&self) -> Weak<PlayerSession> {
+        let locked_data = self.data.lock().unwrap();
+        if let Some(session) = &locked_data.player_session {
+            if Self::is_within_session_check(&locked_data.last_connected_time) {
+                Arc::downgrade(&session)
+            } else {
+                Weak::new()
+            }
+        } else {
+            Weak::new()
+        }
     }
 
-    pub fn is_within_session(&self) -> bool {
-        let locked_instant = self.last_connected_time.blocking_lock();
-        Self::is_within_session_check(&locked_instant)
-    }
-
-    pub async fn get_session_async(&self) -> Option<&PlayerSession> {
-        let mut locked_instant = self.last_connected_time.lock().await;
-        self.get_session_logic(&mut locked_instant)
-    }
-
-    pub fn get_session(&self) -> Option<&PlayerSession> {
-        let mut locked_instant = self.last_connected_time.blocking_lock();
-        self.get_session_logic(&mut locked_instant)
+    pub fn set_session(&self, session: PlayerSession) -> Weak<PlayerSession> {
+        let mut locked_data = self.data.lock().unwrap();
+        let new_session_ref = Arc::new(session);
+        locked_data.player_session = Some(new_session_ref.clone());
+        Self::reset_session_timer(&mut locked_data);
+        Arc::downgrade(&new_session_ref)
     }
 
     fn is_within_session_check(time: &std::time::Instant) -> bool {
@@ -61,24 +74,44 @@ impl PlayerSessionTimeout {
         }
     }
 
-    fn get_session_logic<'a>(&self, guard: &mut MutexGuard<'a, Instant>) -> Option<&PlayerSession> {
-        match Self::extend_session(guard) {
-            Ok(_instant) => {
-                Some(&self.player_session)
-            },
-            Err(()) => {
-                None
-            },
+    pub fn retain_if_valid(&self) -> bool {
+        let mut guard = self.data.lock().unwrap();
+        Self::retain_if_valid_intern(&mut guard)
+    }
+
+    fn retain_if_valid_intern<'a>(guard: &mut MutexGuard<'a, PlayerSessionData>) -> bool {
+        if Self::is_within_session_check(&guard.last_connected_time) {
+            true
+        } else {
+            if guard.player_session.is_some() {
+                trace!(
+                    "Cleaned up player session {}",
+                    guard
+                        .player_session
+                        .as_ref()
+                        .map(|x| x.session_id.as_str())
+                        .unwrap_or("UNKNOWN")
+                );
+            }
+
+            guard.player_session = None;
+            false
         }
     }
 
-    fn extend_session<'a>(guard: &mut MutexGuard<'a, Instant>) -> Result<Instant, ()> {
-        if Self::is_within_session_check(&guard) {
-            **guard = std::time::Instant::now();
-            Ok(**guard + SESSION_TIMEOUT)
+    pub fn extend_session<'a>(&self) -> bool {
+        let mut guard = self.data.lock().unwrap();
+        if Self::retain_if_valid_intern(&mut guard) {
+            Self::reset_session_timer(&mut guard);
+            true
         } else {
-            Err(())
+            false
         }
+    }
+
+    fn reset_session_timer<'a>(guard: &mut MutexGuard<'a, PlayerSessionData>) -> Instant {
+        guard.last_connected_time = std::time::Instant::now();
+        guard.last_connected_time + SESSION_TIMEOUT
     }
 }
 
@@ -88,7 +121,10 @@ pub struct PlayerSession {
 }
 
 impl PlayerSession {
-    pub fn new(profile: Arc<PlayerProfile>, id: String) -> Self {
-        Self{player_profile: profile, session_id: id}
+    pub fn new(profile: Arc<PlayerProfile>, session_id: String) -> Self {
+        Self {
+            player_profile: profile,
+            session_id,
+        }
     }
 }
