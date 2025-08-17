@@ -8,7 +8,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "open-release": "opener http://localhost:2718"
+    "open-release": "opener"
   },
   "private": true,
   "dependencies": {
