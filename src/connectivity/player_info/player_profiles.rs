@@ -23,7 +23,6 @@ use std::{
     time::Duration,
 };
 
-use tracing::trace;
 use uuid::Uuid;
 
 use crate::connectivity::player_info::player_profile::{AuthType, PlayerProfile};

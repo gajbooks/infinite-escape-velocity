@@ -83,15 +83,8 @@ impl PlayerSessionTimeout {
         if Self::is_within_session_check(&guard.last_connected_time) {
             true
         } else {
-            if guard.player_session.is_some() {
-                trace!(
-                    "Cleaned up player session {}",
-                    guard
-                        .player_session
-                        .as_ref()
-                        .map(|x| x.session_id.as_str())
-                        .unwrap_or("UNKNOWN")
-                );
+            if let Some(session) = &guard.player_session {
+                trace!("Cleaned up player session {}", session.session_id);
             }
 
             guard.player_session = None;
