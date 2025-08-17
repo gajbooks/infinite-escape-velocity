@@ -74,6 +74,9 @@
             "request": "launch",
             "cwd": "${workspaceRoot}/webapp",
             "runtimeExecutable": "npm",
+            "runtimeArgs": [
+                "run-script", "do-nothing"
+            ],
             "preLaunchTask": "Open Release In Browser"
         }
     ],
