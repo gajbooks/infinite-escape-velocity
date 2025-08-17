@@ -297,10 +297,7 @@ async fn main() {
 
     let app = match &args.webapp_directory {
         Some(webapp_directory) => app
-            .nest_service(
-                "/",
-                ServeDir::new(tokio::fs::canonicalize(webapp_directory).await.unwrap()),
-            )
+            .fallback_service(ServeDir::new(tokio::fs::canonicalize(webapp_directory).await.unwrap()))
             .layer(CompressionLayer::new()),
         None => app,
     };
