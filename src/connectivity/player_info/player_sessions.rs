@@ -22,9 +22,10 @@ use std::{
 
 use uuid::Uuid;
 
-use crate::connectivity::player_info::{
-    player_profile::PlayerProfile, player_session::PlayerSession,
-};
+use crate::{backend::components::session::player_session_component::PlayerSessionComponent, connectivity::{
+    player_info::{player_profile::PlayerProfile, player_session::PlayerSession},
+    services::ecs_communication_service::EcsCommunicationService,
+}};
 
 #[derive(Default, Clone)]
 pub struct PlayerSessions {
@@ -49,7 +50,11 @@ impl PlayerSessions {
         }
     }
 
-    pub async fn create_session(&self, profile: Arc<PlayerProfile>) -> String {
+    pub async fn create_session(
+        &self,
+        profile: Arc<PlayerProfile>,
+        spawn_service: &EcsCommunicationService,
+    ) -> String {
         let mut session_table = self.player_logins.lock().await;
 
         // Clean up old entries
@@ -63,7 +68,18 @@ impl PlayerSessions {
 
         let session_weak_ref = match profile.session.get_session().upgrade() {
             Some(good_existing) => Arc::downgrade(&good_existing),
-            None => profile.session.set_session(PlayerSession::new(profile.clone(), session_id.clone())),
+            None => {
+                let weak_ref = profile
+                    .session
+                    .set_session(PlayerSession::new(profile.clone(), session_id.clone()));
+                let spawn_ref = weak_ref.clone();
+                let _ = spawn_service
+                    .run_command(move |commands| {
+                        commands.spawn(PlayerSessionComponent { session: spawn_ref });
+                    })
+                    .await;
+                weak_ref
+            }
         };
 
         match session_table.entry(session_id.clone()) {

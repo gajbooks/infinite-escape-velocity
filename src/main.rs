@@ -71,6 +71,7 @@ use crate::backend::configuration_file_loaders::definition_caches::list_required
 use crate::backend::configuration_file_loaders::definition_file_cache::DefinitionFileCache;
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
 use crate::backend::systems::apply_player_control::apply_player_control;
+use crate::backend::systems::player_session_cleanup::player_session_cleanup;
 use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
 use crate::backend::systems::submit_command::process_external_commands;
 use crate::backend::systems::update_collisions_with_position::update_collisions_with_position;
@@ -102,10 +103,14 @@ struct AssetIndexResource {
 async fn spawn_a_ship_idk_task(commands: EcsCommunicationService) {
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let _ = commands.run_command(|commands| -> Result<(), ()> {
-            commands.spawn(RandomShipSpawnPlaceholderComponent{});
-            Ok(())
-        }).await.unwrap().unwrap();
+        let _ = commands
+            .run_command(|commands| -> Result<(), ()> {
+                commands.spawn(RandomShipSpawnPlaceholderComponent {});
+                Ok(())
+            })
+            .await
+            .unwrap()
+            .unwrap();
     }
 }
 
@@ -349,7 +354,14 @@ async fn main() {
 
         let mut schedule = Schedule::default();
 
-        schedule.add_systems((process_external_commands, pre_collision_checkpoint).chain());
+        schedule.add_systems(
+            (
+                player_session_cleanup,
+                process_external_commands,
+                pre_collision_checkpoint,
+            )
+                .chain(),
+        );
 
         schedule.add_systems(
             (
@@ -425,7 +437,7 @@ async fn main() {
     let player_session_state = PlayerSessions::default();
     let chat_service = ChatService::default();
 
-    tokio::spawn(spawn_a_ship_idk_task(web_ecs_command_service));
+    tokio::spawn(spawn_a_ship_idk_task(web_ecs_command_service.clone()));
 
     let app = app
         .route("/ws", get(websocket_handler))
@@ -441,7 +453,11 @@ async fn main() {
         .route("/players/newplayer", post(create_new_username_player))
         .with_state(player_profile_state.clone())
         .route("/players/login", post(login_player))
-        .with_state((player_profile_state, player_session_state.clone()))
+        .with_state((
+            player_profile_state,
+            player_session_state.clone(),
+            web_ecs_command_service.clone(),
+        ))
         .route("/players/messaging/send-message", post(send_message))
         .with_state((chat_service.clone(), player_session_state.clone()))
         .route(

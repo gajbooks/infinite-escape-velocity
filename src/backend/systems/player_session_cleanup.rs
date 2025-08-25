@@ -15,11 +15,14 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod components;
-pub mod configuration_file_loaders;
-pub mod resources;
-pub mod shape;
-pub mod shrink_storage;
-pub mod spatial_optimizer;
-pub mod systems;
-pub mod world_objects;
+use bevy_ecs::{entity::Entity, system::{ParallelCommands, Query}};
+
+use crate::backend::components::session::player_session_component::PlayerSessionComponent;
+
+pub fn player_session_cleanup(sessions: Query<(Entity, &PlayerSessionComponent)>, commands: ParallelCommands) {
+    sessions.par_iter().for_each(|(entity, session)| {
+        if let None = session.session.upgrade() {
+            commands.command_scope(|mut x| x.entity(entity).despawn());
+        }
+    });
+}

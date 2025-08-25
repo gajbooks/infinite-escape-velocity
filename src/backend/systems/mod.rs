@@ -16,6 +16,7 @@
 */
 
 pub mod apply_player_control;
+pub mod player_session_cleanup;
 pub mod player_spawn_system;
 pub mod submit_command;
 pub mod update_collisions_with_position;

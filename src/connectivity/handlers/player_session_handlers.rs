@@ -24,6 +24,7 @@ use crate::connectivity::player_info::player_profile::AuthType;
 use crate::connectivity::player_info::{
     player_profiles::PlayerProfiles, player_sessions::PlayerSessions,
 };
+use crate::connectivity::services::ecs_communication_service::EcsCommunicationService;
 
 #[derive(Serialize, TS)]
 #[ts(export, export_to = "players/")]
@@ -32,12 +33,12 @@ pub struct LoginPlayerResponse {
 }
 
 pub async fn login_player(
-    State((player_profiles, player_sessions)): State<(PlayerProfiles, PlayerSessions)>,
+    State((player_profiles, player_sessions, spawn_service)): State<(PlayerProfiles, PlayerSessions, EcsCommunicationService)>,
     Json(request): Json<AuthType>,
 ) -> Result<Json<LoginPlayerResponse>, StatusCode> {
     match player_profiles.validate_login_request(&request).await {
         Ok(valid_profile) => {
-            let session_token = player_sessions.create_session(valid_profile).await;
+            let session_token = player_sessions.create_session(valid_profile, &spawn_service).await;
             Ok(LoginPlayerResponse { session_token }.into())
         }
         Err(()) => Err(StatusCode::UNAUTHORIZED),

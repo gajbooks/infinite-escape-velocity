@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 async_zip = { version = "*", features = ["tokio", "tokio-fs", "deflate"] }
-axum = { version = "0.8", features = ["ws"] }
+axum = { version = "0.8", features = ["macros", "ws"] }
 axum-server = { version = "*", features = ["rustls"] }
 bevy_ecs = "*"
 bytes = "*"

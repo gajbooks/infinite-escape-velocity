@@ -15,11 +15,4 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod components;
-pub mod configuration_file_loaders;
-pub mod resources;
-pub mod shape;
-pub mod shrink_storage;
-pub mod spatial_optimizer;
-pub mod systems;
-pub mod world_objects;
+pub mod player_session_component;
