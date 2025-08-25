@@ -19,28 +19,34 @@ mod backend;
 mod configuration_file_structures;
 mod connectivity;
 mod shared_types;
+mod utility;
 
 use axum::routing::post;
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use backend::configuration_file_loaders::asset_bundle_loader::AssetBundleLoader;
-use backend::resources::delta_t_resource::{increment_time, DeltaTResource};
-use backend::spatial_optimizer::collision_optimizer::{collision_system, CollisionOptimizer};
+use backend::resources::delta_t_resource::{DeltaTResource, increment_time};
+use backend::spatial_optimizer::collision_optimizer::{CollisionOptimizer, collision_system};
 use backend::spatial_optimizer::hash_sized::HashSized;
 use backend::world_objects::components::collision_component::clear_old_collisions;
 use backend::world_objects::components::semi_newtonian_physics_component::SemiNewtonianPhysicsComponent;
 use backend::world_objects::components::timeout_component::{
-    check_despawn_times, TimeoutComponent,
+    TimeoutComponent, check_despawn_times,
 };
-use backend::world_objects::server_viewport::{tick_viewport, Displayable};
+use backend::world_objects::server_viewport::{Displayable, tick_viewport};
 use backend::world_objects::ship::ShipBundle;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::prelude::{Commands, Res, Resource};
+use bevy_ecs::query::With;
 use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule};
-use bevy_ecs::prelude::{Commands, Local, Res, Resource};
+use bevy_ecs::system::Query;
 use bevy_ecs::world::World;
 use clap::Parser;
 use connectivity::connected_users::ConnectingUsersQueue;
-use connectivity::handlers::player_profile_handlers::{create_new_ephemeral_player, create_new_username_player};
-use connectivity::player_info::player_profiles::PlayerProfiles;
+use connectivity::handlers::player_profile_handlers::{
+    create_new_ephemeral_player, create_new_username_player,
+};
 use connectivity::handlers::player_session_handlers::login_player;
+use connectivity::player_info::player_profiles::PlayerProfiles;
 use connectivity::player_info::player_sessions::PlayerSessions;
 use euclid::Angle;
 use futures::channel::mpsc::unbounded;
@@ -48,7 +54,7 @@ use rand::Rng;
 use shared_types::{Coordinates, Speed, Velocity};
 use tokio::time;
 use tower_http::compression::CompressionLayer;
-use tracing::{debug, trace, Level};
+use tracing::{Level, debug, trace};
 use tracing_subscriber::FmtSubscriber;
 
 use connectivity::handlers::websocket_handler::*;
@@ -66,18 +72,21 @@ use crate::backend::configuration_file_loaders::definition_file_cache::Definitio
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
 use crate::backend::systems::apply_player_control::apply_player_control;
 use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
+use crate::backend::systems::submit_command::process_external_commands;
 use crate::backend::systems::update_collisions_with_position::update_collisions_with_position;
 use crate::backend::systems::update_collisions_with_rotation::update_collisions_with_rotation;
 use crate::backend::systems::update_positions_with_velocity::update_positions_with_velocity;
 use crate::backend::systems::update_rotations_with_angular_velocity::update_rotations_with_angular_velocity;
 use crate::backend::systems::update_velocities_with_semi_newtonian_physics::update_velocities_with_semi_newtonian_physics;
+use crate::backend::world_objects::components::random_ship_spawn_placeholder::RandomShipSpawnPlaceholderComponent;
 use crate::backend::world_objects::planetoid::PlanetoidBundle;
-use crate::connectivity::asset_index::{get_asset_index, AssetIndex, AssetIndexState};
-use crate::connectivity::asset_server::{asset_by_name, AssetServerState};
+use crate::connectivity::asset_index::{AssetIndex, AssetIndexState, get_asset_index};
+use crate::connectivity::asset_server::{AssetServerState, asset_by_name};
 use crate::connectivity::connected_users::{check_alive_sessions, spawn_user_sessions};
-use crate::connectivity::services::chat_service::ChatService;
-use crate::connectivity::user_session::{process_incoming_messages, UserSession};
 use crate::connectivity::handlers::chat_handlers::{send_message, subscribe_message};
+use crate::connectivity::services::chat_service::ChatService;
+use crate::connectivity::services::ecs_communication_service::EcsCommunicationService;
+use crate::connectivity::user_session::{UserSession, process_incoming_messages};
 
 fn plus_or_minus_random(radius: f64) -> f64 {
     let value = rand::rng().random::<f64>();
@@ -90,18 +99,23 @@ struct AssetIndexResource {
     asset_index: Arc<AssetIndex>,
 }
 
+async fn spawn_a_ship_idk_task(commands: EcsCommunicationService) {
+    loop {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let _ = commands.run_command(|commands| {
+            commands.spawn(RandomShipSpawnPlaceholderComponent{});
+            Ok(())
+        }).await;
+    }
+}
+
 fn spawn_a_ship_idk(
-    mut spawned: Local<u32>,
+    placeholders: Query<Entity, With<RandomShipSpawnPlaceholderComponent>>,
     asset_index: Res<AssetIndexResource>,
     time: Res<DeltaTResource>,
     mut commands: Commands,
 ) {
-    if *spawned == 0 {
-        *spawned = 1;
-    }
-
-    if (time.total_time / *spawned) > Duration::from_secs(1) {
-        *spawned += 1;
+    for spawn in placeholders.iter() {
         commands.spawn((
             ShipBundle::new(
                 Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0)),
@@ -124,6 +138,8 @@ fn spawn_a_ship_idk(
                 lifetime: Duration::from_secs(10),
             },
         ));
+
+        commands.entity(spawn).despawn();
     }
 }
 
@@ -148,6 +164,7 @@ fn build_collision_phase<T: Send + Sync + HashSized + 'static>(
         );
 }
 
+fn pre_collision_checkpoint() {}
 fn post_collision_checkpoint() {}
 
 #[derive(Parser, Debug)]
@@ -264,7 +281,12 @@ async fn main() {
                     if has_asset.asset_type.get_asset_type_from_resource() == required_asset.1 {
                         // All good
                     } else {
-                        tracing::error!("Mismatch between the type of loaded asset {} with {:?} being loaded and {:?} being required", required_asset.0, has_asset, required_asset.1);
+                        tracing::error!(
+                            "Mismatch between the type of loaded asset {} with {:?} being loaded and {:?} being required",
+                            required_asset.0,
+                            has_asset,
+                            required_asset.1
+                        );
                         loading_error = true;
                     }
                 }
@@ -297,7 +319,9 @@ async fn main() {
 
     let app = match &args.webapp_directory {
         Some(webapp_directory) => app
-            .fallback_service(ServeDir::new(tokio::fs::canonicalize(webapp_directory).await.unwrap()))
+            .fallback_service(ServeDir::new(
+                tokio::fs::canonicalize(webapp_directory).await.unwrap(),
+            ))
             .layer(CompressionLayer::new()),
         None => app,
     };
@@ -305,7 +329,9 @@ async fn main() {
     let (user_session_sender, user_session_receiver) = unbounded::<UserSession>();
     let resource_asset_index = asset_index.clone();
 
-    tokio::spawn(async move {
+    let (web_ecs_command_service, ecs_ecs_command_resource) = EcsCommunicationService::create();
+
+    tokio::task::spawn_blocking(move || {
         let mut world = World::new();
 
         world.spawn_batch(
@@ -319,29 +345,39 @@ async fn main() {
         world.insert_resource(AssetIndexResource {
             asset_index: resource_asset_index,
         });
+        world.insert_resource(ecs_ecs_command_resource);
 
         let mut schedule = Schedule::default();
+
+        schedule.add_systems((process_external_commands, pre_collision_checkpoint).chain());
+
         schedule.add_systems(
             (
                 increment_time,
                 update_rotations_with_angular_velocity,
                 update_velocities_with_semi_newtonian_physics,
                 update_positions_with_velocity,
+                post_collision_checkpoint,
             )
-                .chain(),
+                .chain()
+                .after(pre_collision_checkpoint),
         );
 
         build_collision_phase::<Displayable>(&mut schedule, &mut world);
 
         schedule
-            .add_systems(post_collision_checkpoint)
-            .add_systems(tick_viewport.after(post_collision_checkpoint))
-            .add_systems(spawn_a_ship_idk.after(post_collision_checkpoint))
-            .add_systems(check_despawn_times.after(post_collision_checkpoint))
-            .add_systems(spawn_user_sessions.after(post_collision_checkpoint))
-            .add_systems(check_alive_sessions.after(post_collision_checkpoint))
-            .add_systems(spawn_player_ship_and_viewports.after(post_collision_checkpoint))
-            .add_systems(process_incoming_messages.after(post_collision_checkpoint))
+            .add_systems(
+                (
+                    tick_viewport,
+                    spawn_a_ship_idk,
+                    check_despawn_times,
+                    spawn_user_sessions,
+                    check_alive_sessions,
+                    spawn_player_ship_and_viewports,
+                    process_incoming_messages,
+                )
+                    .after(post_collision_checkpoint),
+            )
             .add_systems(
                 apply_player_control::<SemiNewtonianPhysicsComponent>
                     .after(process_incoming_messages),
@@ -369,11 +405,7 @@ async fn main() {
                 stats_counter = 0;
             }
             let minimum_time = MINIMUM_TICK_DURATION.saturating_sub(duration);
-            let time_less_milliseconds = minimum_time.saturating_sub(Duration::from_millis(2));
-            time::sleep(time_less_milliseconds).await;
-            let true_time_now = time::Instant::now();
-            let time_remainder = minimum_time.saturating_sub(true_time_now - now);
-            spin_sleep::sleep(time_remainder);
+            spin_sleep::sleep(minimum_time);
         }
     });
 
@@ -393,6 +425,8 @@ async fn main() {
     let player_session_state = PlayerSessions::default();
     let chat_service = ChatService::default();
 
+    tokio::spawn(spawn_a_ship_idk_task(web_ecs_command_service));
+
     let app = app
         .route("/ws", get(websocket_handler))
         .with_state(websocket_state)
@@ -400,14 +434,20 @@ async fn main() {
         .with_state(asset_server_state)
         .route("/assets/index", get(get_asset_index))
         .with_state(asset_index_state)
-        .route("/players/newephemeralplayer", post(create_new_ephemeral_player))
+        .route(
+            "/players/newephemeralplayer",
+            post(create_new_ephemeral_player),
+        )
         .route("/players/newplayer", post(create_new_username_player))
         .with_state(player_profile_state.clone())
         .route("/players/login", post(login_player))
         .with_state((player_profile_state, player_session_state.clone()))
         .route("/players/messaging/send-message", post(send_message))
         .with_state((chat_service.clone(), player_session_state.clone()))
-        .route("/players/messaging/subscribe-message", get(subscribe_message))
+        .route(
+            "/players/messaging/subscribe-message",
+            get(subscribe_message),
+        )
         .with_state((chat_service.clone(), player_session_state.clone()));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:2718").await.unwrap();
