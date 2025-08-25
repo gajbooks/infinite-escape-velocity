@@ -15,21 +15,27 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::any::Any;
+
 use bevy_ecs::{
     resource::Resource,
     system::{Commands, Res},
 };
 use tokio::sync::{Mutex, mpsc};
-use tracing::warn;
 
-use crate::utility::async_handle::AsyncSupplier;
+use crate::utility::async_handle::{AsyncSupplier, AsyncSupplierCallback};
 
-pub trait EcsExternalCommand: (FnOnce(&mut Commands) -> CommandResult) + Send + 'static {}
+pub trait EcsExternalCommand<U: EcsExternalCommandResult>: FnOnce(&mut Commands) -> U + Send + 'static {}
+impl<T, U> EcsExternalCommand<U> for T where T: FnOnce(&mut Commands) -> U + Send + 'static, U: EcsExternalCommandResult {}
 
-impl<T> EcsExternalCommand for T where T: FnOnce(&mut Commands) -> CommandResult + Send + 'static {}
+pub trait EcsExternalCommandResult: Send + 'static {}
+impl<T> EcsExternalCommandResult for T where T: Send + 'static {}
 
-pub type CommandResult = Result<(), ()>;
-pub type CommandFnBox = Box<dyn EcsExternalCommand>;
+pub trait EcsExternalCommandProxy: FnOnce(Box<dyn AsyncSupplierCallback<CommandResult>>, &mut Commands) -> () + Send + 'static {}
+impl<T> EcsExternalCommandProxy for T where T: FnOnce(Box<dyn AsyncSupplierCallback<CommandResult>>, &mut Commands) -> () + Send + 'static {}
+
+pub type CommandResult = Box<dyn Any + Send>;
+pub type CommandFnBox = Box<dyn EcsExternalCommandProxy>;
 
 #[derive(Resource)]
 pub struct EcsCommandQueue {
@@ -49,16 +55,10 @@ impl EcsCommandQueue {
 pub fn process_external_commands(queue: Res<EcsCommandQueue>, mut commands: Commands) {
     let mut locked_queue = queue.receiver.blocking_lock();
     while let Ok(mut command) = locked_queue.try_recv() {
-        let result = command
-            .get_arguments()
-            .map(|x| x(&mut commands))
-            .ok_or(())
-            .flatten();
-
-        let submit_result = command.submit_results(result);
-
-        if let Err(_) = submit_result {
-            warn!("Command failed to submit result! Duplicate command submission possible.");
+        if let Some(arguments_exist) = command.get_arguments() {
+            arguments_exist(Box::new(command), &mut commands);
         }
+
+
     }
 }

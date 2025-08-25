@@ -102,10 +102,10 @@ struct AssetIndexResource {
 async fn spawn_a_ship_idk_task(commands: EcsCommunicationService) {
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let _ = commands.run_command(|commands| {
+        let _ = commands.run_command(|commands| -> Result<(), ()> {
             commands.spawn(RandomShipSpawnPlaceholderComponent{});
             Ok(())
-        }).await;
+        }).await.unwrap().unwrap();
     }
 }
 

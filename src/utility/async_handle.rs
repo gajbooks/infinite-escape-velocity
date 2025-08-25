@@ -26,7 +26,7 @@ pub fn async_handle<U, T>(arguments: U) -> (AsyncHandle<T>, AsyncSupplier<U, T>)
         AsyncHandle { receiver: rx },
         AsyncSupplier {
             arguments: Some(arguments),
-            sender: tx,
+            sender: Some(tx),
         },
     )
 }
@@ -49,9 +49,13 @@ impl<T> AsyncHandle<T> {
     }
 }
 
+pub trait AsyncSupplierCallback<T> {
+    fn submit_results(&mut self, value: T) -> Result<(), T>;
+}
+
 pub struct AsyncSupplier<U, T> {
     arguments: Option<U>,
-    sender: oneshot::Sender<T>,
+    sender: Option<oneshot::Sender<T>>,
 }
 
 impl<U, T> AsyncSupplier<U, T> {
@@ -59,7 +63,16 @@ impl<U, T> AsyncSupplier<U, T> {
         self.arguments.take()
     }
 
-    pub fn submit_results(self, value: T) -> Result<(), T> {
-        self.sender.send(value)
+    pub fn submit_results(&mut self, value: T) -> Result<(), T> {
+        match self.sender.take() {
+            Some(x) => x.send(value),
+            None => Err(value),
+        }
+    }
+}
+
+impl<U, T> AsyncSupplierCallback<T> for AsyncSupplier<U, T> {
+    fn submit_results(&mut self, value: T) -> Result<(), T> {
+        self.submit_results(value)
     }
 }
