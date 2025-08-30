@@ -23,7 +23,7 @@ use crate::{
     backend::systems::submit_command::{
         CommandFnBox, CommandResult, EcsCommandQueue, EcsExternalCommand, EcsExternalCommandResult,
     },
-    utility::async_handle::{async_handle, AsyncSupplier, AsyncSupplierCallback},
+    utility::async_handle::{AsyncSupplier, AsyncSupplierCallback, async_handle},
 };
 
 const COMMAND_BACKPRESSURE_LIMIT: usize = 1000;
@@ -34,7 +34,10 @@ pub struct EcsCommunicationService {
 }
 
 impl EcsCommunicationService {
-    pub async fn run_command<U: EcsExternalCommandResult, T: EcsExternalCommand<U>>(&self, command: T) -> Result<U, RecvError> {
+    pub async fn run_command<U: EcsExternalCommandResult, T: EcsExternalCommand<U>>(
+        &self,
+        command: T,
+    ) -> Result<U, RecvError> {
         let wrapper = |mut callback: Box<dyn AsyncSupplierCallback<CommandResult>>,
                        commands: &mut Commands| {
             let result = command(commands);
@@ -46,17 +49,30 @@ impl EcsCommunicationService {
         };
 
         let (handle, supplier) = async_handle::<CommandFnBox, CommandResult>(Box::new(wrapper));
-        self.sender.send(supplier).await.unwrap();
+        let send_result = self.sender.send(supplier).await;
+
+        if let Err(_) = send_result {
+            error!(
+                "ECS communication service could not queue an ECS callback, this is a fatal error"
+            );
+            panic!("ECS command channel became disconnected from the web service");
+        }
 
         match handle.receive().await {
-            Ok(return_value) => {
-                // This unwrap should be statically guaranteed because we are not going to return a different type U than we took as an argument
-                Ok(*return_value.downcast().unwrap())
+            Ok(return_value) => match return_value.downcast::<U>() {
+                Ok(recast) => Ok(*recast),
+                Err(_original) => {
+                    unreachable!(
+                        "This should be statically guaranteed because we are not going to return a different type U than we took as an argument"
+                    )
+                }
             },
             Err(e) => {
-                error!("ECS Communication Service had a command dropped inside the ECS without executing!");
+                error!(
+                    "ECS Communication Service had a command dropped inside the ECS without executing!"
+                );
                 Err(e)
-            },
+            }
         }
     }
 

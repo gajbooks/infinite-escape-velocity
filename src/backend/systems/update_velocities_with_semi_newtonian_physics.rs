@@ -114,7 +114,7 @@ pub fn update_velocities_with_semi_newtonian_physics(
             // Amount of excess velocity the new velocity value has beyond the maximum allowed
             let excess_speed = new_velocity.length() - semi_newtonian_physics.maximum_speed.get();
 
-            // Only do anything if there is excess velocity
+            // Only do anything if there is excess velocity above the margin and we are actually accelerating
             let new_velocity = if excess_speed > MAX_SPEED_EPSILON
                 && vector_thrust.length() > MAX_SPEED_EPSILON
             {
