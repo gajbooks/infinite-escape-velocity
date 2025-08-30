@@ -15,36 +15,20 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::sync::{atomic::AtomicBool, Arc};
-
 use bevy_ecs::component::Component;
 use tokio::sync::broadcast;
 
-use crate::connectivity::user_session::ControlInputMessage;
-
-pub struct InputStatus {
-    pub forward: bool,
-    pub backward: bool,
-    pub left: bool,
-    pub right: bool,
-    pub fire: bool
-}
-
-impl Default for InputStatus {
-    fn default() -> Self {
-        Self {forward: false, backward: false, left: false, right: false, fire: false}
-    }
-}
+use crate::{backend::data_objects::input_status::InputStatus, connectivity::user_session::ControlInputMessage, utility::cancel_flag::CancelFlag};
 
 #[derive(Component)]
 pub struct PlayerControlledComponent {
-    pub cancel: Arc<AtomicBool>,
+    pub cancel: CancelFlag,
     pub input_receiver: broadcast::Receiver<ControlInputMessage>,
     pub input_status: InputStatus
 }
 
 impl PlayerControlledComponent {
-    pub fn new(receiver: broadcast::Receiver<ControlInputMessage>, cancel: Arc<AtomicBool>) -> Self {
+    pub fn new(receiver: broadcast::Receiver<ControlInputMessage>, cancel: CancelFlag) -> Self {
         PlayerControlledComponent{cancel, input_receiver: receiver, input_status: InputStatus::default()}
     }
 }

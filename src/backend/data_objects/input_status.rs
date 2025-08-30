@@ -15,12 +15,17 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod components;
-pub mod configuration_file_loaders;
-pub mod data_objects;
-pub mod resources;
-pub mod shape;
-pub mod shrink_storage;
-pub mod spatial_optimizer;
-pub mod systems;
-pub mod world_objects;
+#[derive(Clone, Copy)]
+pub struct InputStatus {
+    pub forward: bool,
+    pub backward: bool,
+    pub left: bool,
+    pub right: bool,
+    pub fire: bool
+}
+
+impl Default for InputStatus {
+    fn default() -> Self {
+        Self {forward: false, backward: false, left: false, right: false, fire: false}
+    }
+}

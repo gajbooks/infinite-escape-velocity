@@ -17,26 +17,20 @@
 
 const CONTROL_INPUT_MESSAGE_CAPACITY: usize = 100;
 
-use std::{
-    net::SocketAddr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-};
+use std::net::SocketAddr;
 
 use bevy_ecs::{component::Component, entity::Entity, system::Query};
 use tokio::sync::{broadcast, mpsc::{UnboundedReceiver, UnboundedSender}};
 
-use crate::connectivity::{
-    client_server_message::ClientServerMessage, server_client_message::ServerClientMessage,
-};
+use crate::{connectivity::{
+    client_server_message::ClientServerMessage, server_client_message::ServerClientMessage
+}, utility::cancel_flag::CancelFlag};
 
 use super::client_server_message::ControlInput;
 
 pub fn process_incoming_messages(mut user_sessions: Query<&mut UserSession>) {
     user_sessions.par_iter_mut().for_each(|mut session| {
-        if session.cancel.load(Ordering::Relaxed) == true {
+        if session.cancel.is_canceled() {
             return;
         }
 
@@ -46,7 +40,7 @@ pub fn process_incoming_messages(mut user_sessions: Query<&mut UserSession>) {
                     // We don't want to handle authorize messages here, but we are required to send them over the websocket
                 },
                 ClientServerMessage::Disconnect => {
-                    let _ = session.cancel.store(true, Ordering::Relaxed);
+                    let _ = session.cancel.cancel();
                     continue;
                 },
                 ClientServerMessage::ControlInput { input, pressed } => {
@@ -70,7 +64,7 @@ pub struct UserSession {
     pub to_remote: UnboundedSender<ServerClientMessage>,
     from_remote: UnboundedReceiver<ClientServerMessage>,
     pub control_input_sender: broadcast::Sender<ControlInputMessage>,
-    pub cancel: Arc<AtomicBool>,
+    pub cancel: CancelFlag,
     pub primary_viewport: Option<Entity>,
     pub should_follow: Option<Entity>,
 }
@@ -80,7 +74,7 @@ impl UserSession {
         to_remote: UnboundedSender<ServerClientMessage>,
         from_remote: UnboundedReceiver<ClientServerMessage>,
         remote_address: SocketAddr,
-        cancel: Arc<AtomicBool>,
+        cancel: CancelFlag,
     ) -> UserSession {
         let session = UserSession {
             from_remote,

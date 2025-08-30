@@ -18,6 +18,7 @@
 use crate::connectivity::client_server_message::*;
 use crate::connectivity::server_client_message::*;
 use crate::connectivity::user_session::*;
+use crate::utility::cancel_flag::CancelFlag;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
@@ -28,10 +29,10 @@ use tokio::time::timeout;
 use futures::stream::StreamExt;
 use futures_util::SinkExt;
 use std::net::SocketAddr;
-use std::sync::atomic::AtomicBool;
-use std::sync::*;
 use std::time::Duration;
 use tokio::sync::mpsc::unbounded_channel;
+
+const WEBSOCKET_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Clone)]
 pub struct HandlerState {
@@ -54,7 +55,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
         unbounded_channel::<ServerClientMessage>();
     let (inbound_messages_sender, inbound_messages_receiver) =
         unbounded_channel::<ClientServerMessage>();
-    let canceled = Arc::new(AtomicBool::new(false));
+    let canceled = CancelFlag::default();
 
     let external_task_cancel = canceled.clone();
     let outbound_task_cancel = canceled.clone();
@@ -69,7 +70,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
 
     let outbound_task = tokio::spawn(async move {
         loop {
-            match outbound_task_cancel.load(atomic::Ordering::Relaxed) {
+            match outbound_task_cancel.is_canceled() {
                 true => {
                     tracing::trace!("Outbound task received stop signal for {}", who);
                     let _ = sender.send(Message::Close(None)).await; // We don't mind if sender fails to send close frames
@@ -87,18 +88,16 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
 
                     if sender.send(Message::Binary(Bytes::from(serialized))).await.is_err() {
                         tracing::warn!("Websocket send failed to {}", who);
-                        outbound_task_cancel.store(true, atomic::Ordering::Relaxed);
+                        outbound_task_cancel.cancel();
                     }
                 }
                 None => {
                     // All senders closed, ignoring case of external closure
-                    if outbound_task_cancel.load(atomic::Ordering::Relaxed) {
+                    if outbound_task_cancel.cancel() {
                         tracing::trace!("Outbound task received cancel signal but was waiting in message send when socket was dropped for {}", who);
                     } else {
                         tracing::info!("Server dropped connection to {}", who);
                     }
-
-                    outbound_task_cancel.store(true, atomic::Ordering::Relaxed);
                 }
             }
         }
@@ -108,7 +107,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
 
     let inbound_task = tokio::spawn(async move {
         loop {
-            match inbound_task_cancel.load(atomic::Ordering::Relaxed) {
+            match inbound_task_cancel.is_canceled() {
                 true => {
                     tracing::trace!("Inbound task received stop signal for {}", who);
                     break;
@@ -116,7 +115,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                 false => {}
             }
 
-            match timeout(Duration::from_secs(1), receiver.next()).await {
+            match timeout(WEBSOCKET_TIMEOUT, receiver.next()).await {
                 Ok(has_message) => {
                     match has_message {
                         Some(socket_message) => {
@@ -132,10 +131,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                                                         Err(_) => {
                                                             // Internal sender disconnected, abort
                                                             tracing::warn!("Server disconnected inbound messages from: {}", who);
-                                                            inbound_task_cancel.store(
-                                                                true,
-                                                                atomic::Ordering::Relaxed,
-                                                            );
+                                                            inbound_task_cancel.cancel();
                                                         }
                                                     }
                                                 }
@@ -148,8 +144,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                                         Message::Close(_) => {
                                             // User disconnected gracefully
                                             tracing::info!("User at {} disconnected", who);
-                                            inbound_task_cancel
-                                                .store(true, atomic::Ordering::Relaxed);
+                                            inbound_task_cancel.cancel();
                                         }
                                         _ => {
                                             // What are you, some kind of wandering butler or something?
@@ -163,14 +158,14 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
                                         who,
                                         e
                                     );
-                                    inbound_task_cancel.store(true, atomic::Ordering::Relaxed);
+                                    inbound_task_cancel.cancel();
                                 }
                             }
                         }
                         None => {
                             // Rx stream is dead somehow without getting close messages
                             tracing::warn!("User at {} disconnected ungracefully", who);
-                            inbound_task_cancel.store(true, atomic::Ordering::Relaxed);
+                            inbound_task_cancel.cancel();
                         }
                     }
                 }

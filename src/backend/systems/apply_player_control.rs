@@ -15,8 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::sync::atomic::Ordering;
-
 use bevy_ecs::{component::{Component, Mutable}, entity::Entity, system::{Commands, Query}};
 use euclid::num::Zero;
 
@@ -31,7 +29,7 @@ const PLAYER_ANGULAR_VELOCITY_PLACEHOLDER: f32 = std::f32::consts::PI / 2.0;
 
 pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability = Mutable>>(mut controllable: Query<(Entity, &mut PlayerControlledComponent, &mut T)>, mut angular_velocity_components: Query<&mut AngularVelocityComponent>, mut commands: Commands) {
     controllable.iter_mut().for_each(|(entity, mut player_controls, mut physics_component)| {
-        if player_controls.cancel.load(Ordering::Relaxed) == true {
+        if player_controls.cancel.is_canceled() {
             commands.entity(entity).despawn();
             return;
         }

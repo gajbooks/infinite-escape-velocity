@@ -15,12 +15,23 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod components;
-pub mod configuration_file_loaders;
-pub mod data_objects;
-pub mod resources;
-pub mod shape;
-pub mod shrink_storage;
-pub mod spatial_optimizer;
-pub mod systems;
-pub mod world_objects;
+use std::sync::{atomic::{self, AtomicBool}, Arc};
+
+#[derive(Clone)]
+pub struct CancelFlag(Arc<AtomicBool>);
+
+impl Default for CancelFlag {
+    fn default() -> Self {
+        Self(Arc::new(AtomicBool::new(false)))
+    }
+}
+
+impl CancelFlag {
+    pub fn cancel(&self) -> bool {
+        self.0.swap(true, atomic::Ordering::Relaxed)
+    }
+
+    pub fn is_canceled(&self) -> bool {
+        self.0.load(atomic::Ordering::Relaxed)
+    }
+}

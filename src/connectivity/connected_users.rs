@@ -15,8 +15,6 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::sync::atomic::Ordering;
-
 use bevy_ecs::{
     entity::Entity,
     prelude::{Commands, ParallelCommands, Query, ResMut, Resource},
@@ -48,7 +46,7 @@ pub fn spawn_user_sessions(
 
 pub fn check_alive_sessions(sessions: Query<(Entity, &UserSession)>, commands: ParallelCommands) {
     sessions.par_iter().for_each(|(entity, session)| {
-        if session.cancel.load(Ordering::Relaxed) {
+        if session.cancel.is_canceled() {
             commands.command_scope(|mut commands| {
                 commands.entity(entity).despawn();
             });
