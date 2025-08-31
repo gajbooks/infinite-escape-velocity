@@ -20,13 +20,21 @@ use std::{
     time::Instant,
 };
 
+use tokio::{sync::RwLock, time::sleep};
 use tracing::trace;
 
-use crate::connectivity::handlers::websocket_handler::WebsocketConnection;
+use crate::{
+    backend::data_objects::input_status::InputStatus,
+    connectivity::{
+        client_server_message::ClientServerMessage,
+        handlers::websocket_handler::WebsocketConnection,
+    },
+};
 
 use super::player_profile::PlayerProfile;
 
 const SESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+const INPUT_REDRIVE: std::time::Duration = std::time::Duration::from_millis(1);
 
 struct PlayerSessionData {
     last_connected_time: Instant,
@@ -65,7 +73,10 @@ impl PlayerSessionTimeout {
         let new_session_ref = Arc::new(session);
         locked_data.player_session = Some(new_session_ref.clone());
         Self::reset_session_timer(&mut locked_data);
-        Arc::downgrade(&new_session_ref)
+        let downgrade = Arc::downgrade(&new_session_ref);
+
+        tokio::spawn(process_input_messages(downgrade.clone()));
+        downgrade
     }
 
     fn is_within_session_check(time: &std::time::Instant) -> bool {
@@ -110,18 +121,87 @@ impl PlayerSessionTimeout {
     }
 }
 
+pub async fn process_input_messages(profile: Weak<PlayerSession>) {
+    'socket_poll: loop {
+        sleep(INPUT_REDRIVE).await;
+
+        if let Some(valid_session) = profile.upgrade() {
+            if let Some(has_websocket) = &mut *valid_session.websocket_connection.lock().await {
+                if has_websocket.cancel.is_canceled() {
+                    continue 'socket_poll;
+                }
+
+                let mut input_status = valid_session.input_status.write().await;
+
+                'message_poll: loop {
+                    match has_websocket.inbound.try_recv() {
+                        Ok(has_message) => {
+                            // Extend current session through roundabout means
+                            valid_session.player_profile.session.extend_session();
+
+                            match has_message {
+                                ClientServerMessage::Authorize { token: _ } => {
+                                    // We don't want to handle authorize messages here, but we are required to send them over the websocket
+                                }
+                                ClientServerMessage::Disconnect => {
+                                    let _ = has_websocket.cancel.cancel();
+                                    continue 'socket_poll;
+                                }
+                                ClientServerMessage::ControlInput {
+                                    input,
+                                    pressed,
+                                } => {
+                                    match input {
+                                    crate::connectivity::client_server_message::ControlInput::Forward => {
+                                        input_status.forward = pressed;
+                                    },
+                                    crate::connectivity::client_server_message::ControlInput::Backward => {
+                                        input_status.backward = pressed;
+                                    },
+                                    crate::connectivity::client_server_message::ControlInput::Left => {
+                                        input_status.left = pressed;
+                                    },
+                                    crate::connectivity::client_server_message::ControlInput::Right => {
+                                        input_status.right = pressed;
+                                    },
+                                    crate::connectivity::client_server_message::ControlInput::Fire => {
+                                        input_status.fire = pressed;
+                                    },
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => match e {
+                            tokio::sync::mpsc::error::TryRecvError::Empty => break 'message_poll,
+                            tokio::sync::mpsc::error::TryRecvError::Disconnected => {
+                                return;
+                            }
+                        },
+                    }
+                }
+            } else {
+                continue 'socket_poll;
+            }
+        } else {
+            return;
+        }
+    }
+}
+
 pub struct PlayerSession {
+    pub input_status: RwLock<InputStatus>,
     pub player_profile: Arc<PlayerProfile>,
     pub session_id: String,
-    pub websocket_connection: Mutex<Option<WebsocketConnection>>,
+    pub websocket_connection: tokio::sync::Mutex<Option<WebsocketConnection>>,
 }
 
 impl PlayerSession {
     pub fn new(profile: Arc<PlayerProfile>, session_id: String) -> Self {
         Self {
+            input_status: InputStatus::default().into(),
             player_profile: profile,
             session_id,
-            websocket_connection: None.into()
+            websocket_connection: None.into(),
         }
     }
 }

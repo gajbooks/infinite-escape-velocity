@@ -38,7 +38,7 @@ use super::components::velocity_component::VelocityComponent;
 pub struct ViewportBundle {
     pub viewport: ServerViewport,
     pub collidable: CollidableComponent<Displayable>,
-    pub parent_session: ChildOf
+    pub parent_session: ChildOf,
 }
 
 #[derive(Component)]
@@ -58,7 +58,7 @@ pub enum ViewportTrackingMode {
 
 struct ViewportUpdated {
     tracking_mode: ViewportTrackingMode,
-    updated: bool
+    updated: bool,
 }
 
 impl ViewportUpdated {
@@ -90,7 +90,10 @@ impl ServerViewport {
     pub fn new() -> ServerViewport {
         return ServerViewport {
             last_tick_ids: DashSet::new(),
-            tracking_mode: ViewportUpdated{updated: false, tracking_mode: ViewportTrackingMode::Static(Coordinates::new(0.0, 0.0))},
+            tracking_mode: ViewportUpdated {
+                updated: false,
+                tracking_mode: ViewportTrackingMode::Static(Coordinates::new(0.0, 0.0)),
+            },
         };
     }
 
@@ -103,7 +106,7 @@ pub fn tick_viewport(
     mut all_viewports: Query<(
         &mut ServerViewport,
         &mut CollidableComponent<Displayable>,
-        &ChildOf
+        &ChildOf,
     )>,
     displayables: Query<(
         &CollisionMarker<Displayable>,
@@ -120,7 +123,7 @@ pub fn tick_viewport(
             Ok(parent_session) => parent_session,
             Err(_) => {
                 return;
-            },
+            }
         };
 
         let parent_session = match parent.session.upgrade() {
@@ -128,26 +131,26 @@ pub fn tick_viewport(
             None => return,
         };
 
-        let websocket_connection = &*parent_session.websocket_connection.lock().unwrap();
+        let websocket_connection = &*parent_session.websocket_connection.blocking_lock();
 
         if viewport.tracking_mode.is_updated() == false {
+            let tracking_message_data = match viewport.tracking_mode.get_tracking_mode() {
+                ViewportTrackingMode::Entity(entity) => ViewportFollowData::Entity {
+                    id: entity.to_bits(),
+                },
+                ViewportTrackingMode::Static(location) => ViewportFollowData::Static {
+                    x: location.x,
+                    y: location.y,
+                },
+                ViewportTrackingMode::Disconnected => ViewportFollowData::Disconnected,
+            };
 
-        let tracking_message_data = match viewport.tracking_mode.get_tracking_mode() {
-            ViewportTrackingMode::Entity(entity) => ViewportFollowData::Entity {
-                id: entity.to_bits(),
-            },
-            ViewportTrackingMode::Static(location) => ViewportFollowData::Static {
-                x: location.x,
-                y: location.y,
-            },
-            ViewportTrackingMode::Disconnected => ViewportFollowData::Disconnected,
-        };
-
-        if let Some(websocket) = websocket_connection {
-            let _ = websocket.outbound
-            .send(ServerClientMessage::ViewportFollow(tracking_message_data)); // Nothing we can do about send errors for users disconnected
-            viewport.tracking_mode.set_updated();
-        }
+            if let Some(websocket) = websocket_connection {
+                let _ = websocket
+                    .outbound
+                    .send(ServerClientMessage::ViewportFollow(tracking_message_data)); // Nothing we can do about send errors for users disconnected
+                viewport.tracking_mode.set_updated();
+            }
         }
 
         match viewport.tracking_mode.get_tracking_mode() {
@@ -176,7 +179,10 @@ pub fn tick_viewport(
             let (_collided_hitbox, position, displayable) = match displayables.get(collision) {
                 Ok(x) => x,
                 Err(_) => {
-                    warn!("Entity collided with Viewport which does not have the required components: {:?}", collision);
+                    warn!(
+                        "Entity collided with Viewport which does not have the required components: {:?}",
+                        collision
+                    );
                     continue;
                 }
             };
@@ -186,14 +192,16 @@ pub fn tick_viewport(
                 true => {}
                 false => {
                     if let Some(socket) = websocket_connection {
-                        let _ = socket.outbound.send(
-                            ServerClientMessage::DynamicObjectCreation(DynamicObjectCreationData {
-                                id: collision.to_bits(),
-                                object_asset: displayable.object_asset,
-                                view_layer: displayable.view_layer,
-                                display_radius: displayable.display_radius
-                            }),
-                        ); // Nothing we can do about send errors for users disconnected
+                        let _ = socket
+                            .outbound
+                            .send(ServerClientMessage::DynamicObjectCreation(
+                                DynamicObjectCreationData {
+                                    id: collision.to_bits(),
+                                    object_asset: displayable.object_asset,
+                                    view_layer: displayable.view_layer,
+                                    display_radius: displayable.display_radius,
+                                },
+                            )); // Nothing we can do about send errors for users disconnected
                     }
                 }
             }
@@ -221,18 +229,19 @@ pub fn tick_viewport(
             };
 
             if let Some(socket) = websocket_connection {
-            // Send an update frame for each object moved which has been within the viewport for at least one frame
-            let _ = socket.outbound
-                .send(ServerClientMessage::DynamicObjectUpdate(
-                    DynamicObjectUpdateData {
-                        id: collision.to_bits(),
-                        x: position.position.x,
-                        y: position.position.y,
-                        rotation: rotation,
-                        velocity: velocity,
-                        angular_velocity: angular_velocity,
-                    },
-                )); // Nothing we can do about send errors for users disconnected
+                // Send an update frame for each object moved which has been within the viewport for at least one frame
+                let _ = socket
+                    .outbound
+                    .send(ServerClientMessage::DynamicObjectUpdate(
+                        DynamicObjectUpdateData {
+                            id: collision.to_bits(),
+                            x: position.position.x,
+                            y: position.position.y,
+                            rotation: rotation,
+                            velocity: velocity,
+                            angular_velocity: angular_velocity,
+                        },
+                    )); // Nothing we can do about send errors for users disconnected
             }
         }
 
@@ -244,15 +253,16 @@ pub fn tick_viewport(
             .filter(|x| !collide_with.list.contains(&x));
 
         if let Some(socket) = websocket_connection {
-        // Send a destruction frame for all removed entities to guarantee no stale entities remain on the client
-        for remove in removed {
-            let _ = socket.outbound
-                .send(ServerClientMessage::DynamicObjectDestruction(
-                    DynamicObjectDestructionData {
-                        id: remove.to_bits(),
-                    },
-                )); // Nothing we can do about send errors for users disconnected
-        }
+            // Send a destruction frame for all removed entities to guarantee no stale entities remain on the client
+            for remove in removed {
+                let _ = socket
+                    .outbound
+                    .send(ServerClientMessage::DynamicObjectDestruction(
+                        DynamicObjectDestructionData {
+                            id: remove.to_bits(),
+                        },
+                    )); // Nothing we can do about send errors for users disconnected
+            }
         }
 
         // Clear the entities we consider for the last tick

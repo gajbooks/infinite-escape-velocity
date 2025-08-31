@@ -17,15 +17,5 @@
 
 use bevy_ecs::component::Component;
 
-use crate::backend::data_objects::input_status::InputStatus;
-
 #[derive(Component)]
-pub struct PlayerControlledComponent {
-        pub input_status: InputStatus
-}
-
-impl PlayerControlledComponent {
-    pub fn new() -> Self {
-        PlayerControlledComponent{input_status: InputStatus::default()}
-    }
-}
+pub struct PlayerControlledComponent {}

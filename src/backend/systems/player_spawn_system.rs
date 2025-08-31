@@ -16,12 +16,17 @@
 */
 
 use bevy_ecs::{
-    entity::Entity, hierarchy::ChildOf, prelude::{Commands, Query, Res}
+    entity::Entity,
+    hierarchy::ChildOf,
+    prelude::{Commands, Query, Res},
 };
 
 use crate::{
+    AssetIndexResource,
     backend::{
-        components::session::player_session_component::PlayerSessionComponent, shape::{CircleData, Shape}, world_objects::{
+        components::session::player_session_component::PlayerSessionComponent,
+        shape::{CircleData, Shape},
+        world_objects::{
             components::{
                 collision_component::CollidableComponent,
                 player_controlled_component::PlayerControlledComponent,
@@ -29,10 +34,9 @@ use crate::{
             },
             server_viewport::{ServerViewport, ViewportBundle, ViewportTrackingMode},
             ship::ShipBundle,
-        }
+        },
     },
     shared_types::{Coordinates, Radius, Speed},
-    AssetIndexResource,
 };
 
 pub fn spawn_player_ship_and_viewports(
@@ -59,8 +63,8 @@ pub fn spawn_player_ship_and_viewports(
                         .spawn((
                             new_ship,
                             SemiNewtonianPhysicsComponent::new(Speed::new(200.0)),
-                            PlayerControlledComponent::new(),
-                            ChildOf(session_entity)
+                            PlayerControlledComponent {},
+                            ChildOf(session_entity),
                         ))
                         .id();
                     session.should_follow = Some(new_ship_id);

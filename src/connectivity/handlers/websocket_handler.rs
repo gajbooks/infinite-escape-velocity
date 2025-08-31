@@ -239,7 +239,7 @@ async fn wait_for_websocket_login_message(
                             connection.remote_address
                         );
 
-                        let mut websocket_ref = valid_session.websocket_connection.lock().unwrap();
+                        let mut websocket_ref = valid_session.websocket_connection.lock().await;
                         *websocket_ref = Some(connection);
 
                         return;
