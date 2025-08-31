@@ -41,7 +41,6 @@ use bevy_ecs::schedule::{IntoScheduleConfigs, Schedule};
 use bevy_ecs::system::Query;
 use bevy_ecs::world::World;
 use clap::Parser;
-use connectivity::connected_users::ConnectingUsersQueue;
 use connectivity::handlers::player_profile_handlers::{
     create_new_ephemeral_player, create_new_username_player,
 };
@@ -65,6 +64,7 @@ use tracing_subscriber::layer::SubscriberExt;
 
 use tower_http::services::ServeDir;
 
+use crate::backend::components::session::player_session_component::process_incoming_messages;
 use crate::backend::configuration_file_loaders::asset_file_cache::AssetFileCache;
 use crate::backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets;
 use crate::backend::configuration_file_loaders::definition_file_cache::DefinitionFileCache;
@@ -82,11 +82,9 @@ use crate::backend::world_objects::components::random_ship_spawn_placeholder::Ra
 use crate::backend::world_objects::planetoid::PlanetoidBundle;
 use crate::connectivity::asset_index::{AssetIndex, AssetIndexState, get_asset_index};
 use crate::connectivity::asset_server::{AssetServerState, asset_by_name};
-use crate::connectivity::connected_users::{check_alive_sessions, spawn_user_sessions};
 use crate::connectivity::handlers::chat_handlers::{send_message, subscribe_message};
 use crate::connectivity::services::chat_service::ChatService;
 use crate::connectivity::services::ecs_communication_service::EcsCommunicationService;
-use crate::connectivity::user_session::{UserSession, process_incoming_messages};
 
 fn plus_or_minus_random(radius: f64) -> f64 {
     let value = rand::rng().random::<f64>();
@@ -330,8 +328,6 @@ async fn main() {
         None => app,
     };
 
-    let (user_session_sender, user_session_receiver) =
-        tokio::sync::mpsc::unbounded_channel::<UserSession>();
     let resource_asset_index = asset_index.clone();
 
     let (web_ecs_command_service, ecs_ecs_command_resource) = EcsCommunicationService::create();
@@ -346,7 +342,6 @@ async fn main() {
                 .map(|planetoid| PlanetoidBundle::new(planetoid, &resource_asset_index).unwrap()),
         );
         world.insert_resource(DeltaTResource::new());
-        world.insert_resource(ConnectingUsersQueue::new(user_session_receiver));
         world.insert_resource(AssetIndexResource {
             asset_index: resource_asset_index,
         });
@@ -383,8 +378,6 @@ async fn main() {
                     tick_viewport,
                     spawn_a_ship_idk,
                     check_despawn_times,
-                    spawn_user_sessions,
-                    check_alive_sessions,
                     spawn_player_ship_and_viewports,
                     process_incoming_messages,
                 )
@@ -434,7 +427,6 @@ async fn main() {
     let chat_service = ChatService::default();
 
     let websocket_state = HandlerState {
-        connections: user_session_sender,
         sessions: player_session_state.clone(),
     };
 

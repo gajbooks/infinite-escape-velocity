@@ -16,19 +16,16 @@
 */
 
 use bevy_ecs::component::Component;
-use tokio::sync::broadcast;
 
-use crate::{backend::data_objects::input_status::InputStatus, connectivity::user_session::ControlInputMessage, utility::cancel_flag::CancelFlag};
+use crate::backend::data_objects::input_status::InputStatus;
 
 #[derive(Component)]
 pub struct PlayerControlledComponent {
-    pub cancel: CancelFlag,
-    pub input_receiver: broadcast::Receiver<ControlInputMessage>,
-    pub input_status: InputStatus
+        pub input_status: InputStatus
 }
 
 impl PlayerControlledComponent {
-    pub fn new(receiver: broadcast::Receiver<ControlInputMessage>, cancel: CancelFlag) -> Self {
-        PlayerControlledComponent{cancel, input_receiver: receiver, input_status: InputStatus::default()}
+    pub fn new() -> Self {
+        PlayerControlledComponent{input_status: InputStatus::default()}
     }
 }

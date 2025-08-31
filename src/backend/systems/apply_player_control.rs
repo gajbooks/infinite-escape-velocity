@@ -15,10 +15,10 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use bevy_ecs::{component::{Component, Mutable}, entity::Entity, system::{Commands, Query}};
+use bevy_ecs::{component::{Component, Mutable}, entity::Entity, hierarchy::ChildOf, system::Query};
 use euclid::num::Zero;
 
-use crate::{backend::world_objects::components::{angular_velocity_component::AngularVelocityComponent, player_controlled_component::PlayerControlledComponent}, shared_types::{AccelerationScalar, AngularVelocity}};
+use crate::{backend::{components::session::player_session_component::PlayerSessionComponent, world_objects::components::{angular_velocity_component::AngularVelocityComponent, player_controlled_component::PlayerControlledComponent}}, shared_types::{AccelerationScalar, AngularVelocity}};
 
 pub trait PlayerControllablePhysics {
     fn set_acceleration(&mut self, acceleration: AccelerationScalar);
@@ -27,14 +27,20 @@ pub trait PlayerControllablePhysics {
 const PLAYER_ACCELERATION_PLACEHOLDER: f32 = 40.0;
 const PLAYER_ANGULAR_VELOCITY_PLACEHOLDER: f32 = std::f32::consts::PI / 2.0;
 
-pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability = Mutable>>(mut controllable: Query<(Entity, &mut PlayerControlledComponent, &mut T)>, mut angular_velocity_components: Query<&mut AngularVelocityComponent>, mut commands: Commands) {
-    controllable.iter_mut().for_each(|(entity, mut player_controls, mut physics_component)| {
-        if player_controls.cancel.is_canceled() {
-            commands.entity(entity).despawn();
-            return;
-        }
+pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability = Mutable>>(
+    mut controllable: Query<(Entity, &mut PlayerControlledComponent, &mut T, &ChildOf)>,
+    mut angular_velocity_components: Query<&mut AngularVelocityComponent>,
+    sessions: Query<&PlayerSessionComponent>) {
 
-        while let Ok(message) = player_controls.input_receiver.try_recv() {
+    controllable.iter_mut().for_each(|(entity, mut player_controls, mut physics_component, parent_session)| {
+        let session = match sessions.get(parent_session.parent()) {
+            Ok(session) => session,
+            Err(_) => return,
+        };
+
+        let mut input_receiver = session.control_input_sender.subscribe();
+        
+        while let Ok(message) = input_receiver.try_recv() {
             match message.input {
                 crate::connectivity::client_server_message::ControlInput::Forward => {
                     player_controls.input_status.forward = message.pressed;

@@ -18,7 +18,6 @@
 use crate::connectivity::client_server_message::*;
 use crate::connectivity::player_info::player_sessions::PlayerSessions;
 use crate::connectivity::server_client_message::*;
-use crate::connectivity::user_session::*;
 use crate::utility::cancel_flag::CancelFlag;
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
@@ -55,7 +54,6 @@ impl Drop for WebsocketConnection {
 
 #[derive(Clone)]
 pub struct HandlerState {
-    pub connections: UnboundedSender<UserSession>,
     pub sessions: PlayerSessions,
 }
 
@@ -236,16 +234,13 @@ async fn wait_for_websocket_login_message(
             ClientServerMessage::Authorize { token } => {
                 match state.sessions.get_session(&token).await.upgrade() {
                     Some(valid_session) => {
-                        // TODO: Actually put this in the session somewhere?
                         info!(
                             "Authorized websocket connection using client server message from {}",
                             connection.remote_address
                         );
 
-                        state
-                            .connections
-                            .send(UserSession::spawn_user_session(connection))
-                            .unwrap(); // Can't do anything if the other portion is disconnected
+                        let mut websocket_ref = valid_session.websocket_connection.lock().unwrap();
+                        *websocket_ref = Some(connection);
 
                         return;
                     }

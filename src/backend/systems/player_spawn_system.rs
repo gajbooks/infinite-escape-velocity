@@ -16,14 +16,12 @@
 */
 
 use bevy_ecs::{
-    entity::Entity,
-    prelude::{Commands, Query, Res},
+    entity::Entity, hierarchy::ChildOf, prelude::{Commands, Query, Res}
 };
 
 use crate::{
     backend::{
-        shape::{CircleData, Shape},
-        world_objects::{
+        components::session::player_session_component::PlayerSessionComponent, shape::{CircleData, Shape}, world_objects::{
             components::{
                 collision_component::CollidableComponent,
                 player_controlled_component::PlayerControlledComponent,
@@ -31,15 +29,14 @@ use crate::{
             },
             server_viewport::{ServerViewport, ViewportBundle, ViewportTrackingMode},
             ship::ShipBundle,
-        },
+        }
     },
-    connectivity::user_session::UserSession,
     shared_types::{Coordinates, Radius, Speed},
     AssetIndexResource,
 };
 
 pub fn spawn_player_ship_and_viewports(
-    mut sessions: Query<(Entity, &mut UserSession)>,
+    mut sessions: Query<(Entity, &mut PlayerSessionComponent)>,
     mut viewports: Query<&mut ServerViewport>,
     mut commands: Commands,
     asset_index: Res<AssetIndexResource>,
@@ -62,10 +59,8 @@ pub fn spawn_player_ship_and_viewports(
                         .spawn((
                             new_ship,
                             SemiNewtonianPhysicsComponent::new(Speed::new(200.0)),
-                            PlayerControlledComponent::new(
-                                session.control_input_sender.subscribe(),
-                                session.websocket_connection.cancel.clone(),
-                            ),
+                            PlayerControlledComponent::new(),
+                            ChildOf(session_entity)
                         ))
                         .id();
                     session.should_follow = Some(new_ship_id);
@@ -89,14 +84,12 @@ pub fn spawn_player_ship_and_viewports(
                 None => {
                     let new_viewport = commands
                         .spawn(ViewportBundle {
-                            viewport: ServerViewport::new(
-                                session_entity,
-                                session.websocket_connection.outbound.clone(),
-                            ),
+                            viewport: ServerViewport::new(),
                             collidable: CollidableComponent::new(Shape::Circle(CircleData {
                                 location: Coordinates::new(0.0, 0.0),
                                 radius: Radius::new(6000.0),
                             })),
+                            parent_session: ChildOf(session_entity),
                         })
                         .id();
                     session.primary_viewport = Some(new_viewport);

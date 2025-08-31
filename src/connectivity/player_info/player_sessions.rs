@@ -75,7 +75,7 @@ impl PlayerSessions {
                 let spawn_ref = weak_ref.clone();
                 let _ = spawn_service
                     .run_command(move |commands| {
-                        commands.spawn(PlayerSessionComponent { session: spawn_ref });
+                        commands.spawn(PlayerSessionComponent::new(spawn_ref));
                     })
                     .await;
                 weak_ref

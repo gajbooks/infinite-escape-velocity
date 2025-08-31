@@ -22,6 +22,8 @@ use std::{
 
 use tracing::trace;
 
+use crate::connectivity::handlers::websocket_handler::WebsocketConnection;
+
 use super::player_profile::PlayerProfile;
 
 const SESSION_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
@@ -111,6 +113,7 @@ impl PlayerSessionTimeout {
 pub struct PlayerSession {
     pub player_profile: Arc<PlayerProfile>,
     pub session_id: String,
+    pub websocket_connection: Mutex<Option<WebsocketConnection>>,
 }
 
 impl PlayerSession {
@@ -118,6 +121,7 @@ impl PlayerSession {
         Self {
             player_profile: profile,
             session_id,
+            websocket_connection: None.into()
         }
     }
 }
