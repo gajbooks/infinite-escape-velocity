@@ -12,9 +12,8 @@ import { AssetIndexValue } from 'bindings/AssetIndexValue';
 import { GameplayCanvasComponent } from './gameplay-canvas/gameplay-canvas.component';
 import { CommonModule } from '@angular/common';
 import { ChatBoxComponent } from './chat-box/chat-box.component';
-import { ChatService } from './services/chat.service';
 import { BaseUrlService } from './services/base-url.service';
-import { APIClient } from './services/api-client.service';
+import { SessionService } from './services/session.service';
 
 function generateWebsocket(url: string): WebSocketSubject<unknown> {
   return webSocket({
@@ -40,6 +39,8 @@ export class AppComponent {
   private baseUrlService = inject(BaseUrlService);
   socket = generateWebsocket(this.baseUrlService.generateWebsocketUrl());
 
+  private session = inject(SessionService);
+
   public incomingMessages = new Subject<ServerClientMessage>();
   public outgoingMessages = new Subject<ClientServerMessage>();
 
@@ -59,7 +60,7 @@ export class AppComponent {
     this.outgoingMessages.next({ "type": "Disconnect" });
   }
 
-  subscribeToWebsocket(self: AppComponent) {
+  async subscribeToWebsocket(self: AppComponent) {
     let incomingMessages = self.incomingMessages;
     self.socket.subscribe({
       next(value) {
@@ -76,5 +77,7 @@ export class AppComponent {
     self.outgoingMessages.subscribe(sent => {
       self.socket.next(sent);
     });
+
+    self.outgoingMessages.next({ "type": "Authorize", "token":  await this.session.getCurrentSessionToken() });
   }
 }

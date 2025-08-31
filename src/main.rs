@@ -330,7 +330,8 @@ async fn main() {
         None => app,
     };
 
-    let (user_session_sender, user_session_receiver) = tokio::sync::mpsc::unbounded_channel::<UserSession>();
+    let (user_session_sender, user_session_receiver) =
+        tokio::sync::mpsc::unbounded_channel::<UserSession>();
     let resource_asset_index = asset_index.clone();
 
     let (web_ecs_command_service, ecs_ecs_command_resource) = EcsCommunicationService::create();
@@ -420,10 +421,6 @@ async fn main() {
         }
     });
 
-    let websocket_state = HandlerState {
-        connections: user_session_sender,
-    };
-
     let asset_server_state = AssetServerState {
         assets: Arc::new(asset_cache),
     };
@@ -435,6 +432,11 @@ async fn main() {
     let player_profile_state = PlayerProfiles::new();
     let player_session_state = PlayerSessions::default();
     let chat_service = ChatService::default();
+
+    let websocket_state = HandlerState {
+        connections: user_session_sender,
+        sessions: player_session_state.clone(),
+    };
 
     tokio::spawn(spawn_a_ship_idk_task(web_ecs_command_service.clone()));
 

@@ -16,6 +16,7 @@
 */
 
 use crate::connectivity::client_server_message::*;
+use crate::connectivity::player_info::player_sessions::PlayerSessions;
 use crate::connectivity::server_client_message::*;
 use crate::connectivity::user_session::*;
 use crate::utility::cancel_flag::CancelFlag;
@@ -31,20 +32,31 @@ use futures::stream::StreamExt;
 use futures_util::SinkExt;
 use std::net::SocketAddr;
 use std::time::Duration;
+use std::time::Instant;
 use tokio::sync::mpsc::unbounded_channel;
+use tracing::debug;
+use tracing::info;
 
 const WEBSOCKET_TIMEOUT: Duration = Duration::from_secs(1);
+const AUTHORIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub struct WebsocketConnection {
     pub cancel: CancelFlag,
     pub inbound: UnboundedReceiver<ClientServerMessage>,
     pub outbound: UnboundedSender<ServerClientMessage>,
-    pub remote_address: SocketAddr
+    pub remote_address: SocketAddr,
+}
+
+impl Drop for WebsocketConnection {
+    fn drop(&mut self) {
+        self.cancel.cancel();
+    }
 }
 
 #[derive(Clone)]
 pub struct HandlerState {
     pub connections: UnboundedSender<UserSession>,
+    pub sessions: PlayerSessions,
 }
 
 pub async fn websocket_handler(
@@ -53,10 +65,10 @@ pub async fn websocket_handler(
     State(state): State<HandlerState>,
 ) -> impl IntoResponse {
     tracing::trace!("{address} attempted WebSocket upgrade.");
-    websocket.on_upgrade(move |socket| handle_socket(socket, address, state.connections))
+    websocket.on_upgrade(move |socket| handle_socket(socket, address, state))
 }
 
-async fn handle_socket(socket: WebSocket, who: SocketAddr, connection_spawner: UnboundedSender<UserSession>) {
+async fn handle_socket(socket: WebSocket, who: SocketAddr, state: HandlerState) {
     let (mut sender, mut receiver) = socket.split();
 
     let (outbound_messages_sender, mut outbound_messages_receiver) =
@@ -69,16 +81,12 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connection_spawner: U
     let outbound_task_cancel = canceled.clone();
     let inbound_task_cancel = canceled;
 
-    let connection = WebsocketConnection{
+    let connection = WebsocketConnection {
         outbound: outbound_messages_sender,
         inbound: inbound_messages_receiver,
         cancel: external_task_cancel,
-        remote_address: who
+        remote_address: who,
     };
-
-    connection_spawner.send(UserSession::spawn_user_session(
-        connection
-    )).unwrap(); // Can't do anything if the other portion is disconnected
 
     let outbound_task = tokio::spawn(async move {
         loop {
@@ -98,7 +106,11 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connection_spawner: U
                     // It would be very difficult for a serialization to fail, and would likely be a programming issue on the server
                     ciborium::into_writer(&outgoing_message, &mut serialized).unwrap();
 
-                    if sender.send(Message::Binary(Bytes::from(serialized))).await.is_err() {
+                    if sender
+                        .send(Message::Binary(Bytes::from(serialized)))
+                        .await
+                        .is_err()
+                    {
                         tracing::warn!("Websocket send failed to {}", who);
                         outbound_task_cancel.cancel();
                     }
@@ -106,7 +118,10 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connection_spawner: U
                 None => {
                     // All senders closed, ignoring case of external closure
                     if outbound_task_cancel.cancel() {
-                        tracing::trace!("Outbound task received cancel signal but was waiting in message send when socket was dropped for {}", who);
+                        tracing::trace!(
+                            "Outbound task received cancel signal but was waiting in message send when socket was dropped for {}",
+                            who
+                        );
                     } else {
                         tracing::info!("Server dropped connection to {}", who);
                     }
@@ -142,17 +157,24 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connection_spawner: U
                                                         Ok(()) => (),
                                                         Err(_) => {
                                                             // Internal sender disconnected, abort
-                                                            tracing::warn!("Server disconnected inbound messages from: {}", who);
+                                                            tracing::warn!(
+                                                                "Server disconnected inbound messages from: {}",
+                                                                who
+                                                            );
                                                             inbound_task_cancel.cancel();
                                                         }
                                                     }
                                                 }
                                                 Err(e) => {
                                                     // Message couldn't be deserialized for some reason. Not fatal but it means something is wrong.
-                                                    tracing::warn!("Nonsense undeserializable websocket message {:?} received from {}", e, who);
+                                                    tracing::warn!(
+                                                        "Nonsense undeserializable websocket message {:?} received from {}",
+                                                        e,
+                                                        who
+                                                    );
                                                 }
                                             }
-                                        },
+                                        }
                                         Message::Close(_) => {
                                             // User disconnected gracefully
                                             tracing::info!("User at {} disconnected", who);
@@ -190,6 +212,65 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, connection_spawner: U
         tracing::trace!("Inbound task exiting for {}", who);
     });
 
+    tokio::spawn(wait_for_websocket_login_message(state, connection));
+
     let _ = tokio::join!(outbound_task, inbound_task);
     tracing::trace!("Websocket connection task finished for {}", who);
+}
+
+async fn wait_for_websocket_login_message(
+    state: HandlerState,
+    mut connection: WebsocketConnection,
+) {
+    let auth_start = Instant::now();
+    while let Ok(Some(message)) = timeout(AUTHORIZATION_TIMEOUT, connection.inbound.recv()).await {
+        if auth_start.elapsed() > AUTHORIZATION_TIMEOUT {
+            info!(
+                "Websocket authorization timeout exceeded from {}",
+                connection.remote_address
+            );
+            return;
+        }
+
+        match message {
+            ClientServerMessage::Authorize { token } => {
+                match state.sessions.get_session(&token).await.upgrade() {
+                    Some(valid_session) => {
+                        // TODO: Actually put this in the session somewhere?
+                        info!(
+                            "Authorized websocket connection using client server message from {}",
+                            connection.remote_address
+                        );
+
+                        state
+                            .connections
+                            .send(UserSession::spawn_user_session(connection))
+                            .unwrap(); // Can't do anything if the other portion is disconnected
+
+                        return;
+                    }
+                    None => {
+                        info!(
+                            "User websocket login failed with attempted token {} from {}",
+                            &token, connection.remote_address
+                        );
+                        return;
+                    }
+                }
+            }
+            ClientServerMessage::Disconnect => {
+                debug!(
+                    "User disconnected before authorizing websocket from {}",
+                    connection.remote_address
+                );
+                return;
+            }
+            _ => (), // Don't handle anything else
+        }
+    }
+
+    debug!(
+        "User closed socket before authorizing websocket from {}",
+        connection.remote_address
+    );
 }

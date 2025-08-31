@@ -25,16 +25,18 @@ export class ChatService {
         return await lastValueFrom(request);
     }
 
-    async subscribeToChat(): Promise<Observable<ChatMessageResponse>> {
+    async subscribeToChat(): Promise<Observable<ChatMessageResponse | null>> {
         const auth = await this.session.getCurrentSessionToken();
         const headers = new HttpHeaders().set('Authorization', auth);
         return this.sseClient.stream('/players/messaging/subscribe-message', {}, { headers }).pipe(map(event => {
             if (event.type === 'error') {
-                const errorEvent = event as ErrorEvent;
-                console.error(errorEvent.error, errorEvent.message);
-            } else {
+                console.error(event);
+                return null;
+            } else if (event.type === 'message') {
                 const messageEvent = event as MessageEvent;
                 return JSON.parse(messageEvent.data);
+            } else {
+                return null;
             }
         }));
     }

@@ -20,7 +20,9 @@ const CONTROL_INPUT_MESSAGE_CAPACITY: usize = 100;
 use bevy_ecs::{component::Component, entity::Entity, system::Query};
 use tokio::sync::broadcast;
 
-use crate::connectivity::{client_server_message::ClientServerMessage, handlers::websocket_handler::WebsocketConnection};
+use crate::connectivity::{
+    client_server_message::ClientServerMessage, handlers::websocket_handler::WebsocketConnection,
+};
 
 use super::client_server_message::ControlInput;
 
@@ -32,16 +34,18 @@ pub fn process_incoming_messages(mut user_sessions: Query<&mut UserSession>) {
 
         while let Ok(message) = session.websocket_connection.inbound.try_recv() {
             match message {
-                ClientServerMessage::Authorize(_) => {
+                ClientServerMessage::Authorize { token: _ } => {
                     // We don't want to handle authorize messages here, but we are required to send them over the websocket
-                },
+                }
                 ClientServerMessage::Disconnect => {
                     let _ = session.websocket_connection.cancel.cancel();
                     continue;
-                },
+                }
                 ClientServerMessage::ControlInput { input, pressed } => {
                     // We can't do anything about send errors when there are no receive handles
-                    let _ = session.control_input_sender.send(ControlInputMessage{input, pressed});
+                    let _ = session
+                        .control_input_sender
+                        .send(ControlInputMessage { input, pressed });
                 }
             }
         }
@@ -50,8 +54,8 @@ pub fn process_incoming_messages(mut user_sessions: Query<&mut UserSession>) {
 
 #[derive(Clone)]
 pub struct ControlInputMessage {
-    pub input: ControlInput, 
-    pub pressed: bool
+    pub input: ControlInput,
+    pub pressed: bool,
 }
 
 #[derive(Component)]
@@ -63,9 +67,7 @@ pub struct UserSession {
 }
 
 impl UserSession {
-    pub fn spawn_user_session(
-        websocket_connection: WebsocketConnection
-    ) -> UserSession {
+    pub fn spawn_user_session(websocket_connection: WebsocketConnection) -> UserSession {
         let session = UserSession {
             websocket_connection,
             control_input_sender: broadcast::Sender::new(CONTROL_INPUT_MESSAGE_CAPACITY),
