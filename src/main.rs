@@ -64,6 +64,7 @@ use tracing_subscriber::layer::SubscriberExt;
 
 use tower_http::services::ServeDir;
 
+use crate::backend::components::session::player_session_component::process_input_messages_system;
 use crate::backend::configuration_file_loaders::asset_file_cache::AssetFileCache;
 use crate::backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets;
 use crate::backend::configuration_file_loaders::definition_file_cache::DefinitionFileCache;
@@ -352,6 +353,7 @@ async fn main() {
             (
                 player_session_cleanup,
                 process_external_commands,
+                process_input_messages_system,
                 pre_collision_checkpoint,
             )
                 .chain(),

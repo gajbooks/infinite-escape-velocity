@@ -22,10 +22,15 @@ use std::{
 
 use uuid::Uuid;
 
-use crate::{backend::components::session::player_session_component::PlayerSessionComponent, connectivity::{
-    player_info::{player_profile::PlayerProfile, player_session::PlayerSession},
-    services::ecs_communication_service::EcsCommunicationService,
-}};
+use crate::{
+    backend::components::session::player_session_component::PlayerSessionComponent,
+    connectivity::{
+        client_server_message::ClientServerMessage,
+        player_info::{player_profile::PlayerProfile, player_session::PlayerSession},
+        server_client_message::ServerClientMessage,
+        services::ecs_communication_service::EcsCommunicationService,
+    },
+};
 
 #[derive(Default, Clone)]
 pub struct PlayerSessions {
@@ -69,15 +74,25 @@ impl PlayerSessions {
         let session_weak_ref = match profile.session.get_session().upgrade() {
             Some(good_existing) => Arc::downgrade(&good_existing),
             None => {
-                let weak_ref = profile
-                    .session
-                    .set_session(PlayerSession::new(profile.clone(), session_id.clone()));
+                let (in_send, in_receive) = async_channel::unbounded::<ClientServerMessage>();
+                let (out_send, out_receive) = async_channel::unbounded::<ServerClientMessage>();
+
+                let new_session =
+                    PlayerSession::new(profile.clone(), session_id.clone(), in_send, out_receive);
+
+                let weak_ref = profile.session.set_session(new_session);
+
                 let spawn_ref = weak_ref.clone();
+
+                let new_session_ecs_component =
+                    PlayerSessionComponent::new(spawn_ref, in_receive, out_send);
+
                 let _ = spawn_service
                     .run_command(move |commands| {
-                        commands.spawn(PlayerSessionComponent::new(spawn_ref));
+                        commands.spawn(new_session_ecs_component);
                     })
                     .await;
+
                 weak_ref
             }
         };

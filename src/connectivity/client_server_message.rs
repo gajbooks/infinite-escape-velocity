@@ -40,6 +40,5 @@ pub enum ClientServerMessage {
     ControlInput {
         input: ControlInput,
         pressed: ControlInputStatus,
-    },
-    Disconnect,
+    }
 }

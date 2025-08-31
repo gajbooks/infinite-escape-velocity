@@ -57,7 +57,7 @@ export class AppComponent {
   }
 
   disconnectWebsocket() {
-    this.outgoingMessages.next({ "type": "Disconnect" });
+    this.socket.complete();
   }
 
   async subscribeToWebsocket(self: AppComponent) {

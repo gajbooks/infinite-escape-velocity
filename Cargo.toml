@@ -6,6 +6,7 @@ authors = ["Grant Jennings <gajbooks@gmail.com>"]
 edition = "2024"
 
 [dependencies]
+async-channel = "*"
 async_zip = { version = "*", features = ["tokio", "tokio-fs", "deflate"] }
 axum = { version = "0.8", features = ["macros", "ws"] }
 axum-server = { version = "*", features = ["rustls"] }

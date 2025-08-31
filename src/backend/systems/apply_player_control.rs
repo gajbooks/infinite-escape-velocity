@@ -53,12 +53,7 @@ pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability 
                 Err(_) => return,
             };
 
-            let player_session = match session.session.upgrade() {
-                Some(valid) => valid,
-                None => return,
-            };
-
-            let input_status = player_session.input_status.blocking_read();
+            let input_status = session.input_status;
 
             if input_status.forward {
                 physics_component

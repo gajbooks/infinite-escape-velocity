@@ -16,40 +16,34 @@
 */
 
 use crate::connectivity::client_server_message::*;
+use crate::connectivity::player_info::player_profile::PlayerProfile;
 use crate::connectivity::player_info::player_sessions::PlayerSessions;
 use crate::connectivity::server_client_message::*;
 use crate::utility::cancel_flag::CancelFlag;
+use async_channel::{Receiver, Sender, unbounded};
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use bytes::Bytes;
-use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::timeout;
 
 use futures::stream::StreamExt;
 use futures_util::SinkExt;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
-use tokio::sync::mpsc::unbounded_channel;
 use tracing::debug;
 use tracing::info;
 
 const WEBSOCKET_TIMEOUT: Duration = Duration::from_secs(1);
 const AUTHORIZATION_TIMEOUT: Duration = Duration::from_secs(5);
 
-pub struct WebsocketConnection {
+struct WebsocketConnection {
     pub cancel: CancelFlag,
-    pub inbound: UnboundedReceiver<ClientServerMessage>,
-    pub outbound: UnboundedSender<ServerClientMessage>,
+    pub inbound: Receiver<ClientServerMessage>,
+    pub outbound: Sender<ServerClientMessage>,
     pub remote_address: SocketAddr,
-}
-
-impl Drop for WebsocketConnection {
-    fn drop(&mut self) {
-        self.cancel.cancel();
-    }
 }
 
 #[derive(Clone)]
@@ -69,10 +63,9 @@ pub async fn websocket_handler(
 async fn handle_socket(socket: WebSocket, who: SocketAddr, state: HandlerState) {
     let (mut sender, mut receiver) = socket.split();
 
-    let (outbound_messages_sender, mut outbound_messages_receiver) =
-        unbounded_channel::<ServerClientMessage>();
-    let (inbound_messages_sender, inbound_messages_receiver) =
-        unbounded_channel::<ClientServerMessage>();
+    let (outbound_messages_sender, outbound_messages_receiver) =
+        unbounded::<ServerClientMessage>();
+    let (inbound_messages_sender, inbound_messages_receiver) = unbounded::<ClientServerMessage>();
     let canceled = CancelFlag::default();
 
     let external_task_cancel = canceled.clone();
@@ -99,7 +92,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, state: HandlerState) 
 
             let message_to_send = outbound_messages_receiver.recv().await;
             match message_to_send {
-                Some(outgoing_message) => {
+                Ok(outgoing_message) => {
                     let mut serialized = Vec::<u8>::new();
                     // It would be very difficult for a serialization to fail, and would likely be a programming issue on the server
                     ciborium::into_writer(&outgoing_message, &mut serialized).unwrap();
@@ -113,7 +106,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, state: HandlerState) 
                         outbound_task_cancel.cancel();
                     }
                 }
-                None => {
+                Err(_e) => {
                     // All senders closed, ignoring case of external closure
                     if outbound_task_cancel.cancel() {
                         tracing::trace!(
@@ -150,7 +143,9 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, state: HandlerState) 
                                         Message::Binary(bin) => {
                                             match ciborium::from_reader(&*bin) {
                                                 Ok(deserialized) => {
-                                                    match inbound_messages_sender.send(deserialized)
+                                                    match inbound_messages_sender
+                                                        .send(deserialized)
+                                                        .await
                                                     {
                                                         Ok(()) => (),
                                                         Err(_) => {
@@ -218,10 +213,10 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, state: HandlerState) 
 
 async fn wait_for_websocket_login_message(
     state: HandlerState,
-    mut connection: WebsocketConnection,
+    connection: WebsocketConnection,
 ) {
     let auth_start = Instant::now();
-    while let Ok(Some(message)) = timeout(AUTHORIZATION_TIMEOUT, connection.inbound.recv()).await {
+    while let Ok(Ok(message)) = timeout(AUTHORIZATION_TIMEOUT, connection.inbound.recv()).await {
         if auth_start.elapsed() > AUTHORIZATION_TIMEOUT {
             info!(
                 "Websocket authorization timeout exceeded from {}",
@@ -239,8 +234,19 @@ async fn wait_for_websocket_login_message(
                             connection.remote_address
                         );
 
-                        let mut websocket_ref = valid_session.websocket_connection.lock().await;
-                        *websocket_ref = Some(connection);
+                        tokio::task::spawn(channel_forwarding(
+                            connection.inbound,
+                            valid_session.clone_inbound_sender(),
+                            connection.cancel.clone(),
+                        ));
+
+                        tokio::task::spawn(channel_forwarding(
+                            valid_session.clone_outbound_receiver(),
+                            connection.outbound,
+                            connection.cancel.clone(),
+                        ));
+
+                        tokio::task::spawn(refresh_session_with_valid_websocket(valid_session.player_profile.clone(), connection.cancel));
 
                         return;
                     }
@@ -252,14 +258,7 @@ async fn wait_for_websocket_login_message(
                         return;
                     }
                 }
-            }
-            ClientServerMessage::Disconnect => {
-                debug!(
-                    "User disconnected before authorizing websocket from {}",
-                    connection.remote_address
-                );
-                return;
-            }
+            },
             _ => (), // Don't handle anything else
         }
     }
@@ -268,4 +267,43 @@ async fn wait_for_websocket_login_message(
         "User closed socket before authorizing websocket from {}",
         connection.remote_address
     );
+}
+
+async fn refresh_session_with_valid_websocket(profile: Arc<PlayerProfile>, cancel: CancelFlag) {
+    loop {
+        tokio::time::sleep(WEBSOCKET_TIMEOUT).await;
+        if cancel.is_canceled() {
+            return;
+        } else {
+            let session_valid = profile.session.extend_session();
+
+            if !session_valid {
+                return;
+            }
+        }
+    }
+}
+
+async fn channel_forwarding<T>(
+    receiver: async_channel::Receiver<T>,
+    sender: async_channel::Sender<T>,
+    cancel: CancelFlag,
+) {
+    loop {
+        let val = match receiver.recv().await {
+            Ok(received) => received, // We're all good
+            Err(_e) => {
+                cancel.cancel();
+                return;
+            } // This websocket instance is done
+        };
+
+        match sender.send(val).await {
+            Ok(()) => (), // We're all good
+            Err(_e) => {
+                cancel.cancel();
+                return;
+            } // This session is broken
+        }
+    }
 }
