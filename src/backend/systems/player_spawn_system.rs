@@ -64,7 +64,7 @@ pub fn spawn_player_ship_and_viewports(
                             SemiNewtonianPhysicsComponent::new(Speed::new(200.0)),
                             PlayerControlledComponent::new(
                                 session.control_input_sender.subscribe(),
-                                session.cancel.clone(),
+                                session.websocket_connection.cancel.clone(),
                             ),
                         ))
                         .id();
@@ -91,7 +91,7 @@ pub fn spawn_player_ship_and_viewports(
                         .spawn(ViewportBundle {
                             viewport: ServerViewport::new(
                                 session_entity,
-                                session.to_remote.clone(),
+                                session.websocket_connection.outbound.clone(),
                             ),
                             collidable: CollidableComponent::new(Shape::Circle(CircleData {
                                 location: Coordinates::new(0.0, 0.0),

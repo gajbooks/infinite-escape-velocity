@@ -23,7 +23,8 @@ use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{ConnectInfo, State, WebSocketUpgrade};
 use axum::response::IntoResponse;
 use bytes::Bytes;
-use futures::channel::mpsc::UnboundedSender;
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::timeout;
 
 use futures::stream::StreamExt;
@@ -33,6 +34,13 @@ use std::time::Duration;
 use tokio::sync::mpsc::unbounded_channel;
 
 const WEBSOCKET_TIMEOUT: Duration = Duration::from_secs(1);
+
+pub struct WebsocketConnection {
+    pub cancel: CancelFlag,
+    pub inbound: UnboundedReceiver<ClientServerMessage>,
+    pub outbound: UnboundedSender<ServerClientMessage>,
+    pub remote_address: SocketAddr
+}
 
 #[derive(Clone)]
 pub struct HandlerState {
@@ -48,7 +56,7 @@ pub async fn websocket_handler(
     websocket.on_upgrade(move |socket| handle_socket(socket, address, state.connections))
 }
 
-async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawner: UnboundedSender<UserSession>) {
+async fn handle_socket(socket: WebSocket, who: SocketAddr, connection_spawner: UnboundedSender<UserSession>) {
     let (mut sender, mut receiver) = socket.split();
 
     let (outbound_messages_sender, mut outbound_messages_receiver) =
@@ -61,12 +69,16 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, mut connection_spawne
     let outbound_task_cancel = canceled.clone();
     let inbound_task_cancel = canceled;
 
+    let connection = WebsocketConnection{
+        outbound: outbound_messages_sender,
+        inbound: inbound_messages_receiver,
+        cancel: external_task_cancel,
+        remote_address: who
+    };
+
     connection_spawner.send(UserSession::spawn_user_session(
-        outbound_messages_sender,
-        inbound_messages_receiver,
-        who,
-        external_task_cancel,
-    )).await.unwrap(); // Can't do anything if the other portion is disconnected
+        connection
+    )).unwrap(); // Can't do anything if the other portion is disconnected
 
     let outbound_task = tokio::spawn(async move {
         loop {

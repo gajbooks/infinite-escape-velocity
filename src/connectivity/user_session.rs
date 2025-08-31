@@ -17,30 +17,26 @@
 
 const CONTROL_INPUT_MESSAGE_CAPACITY: usize = 100;
 
-use std::net::SocketAddr;
-
 use bevy_ecs::{component::Component, entity::Entity, system::Query};
-use tokio::sync::{broadcast, mpsc::{UnboundedReceiver, UnboundedSender}};
+use tokio::sync::broadcast;
 
-use crate::{connectivity::{
-    client_server_message::ClientServerMessage, server_client_message::ServerClientMessage
-}, utility::cancel_flag::CancelFlag};
+use crate::connectivity::{client_server_message::ClientServerMessage, handlers::websocket_handler::WebsocketConnection};
 
 use super::client_server_message::ControlInput;
 
 pub fn process_incoming_messages(mut user_sessions: Query<&mut UserSession>) {
     user_sessions.par_iter_mut().for_each(|mut session| {
-        if session.cancel.is_canceled() {
+        if session.websocket_connection.cancel.is_canceled() {
             return;
         }
 
-        while let Ok(message) = session.from_remote.try_recv() {
+        while let Ok(message) = session.websocket_connection.inbound.try_recv() {
             match message {
                 ClientServerMessage::Authorize(_) => {
                     // We don't want to handle authorize messages here, but we are required to send them over the websocket
                 },
                 ClientServerMessage::Disconnect => {
-                    let _ = session.cancel.cancel();
+                    let _ = session.websocket_connection.cancel.cancel();
                     continue;
                 },
                 ClientServerMessage::ControlInput { input, pressed } => {
@@ -60,28 +56,19 @@ pub struct ControlInputMessage {
 
 #[derive(Component)]
 pub struct UserSession {
-    pub remote_address: SocketAddr,
-    pub to_remote: UnboundedSender<ServerClientMessage>,
-    from_remote: UnboundedReceiver<ClientServerMessage>,
+    pub websocket_connection: WebsocketConnection,
     pub control_input_sender: broadcast::Sender<ControlInputMessage>,
-    pub cancel: CancelFlag,
     pub primary_viewport: Option<Entity>,
     pub should_follow: Option<Entity>,
 }
 
 impl UserSession {
     pub fn spawn_user_session(
-        to_remote: UnboundedSender<ServerClientMessage>,
-        from_remote: UnboundedReceiver<ClientServerMessage>,
-        remote_address: SocketAddr,
-        cancel: CancelFlag,
+        websocket_connection: WebsocketConnection
     ) -> UserSession {
         let session = UserSession {
-            from_remote,
-            to_remote: to_remote.clone(),
+            websocket_connection,
             control_input_sender: broadcast::Sender::new(CONTROL_INPUT_MESSAGE_CAPACITY),
-            remote_address: remote_address,
-            cancel: cancel.clone(),
             primary_viewport: None,
             should_follow: None,
         };

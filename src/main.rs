@@ -49,7 +49,6 @@ use connectivity::handlers::player_session_handlers::login_player;
 use connectivity::player_info::player_profiles::PlayerProfiles;
 use connectivity::player_info::player_sessions::PlayerSessions;
 use euclid::Angle;
-use futures::channel::mpsc::unbounded;
 use rand::Rng;
 use shared_types::{Coordinates, Speed, Velocity};
 use tokio::time;
@@ -331,7 +330,7 @@ async fn main() {
         None => app,
     };
 
-    let (user_session_sender, user_session_receiver) = unbounded::<UserSession>();
+    let (user_session_sender, user_session_receiver) = tokio::sync::mpsc::unbounded_channel::<UserSession>();
     let resource_asset_index = asset_index.clone();
 
     let (web_ecs_command_service, ecs_ecs_command_resource) = EcsCommunicationService::create();
