@@ -188,7 +188,7 @@ struct Args {
     verify_assets: bool,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() {
     let args = Args::parse();
 
@@ -332,7 +332,7 @@ async fn main() {
 
     let (web_ecs_command_service, ecs_ecs_command_resource) = EcsCommunicationService::create();
 
-    tokio::task::spawn_blocking(move || {
+    std::thread::spawn(move || {
         let mut world = World::new();
 
         world.spawn_batch(

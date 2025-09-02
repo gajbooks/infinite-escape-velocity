@@ -15,7 +15,7 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-const PROFILE_CLEANUP_DURATION: u64 = 1;
+const PROFILE_CLEANUP_DURATION: Duration = Duration::from_secs(1);
 
 use std::{
     collections::HashMap,
@@ -102,7 +102,7 @@ impl PlayerProfiles {
         state: Weak<tokio::sync::RwLock<HashMap<String, Arc<PlayerProfile>>>>,
     ) {
         loop {
-            tokio::time::sleep(Duration::from_secs(PROFILE_CLEANUP_DURATION)).await;
+            tokio::time::sleep(PROFILE_CLEANUP_DURATION).await;
             if let Some(exists) = state.upgrade() {
                 for (_identifier, profile) in &*exists.read().await {
                     profile.cleanup_expired_sessions();

@@ -74,10 +74,11 @@ pub async fn subscribe_message(
         Some(auth_header) => match auth_header.to_str() {
             Ok(auth_header_string) => {
                 if let Some(player_profile) = player_sessions
-                        .get_session(auth_header_string)
-                        .await
-                        .upgrade()
-                        .map(|x| x.player_profile.clone()) {
+                    .get_session(auth_header_string)
+                    .await
+                    .upgrade()
+                    .map(|x| x.player_profile.clone())
+                {
                     let chat_subscription = chat_service.get_receiving_handle();
 
                     // This stream takes in the needed state and automatically times out and retries in case a session has expired

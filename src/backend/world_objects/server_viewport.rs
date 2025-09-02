@@ -15,6 +15,8 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::sync::Mutex;
+
 use crate::backend::components::session::player_session_component::PlayerSessionComponent;
 use crate::backend::shrink_storage::ImmutableShrinkable;
 use crate::backend::spatial_optimizer::hash_sized::HashSized;
@@ -78,27 +80,45 @@ impl ViewportUpdated {
     fn set_updated(&mut self) {
         self.updated = true;
     }
+
+    fn set_unupdated(&mut self) {
+        self.updated = false;
+    }
+}
+
+struct ServerViewportData {
+    last_tick_ids: DashSet<Entity>,
+    tracking_mode: ViewportUpdated,
 }
 
 #[derive(Component)]
 pub struct ServerViewport {
-    last_tick_ids: DashSet<Entity>,
-    tracking_mode: ViewportUpdated,
+    data: Mutex<ServerViewportData>,
 }
 
 impl ServerViewport {
     pub fn new() -> ServerViewport {
         return ServerViewport {
-            last_tick_ids: DashSet::new(),
-            tracking_mode: ViewportUpdated {
-                updated: false,
-                tracking_mode: ViewportTrackingMode::Static(Coordinates::new(0.0, 0.0)),
-            },
+            data: ServerViewportData {
+                last_tick_ids: DashSet::new(),
+                tracking_mode: ViewportUpdated {
+                    updated: false,
+                    tracking_mode: ViewportTrackingMode::Static(Coordinates::new(0.0, 0.0)),
+                },
+            }
+            .into(),
         };
     }
 
-    pub fn set_tracking_mode(&mut self, new_tracking_mode: ViewportTrackingMode) {
-        self.tracking_mode.set_tracking_mode(new_tracking_mode);
+    pub fn refresh_for_client(&self) {
+        let mut locked = self.data.lock().unwrap();
+        locked.last_tick_ids.clear();
+        locked.tracking_mode.set_unupdated();
+    }
+
+    pub fn set_tracking_mode(&self, new_tracking_mode: ViewportTrackingMode) {
+        let mut locked = self.data.lock().unwrap();
+        locked.tracking_mode.set_tracking_mode(new_tracking_mode);
     }
 }
 
@@ -128,6 +148,8 @@ pub fn tick_viewport(
 
         let outbound_messages = parent.command_queue_outbound.clone();
 
+        let viewport = viewport.data.get_mut().unwrap();
+
         if viewport.tracking_mode.is_updated() == false {
             let tracking_message_data = match viewport.tracking_mode.get_tracking_mode() {
                 ViewportTrackingMode::Entity(entity) => ViewportFollowData::Entity {
@@ -140,8 +162,8 @@ pub fn tick_viewport(
                 ViewportTrackingMode::Disconnected => ViewportFollowData::Disconnected,
             };
 
-            let _ =
-                outbound_messages.send_blocking(ServerClientMessage::ViewportFollow(tracking_message_data)); // Nothing we can do about send errors for users disconnected
+            let _ = outbound_messages
+                .send_blocking(ServerClientMessage::ViewportFollow(tracking_message_data)); // Nothing we can do about send errors for users disconnected
 
             viewport.tracking_mode.set_updated();
         }
@@ -154,7 +176,9 @@ pub fn tick_viewport(
                         collide_with.shape = collide_with.shape.move_center(position.position);
                     }
                     Err(_lost_track) => {
-                        viewport.set_tracking_mode(ViewportTrackingMode::Disconnected);
+                        viewport
+                            .tracking_mode
+                            .set_tracking_mode(ViewportTrackingMode::Disconnected);
                     }
                 }
             }
@@ -184,14 +208,14 @@ pub fn tick_viewport(
             match viewport.last_tick_ids.contains(&collision) {
                 true => {}
                 false => {
-                    let _ = outbound_messages.send_blocking(ServerClientMessage::DynamicObjectCreation(
-                        DynamicObjectCreationData {
+                    let _ = outbound_messages.send_blocking(
+                        ServerClientMessage::DynamicObjectCreation(DynamicObjectCreationData {
                             id: collision.to_bits(),
                             object_asset: displayable.object_asset,
                             view_layer: displayable.view_layer,
                             display_radius: displayable.display_radius,
-                        },
-                    )); // Nothing we can do about send errors for users disconnected
+                        }),
+                    ); // Nothing we can do about send errors for users disconnected
                 }
             }
 

@@ -78,6 +78,7 @@ export class AppComponent {
       self.socket.next(sent);
     });
 
-    self.outgoingMessages.next({ "type": "Authorize", "token":  await this.session.getCurrentSessionToken() });
+    self.outgoingMessages.next({ "type": "Authorize", "token": await this.session.getCurrentSessionToken() });
+    self.outgoingMessages.next({ "type": "Refresh" });
   }
 }

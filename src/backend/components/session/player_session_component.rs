@@ -15,12 +15,14 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use bevy_ecs::{component::Component, entity::Entity, system::Query};
+use bevy_ecs::{component::Component, entity::Entity, hierarchy::Children, system::Query};
 
 use std::sync::Weak;
 
 use crate::{
-    backend::data_objects::input_status::InputStatus,
+    backend::{
+        data_objects::input_status::InputStatus, world_objects::server_viewport::ServerViewport,
+    },
     connectivity::{
         client_server_message::ClientServerMessage, player_info::player_session::PlayerSession,
         server_client_message::ServerClientMessage,
@@ -55,44 +57,51 @@ impl PlayerSessionComponent {
     }
 }
 
-pub fn process_input_messages_system(mut sessions: Query<&mut PlayerSessionComponent>) {
-    sessions.par_iter_mut().for_each(|mut session| {
-                    match session.command_queue_inbound.try_recv() {
-                        Ok(has_message) => {
-                            match has_message {
-                                ClientServerMessage::Authorize { token: _ } => {
-                                    // We don't want to handle authorize messages here, but we are required to send them over the websocket
+pub fn process_input_messages_system(
+    mut sessions: Query<(Entity, &mut PlayerSessionComponent)>,
+    viewport_children: Query<&Children>,
+    viewport_query: Query<&ServerViewport>,
+) {
+    sessions.par_iter_mut().for_each(|(entity, mut session)| {
+        match session.command_queue_inbound.try_recv() {
+            Ok(has_message) => {
+                match has_message {
+                    ClientServerMessage::Authorize { token: _ } => {
+                        // We don't want to handle authorize messages here, but we are required to send them over the websocket
+                    }
+                    ClientServerMessage::ControlInput { input, pressed } => match input {
+                        crate::connectivity::client_server_message::ControlInput::Forward => {
+                            session.input_status.forward = pressed;
+                        }
+                        crate::connectivity::client_server_message::ControlInput::Backward => {
+                            session.input_status.backward = pressed;
+                        }
+                        crate::connectivity::client_server_message::ControlInput::Left => {
+                            session.input_status.left = pressed;
+                        }
+                        crate::connectivity::client_server_message::ControlInput::Right => {
+                            session.input_status.right = pressed;
+                        }
+                        crate::connectivity::client_server_message::ControlInput::Fire => {
+                            session.input_status.fire = pressed;
+                        }
+                    },
+                    ClientServerMessage::Refresh => {
+                        for session_viewport in viewport_children.iter_descendants(entity) {
+                            match viewport_query.get(session_viewport) {
+                                Ok(viewport) => {
+                                    viewport.refresh_for_client();
                                 }
-                                ClientServerMessage::ControlInput {
-                                    input,
-                                    pressed,
-                                } => {
-                                    match input {
-                                    crate::connectivity::client_server_message::ControlInput::Forward => {
-                                        session.input_status.forward = pressed;
-                                    },
-                                    crate::connectivity::client_server_message::ControlInput::Backward => {
-                                        session.input_status.backward = pressed;
-                                    },
-                                    crate::connectivity::client_server_message::ControlInput::Left => {
-                                        session.input_status.left = pressed;
-                                    },
-                                    crate::connectivity::client_server_message::ControlInput::Right => {
-                                        session.input_status.right = pressed;
-                                    },
-                                    crate::connectivity::client_server_message::ControlInput::Fire => {
-                                        session.input_status.fire = pressed;
-                                    },
-                                    }
-                                }
+                                Err(_) => (), // All iterated children should be viewports but if there is one which is not we don't really care
                             }
                         }
-                        Err(e) => {
-                            match e {
-                                async_channel::TryRecvError::Empty => return,
-                                async_channel::TryRecvError::Closed => return,
-                            }
-                        },
                     }
+                }
+            }
+            Err(e) => match e {
+                async_channel::TryRecvError::Empty => return,
+                async_channel::TryRecvError::Closed => return,
+            },
+        }
     });
 }

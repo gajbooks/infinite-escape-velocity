@@ -19,17 +19,19 @@ export class ChatBoxComponent {
 
   messages: { name: string, message: string }[] = [];
 
-  async ngOnInit() {
+  ngOnInit() {
     let self = this;
 
-    (await this.chatService.subscribeToChat()).subscribe((message) => {
-      if (message == null) {
-        return;
-      }
+    this.chatService.subscribeToChat().then((observer) => {
+      observer.subscribe((message) => {
+        if (message == null) {
+          return;
+        }
 
-      self.receive(message.player_name, message.message);
-      console.log("Received: %s %s", message.player_name, message.message);
-    })
+        self.receive(message.player_name, message.message);
+        console.log("Received: %s %s", message.player_name, message.message);
+      })
+    });
   }
 
   async send() {
