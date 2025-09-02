@@ -3,10 +3,8 @@ import { Subject } from 'rxjs';
 import { WebSocketSubject, webSocket } from 'rxjs/webSocket';
 import { ClientServerMessage } from 'bindings/ClientServerMessage';
 import { ServerClientMessage } from 'bindings/ServerClientMessage';
-import { ENVIRONMENT } from 'src/environments/environment';
-// @ts-ignore
-import * as CBOR from 'cbor-web/dist/cbor';
-import { HTTP_INTERCEPTORS, HttpClient, provideHttpClient } from '@angular/common/http';
+import { decode, encode } from 'cbor2';
+import { HttpClient } from '@angular/common/http';
 import { AssetIndexResponse } from 'bindings/AssetIndexResponse';
 import { AssetIndexValue } from 'bindings/AssetIndexValue';
 import { GameplayCanvasComponent } from './gameplay-canvas/gameplay-canvas.component';
@@ -20,10 +18,10 @@ function generateWebsocket(url: string): WebSocketSubject<unknown> {
     url: url,
     binaryType: 'arraybuffer',
     serializer: (val) => {
-      return CBOR.encode(val);
+      return encode(val);
     },
     deserializer: (event) => {
-      return CBOR.decode(event.data);
+      return decode(new Uint8Array(event.data));
     }
   });
 }
