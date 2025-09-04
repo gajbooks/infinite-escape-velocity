@@ -4,7 +4,6 @@ import { lastValueFrom, map, Observable } from "rxjs";
 import { SessionService } from "./session.service";
 import { ChatMessageRequest } from "bindings/players/messaging/ChatMessageRequest";
 import { ChatMessageResponse } from "bindings/players/messaging/ChatMessageResponse";
-import { BaseUrlService } from "./base-url.service";
 import { SseClient } from "ngx-sse-client";
 
 @Injectable({
@@ -28,6 +27,10 @@ export class ChatService {
     async subscribeToChat(): Promise<Observable<ChatMessageResponse | null>> {
         const auth = await this.session.getCurrentSessionToken();
         const headers = new HttpHeaders().set('Authorization', auth);
+
+        // This delay is a really stupid hack because the current working theory is that Firefox gets upset
+        // and lags if a SSE request happens before a websocket one (but not after?) TODO: Report to Firefox
+        await new Promise(r => setTimeout(r, 1000));
         return this.sseClient.stream('/players/messaging/subscribe-message', {}, { headers }).pipe(map(event => {
             if (event.type === 'error') {
                 console.error(event);
