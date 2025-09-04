@@ -30,6 +30,7 @@ export class ChatService {
 
         // This delay is a really stupid hack because the current working theory is that Firefox gets upset
         // and lags if a SSE request happens before a websocket one (but not after?) TODO: Report to Firefox
+        // Only happens on refreshes due to random script timings, but it delays the entire page loading
         await new Promise(r => setTimeout(r, 1000));
         return this.sseClient.stream('/players/messaging/subscribe-message', {}, { headers }).pipe(map(event => {
             if (event.type === 'error') {
