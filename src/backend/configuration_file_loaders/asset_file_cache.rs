@@ -22,11 +22,12 @@ use std::{
     path::PathBuf,
 };
 
-use crate::configuration_file_structures::{
-    asset_definition_file::{
-        AssetDefinition, AssetDefinitionFile, AssetResources, GraphicsType, MetaAsset,
+use crate::{
+    backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets,
+    configuration_file_structures::{
+        asset_definition_file::{AssetDefinition, AssetDefinitionFile, AssetResources, AssetType},
+        reference_types::AssetReference,
     },
-    reference_types::AssetReference,
 };
 
 use super::{
@@ -61,44 +62,46 @@ impl AssetFileCache {
     pub fn verify_assets(&self) -> Result<(), ()> {
         self.assets.iter().filter_map(|(name, (asset_info, _data))| {
             // Potentially we will want to validate file extensions here as files which are compatible with web browsers or which respect their intended asset types, but for now it is unimportant
-            match &asset_info.asset_type {
-                AssetResources::Meta(meta) => {
-                    Some((name, meta))
-                },
-                _=> None
-            }
-        }).map(|(name, meta)| {
-            match meta {
-                MetaAsset::Graphics(graphics) => {
-                    match graphics {
-                        GraphicsType::SimpleSquareRotationalSpriteSheet { sprite_count_x: _, sprite_count_y: _, image_data_asset } => {
-                            match self.assets.get(image_data_asset) {
-                                Some((linked_info, _data)) => {
-                                    match linked_info.asset_type {
-                                        AssetResources::Image(_) => {
-                                            // This graphics type only has a use for Image asset references
-                                            Ok(())
-                                        },
-                                        AssetResources::Meta(_) => {
-                                            // We will potentially invalidate this assumption in the future, but for now, meta-resources only need to reference data resources
-                                            tracing::error!("Meta-asset {} cannot have another meta-asset {} as a data value", name, linked_info.asset_name);
-                                            Err(())
-                                        },
-                                        _ => {
-                                            Err(())
-                                        }
+            Some((name, asset_info))
+        }).map(|(validating_asset_name, validating_asset_info)| {
+            let required_assets: Vec<(&String, crate::configuration_file_structures::asset_definition_file::AssetType)> = validating_asset_info.get_required_asset_list();
+
+                required_assets.iter().map(|(sub_asset_name, sub_asset_type)| {
+                    match self.assets.get(sub_asset_name.as_str()) {
+                        Some((found_asset_definition, _data)) => {
+                            match found_asset_definition.asset_type {
+                                AssetResources::Meta(_) => {
+                                    if validating_asset_info.asset_type.get_asset_type_from_resource() == AssetType::Meta {
+                                        // We will potentially invalidate this assumption in the future, but for now, meta-resources must only reference data resources
+                                        tracing::error!("Meta-asset {} cannot have another meta-asset {} as a data value", validating_asset_name, found_asset_definition.asset_name);
+                                        Err(())
+                                    } else {
+                                        Ok(())
                                     }
                                 },
-                                None => {
-                                    // We will potentially loosen this restriction in the future with regards to asset bundle loading, but for now it is enforced
-                                    tracing::error!("Graphics meta-asset {} references an image asset {} which does not exist", name, image_data_asset);
-                                    Err(())
-                                },
+                                _ => {
+                                    let loaded_asset_type = found_asset_definition.asset_type.get_asset_type_from_resource();
+                                    if  loaded_asset_type == *sub_asset_type {
+                                        Ok(())
+                                    } else {
+                                        tracing::error!(
+                                            "Mismatch between the type of loaded asset {} with {:?} being loaded and {:?} being required",
+                                            sub_asset_name,
+                                            loaded_asset_type,
+                                            sub_asset_type
+                                        );
+                                        Err(())
+                                    }
+                                }
                             }
-                        }
+                        },
+                        None => {
+                            // We will potentially loosen this restriction in the future with regards to asset bundle loading, but for now it is enforced
+                            tracing::error!("Asset {} references an asset {} which does not exist", validating_asset_name, sub_asset_name);
+                            Err(())
+                        },
                     }
-                }
-            }
+                }).collect()
         }).collect()
     }
 
@@ -185,7 +188,11 @@ impl AssetFileCache {
         for (_path, asset_info) in &found_asset_files {
             for asset in &asset_info.assets {
                 if duplicate_name_checker.insert(asset.asset_name.clone()) == false {
-                    tracing::warn!("Duplicated asset name found within bundle {} with name {}, this could be an error or result in inconsistent load orders!", file.path.to_string_lossy(), asset.asset_name);
+                    tracing::warn!(
+                        "Duplicated asset name found within bundle {} with name {}, this could be an error or result in inconsistent load orders!",
+                        file.path.to_string_lossy(),
+                        asset.asset_name
+                    );
                 }
             }
         }

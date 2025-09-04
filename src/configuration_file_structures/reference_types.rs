@@ -23,6 +23,9 @@ pub type AssetReference = String;
 // Reference to a planetoid
 pub type PlanetoidReference = String;
 
+// Reference to a ship type
+pub type ShipReference = String;
+
 // Pre-determined Id for an Asset
 pub type AssetIndexReference = u64;
 

@@ -19,3 +19,4 @@ pub mod asset_definition_file;
 pub mod load_order_file;
 pub mod planetoid_configuration_file;
 pub mod reference_types;
+pub mod ship_configuration_file;

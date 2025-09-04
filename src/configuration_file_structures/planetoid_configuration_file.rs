@@ -50,7 +50,7 @@ pub struct PlanetoidFeatures {
 #[derive(Deserialize)]
 pub struct PlanetoidRecord {
     pub planetoid_reference: PlanetoidReference,
-    pub planetoid_display_name: String,
+    pub planetoid_display_name: AssetReference,
     pub display_asset: AssetReference,
     pub display_radius: f32,
     pub x: f64,
@@ -60,7 +60,10 @@ pub struct PlanetoidRecord {
 
 impl ListRequiredAssets for PlanetoidRecord {
     fn get_required_asset_list(&self) -> Vec<(&AssetReference, AssetType)> {
-        let mut required_assets = vec![(&self.display_asset, AssetType::Image)];
+        let mut required_assets = vec![
+            (&self.display_asset, AssetType::Image),
+            (&self.planetoid_display_name, AssetType::Text),
+        ];
 
         match &self.may_be_landed_on {
             Some(has) => {

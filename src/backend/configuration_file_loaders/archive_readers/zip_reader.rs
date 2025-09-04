@@ -14,6 +14,7 @@
     You should have received a copy of the GNU General Public License
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
+
 use async_zip::tokio::read::fs::ZipFileReader;
 use bytes::Bytes;
 use futures_util::AsyncReadExt;
@@ -90,7 +91,7 @@ impl ArchiveReader for ZipReader {
     }
 
     async fn try_get_file(&self, name: &Path) -> Result<Option<Bytes>, ()> {
-        //We don't have real paths in Zip land
+        // We don't have real paths in Zip land
         let name = name.to_string_lossy();
         match self.index.get(&*name) {
             Some(has) => {

@@ -17,31 +17,48 @@
 
 use std::{collections::HashMap, ffi::OsStr, path::PathBuf};
 
-use crate::configuration_file_structures::planetoid_configuration_file::{PlanetoidConfigurationFile, PlanetoidRecord};
+use crate::{
+    backend::configuration_file_loaders::asset_bundle_loader::{
+        AssetBundleFileType, AssetBundleType,
+    },
+    configuration_file_structures::planetoid_configuration_file::{
+        PlanetoidConfigurationFile, PlanetoidRecord,
+    },
+};
 
-use super::{archive_readers::{archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader}, asset_bundle_loader::AssetBundle, definition_caches::{list_required_assets::ListRequiredAssets, planetoid_definition_cache::PlanetoidDefinitionCache}};
+use super::{
+    archive_readers::{
+        archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader,
+    },
+    asset_bundle_loader::AssetBundle,
+    definition_caches::{
+        list_required_assets::ListRequiredAssets,
+        planetoid_definition_cache::PlanetoidDefinitionCache,
+    },
+};
 
 enum DefinitionFileNames {
-    Planetoids
+    Planetoids,
 }
 
 impl DefinitionFileNames {
     pub fn path_to_definition_type(path: &str) -> Option<DefinitionFileNames> {
-
         match path {
             "planetoids.json" => Some(DefinitionFileNames::Planetoids),
-            _ => None
+            _ => None,
         }
     }
 }
 
 pub struct DefinitionFileCache {
-    planetoids: PlanetoidDefinitionCache
+    planetoids: PlanetoidDefinitionCache,
 }
 
 impl DefinitionFileCache {
     pub fn new() -> DefinitionFileCache {
-        DefinitionFileCache{planetoids: PlanetoidDefinitionCache::new()}
+        DefinitionFileCache {
+            planetoids: PlanetoidDefinitionCache::new(),
+        }
     }
 
     pub fn get_planetoids(&self) -> &[PlanetoidRecord] {
@@ -50,21 +67,19 @@ impl DefinitionFileCache {
 
     pub async fn load_definition_bundle(&mut self, file: &AssetBundle) -> Result<(), ()> {
         match &file.bundle_type {
-            super::asset_bundle_loader::AssetBundleType::Folder => {
-                match FilesystemReader::new(&file.path).await {
-                    Ok(has) => self.load_definition_bundle_generic(file, has).await,
-                    Err(()) => {
-                        return Err(());
-                    }
+            AssetBundleType::Folder => {
+                if let Ok(has) = FilesystemReader::new(&file.path).await {
+                    self.load_definition_bundle_generic(file, has).await
+                } else {
+                    return Err(());
                 }
             }
-            super::asset_bundle_loader::AssetBundleType::Zipped(zip_type) => match zip_type {
-                super::asset_bundle_loader::AssetBundleFileType::Zip => {
-                    match ZipReader::new(&file.path).await {
-                        Ok(has) => self.load_definition_bundle_generic(file, has).await,
-                        Err(()) => {
-                            return Err(());
-                        }
+            AssetBundleType::Zipped(zip_type) => match zip_type {
+                AssetBundleFileType::Zip => {
+                    if let Ok(has) = ZipReader::new(&file.path).await {
+                        self.load_definition_bundle_generic(file, has).await
+                    } else {
+                        return Err(());
                     }
                 }
             },
@@ -81,67 +96,77 @@ impl DefinitionFileCache {
         let files = asset_loader.get_files().await;
 
         for definition_file in &files {
-            match definition_file.file_name() {
-                Some(named_file) => {
-                    match files_with_extensions.entry(named_file) {
-                        std::collections::hash_map::Entry::Occupied(mut has) => {
-                            has.get_mut().push(definition_file);
-                        },
-                        std::collections::hash_map::Entry::Vacant(empty) => {
-                            let has = empty.insert(Vec::new());
-                            has.push(definition_file);
-                        },
+            if let Some(named_file) = definition_file.file_name() {
+                match files_with_extensions.entry(named_file) {
+                    std::collections::hash_map::Entry::Occupied(mut has) => {
+                        has.get_mut().push(definition_file);
                     }
-                },
-                None => ()
+                    std::collections::hash_map::Entry::Vacant(empty) => {
+                        let has = empty.insert(Vec::new());
+                        has.push(definition_file);
+                    }
+                }
             }
         }
 
         for file_name in files_with_extensions {
-            match DefinitionFileNames::path_to_definition_type(&*file_name.0.to_string_lossy()) {
-                Some(known_type) => {
-                    match known_type {
-                        DefinitionFileNames::Planetoids => {
-                            for planetoid_record in file_name.1 {
-                                match asset_loader.try_get_file(&planetoid_record).await {
-                                    Ok(no_error) => {
-                                        match no_error {
-                                            Some(planetoid_file_data) => {
-                                                match serde_json::de::from_slice::<PlanetoidConfigurationFile>(&planetoid_file_data) {
-                                                    Ok(deserialized) => {
-                                                        match self.planetoids.add_planetoid_records(deserialized.definitions.into_iter()) {
-                                                            Ok(()) => {
-                                                                // No problem here
-                                                            },
-                                                            Err(()) => {
-                                                                tracing::error!("Error loading planetoid file {} from definition bundle {}", planetoid_record.to_string_lossy(), file.name);
-                                                                return Err(());
-                                                            },
-                                                        }
-                                                    },
-                                                    Err(error_deserializing) => {
-                                                        tracing::error!("Error deserializing planetoids.json from definition bundle {} with error {}", file.path.to_string_lossy(), error_deserializing);
-                                                        return Err(());
-                                                    },
+            if let Some(known_type) =
+                DefinitionFileNames::path_to_definition_type(&*file_name.0.to_string_lossy())
+            {
+                for record_asset_file in file_name.1 {
+                    if let Ok(no_error) = asset_loader.try_get_file(&record_asset_file).await {
+                        if let Some(file_data) = no_error {
+                            match known_type {
+                                DefinitionFileNames::Planetoids => {
+                                    match serde_json::de::from_slice::<PlanetoidConfigurationFile>(
+                                        &file_data,
+                                    ) {
+                                        Ok(deserialized) => {
+                                            match self.planetoids.add_planetoid_records(
+                                                deserialized.definitions.into_iter(),
+                                            ) {
+                                                Ok(()) => {
+                                                    // No problem here
                                                 }
-                                            },
-                                            None => {
-                                                tracing::warn!("File {} from definition bundle {} has suddenly gone missing between directory enumeration and file loading", planetoid_record.to_string_lossy(), file.name);
-                                            },
+                                                Err(()) => {
+                                                    tracing::error!(
+                                                        "Error loading planetoid file {} from definition bundle {}",
+                                                        record_asset_file.to_string_lossy(),
+                                                        file.name
+                                                    );
+                                                    return Err(());
+                                                }
+                                            }
                                         }
-                                    },
-                                    Err(_record_read_error) => {
-                                        tracing::error!("Error reading definition bundle {}", file.name);
-                                        return Err(());
-                                    },
-                                };
+                                        Err(error_deserializing) => {
+                                            tracing::error!(
+                                                "Error deserializing planetoids.json from definition bundle {} with error {}",
+                                                file.path.to_string_lossy(),
+                                                error_deserializing
+                                            );
+                                            return Err(());
+                                        }
+                                    }
+                                }
                             }
+                        } else {
+                            tracing::warn!(
+                                "File {} from definition bundle {} has suddenly gone missing between directory enumeration and file loading",
+                                record_asset_file.to_string_lossy(),
+                                file.name
+                            );
                         }
+                    } else {
+                        tracing::error!("Error reading definition bundle {}", file.name);
+                        return Err(());
                     }
-                },
-                None => {
-                    tracing::warn!("Unknown file with name {} found in definition bundle {}", file_name.0.to_string_lossy(), file.name);
-                },
+                }
+            } else {
+                tracing::warn!(
+                    "Unknown file with name {} found in definition bundle {}",
+                    file_name.0.to_string_lossy(),
+                    file.name
+                );
             }
         }
 
@@ -150,7 +175,12 @@ impl DefinitionFileCache {
 }
 
 impl ListRequiredAssets for DefinitionFileCache {
-    fn get_required_asset_list(&self) -> Vec<(&crate::configuration_file_structures::reference_types::AssetReference, crate::configuration_file_structures::asset_definition_file::AssetType)> {
+    fn get_required_asset_list(
+        &self,
+    ) -> Vec<(
+        &crate::configuration_file_structures::reference_types::AssetReference,
+        crate::configuration_file_structures::asset_definition_file::AssetType,
+    )> {
         self.planetoids.get_required_asset_list()
     }
 }
