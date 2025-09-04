@@ -21,7 +21,7 @@ use euclid::Point2D;
 use crate::{
     backend::shape::{CircleData, Shape},
     configuration_file_structures::planetoid_configuration_file::PlanetoidRecord,
-    connectivity::asset_index::AssetIndex,
+    connectivity::{asset_index::AssetIndex, view_layers::ViewLayers},
     shared_types::Radius,
 };
 
@@ -55,7 +55,9 @@ impl PlanetoidBundle {
 
         Ok(Self {
             displayable: Displayable {
+                display_radius: radius.0 as f32,
                 object_asset: display_asset,
+                view_layer: ViewLayers::Planetoids
             },
             displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Circle(
                 CircleData {

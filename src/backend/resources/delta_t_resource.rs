@@ -17,7 +17,7 @@
 
 use std::time::{self, Duration};
 
-use bevy_ecs::system::{ResMut, Resource};
+use bevy_ecs::prelude::{ResMut, Resource};
 
 const MICROSECONDS_PER_SECOND: u64 = 1_000_000;
 const FRACTIONAL_MAX_TICK_TIME: u64 = 20;
@@ -29,9 +29,9 @@ pub const MINIMUM_TICK_DURATION: Duration = time::Duration::from_micros(MINIMUM_
 
 #[derive(Resource)]
 pub struct DeltaTResource {
-    pub total_time: Duration,
-    pub last_tick: Duration,
-    pub last_tick_time: Duration,
+    total_time: Duration,
+    last_tick: Duration,
+    last_tick_reported_real_world_time: Duration,
 }
 
 impl DeltaTResource {
@@ -39,18 +39,28 @@ impl DeltaTResource {
         Self {
             total_time: MINIMUM_TICK_DURATION,
             last_tick: MINIMUM_TICK_DURATION,
-            last_tick_time: time::Duration::ZERO,
+            last_tick_reported_real_world_time: time::Duration::ZERO,
         }
+    }
+
+    pub fn get_total_time(&self) -> Duration {
+        self.total_time
+    }
+
+    pub fn get_last_tick_duration(&self) -> Duration {
+        self.last_tick
+    }
+
+    pub fn set_last_reported_real_world_time(&mut self, duration: Duration) {
+        self.last_tick_reported_real_world_time = duration;
     }
 }
 
 pub fn increment_time(mut time: ResMut<DeltaTResource>) {
     let corrected_duration = time
-        .last_tick_time
+        .last_tick_reported_real_world_time
         .clamp(MINIMUM_TICK_DURATION, MAXIMUM_TICK_DURATION);
-    *time = DeltaTResource {
-        total_time: time.total_time + corrected_duration,
-        last_tick: corrected_duration,
-        last_tick_time: time.last_tick_time,
-    };
+
+    time.total_time = time.total_time + corrected_duration;
+    time.last_tick = corrected_duration;
 }

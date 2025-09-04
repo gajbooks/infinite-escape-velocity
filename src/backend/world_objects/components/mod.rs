@@ -19,6 +19,7 @@ pub mod angular_velocity_component;
 pub mod collision_component;
 pub mod player_controlled_component;
 pub mod position_component;
+pub mod random_ship_spawn_placeholder;
 pub mod rotation_component;
 pub mod semi_newtonian_physics_component;
 pub mod timeout_component;

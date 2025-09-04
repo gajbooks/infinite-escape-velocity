@@ -20,24 +20,36 @@ use std::time::Duration;
 use bevy_ecs::{
     component::Component,
     entity::Entity,
-    system::{ ParallelCommands, Query, Res},
+    system::{ParallelCommands, Query, Res},
 };
 
 use crate::backend::resources::delta_t_resource::DeltaTResource;
 
 #[derive(Component)]
 pub struct TimeoutComponent {
-    pub spawn_time: Duration,
-    pub lifetime: Duration,
+    spawn_time: Option<Duration>,
+    lifetime: Duration,
+}
+
+impl TimeoutComponent {
+    pub fn new(lifetime: Duration) -> Self {
+        Self {
+            spawn_time: None,
+            lifetime,
+        }
+    }
 }
 
 pub fn check_despawn_times(
-    timeouts: Query<(Entity, &TimeoutComponent)>,
+    mut timeouts: Query<(Entity, &mut TimeoutComponent)>,
     time: Res<DeltaTResource>,
     commands: ParallelCommands,
 ) {
-    timeouts.par_iter().for_each(|(entity, timeout)| {
-        if time.total_time - timeout.spawn_time > timeout.lifetime {
+    timeouts.par_iter_mut().for_each(|(entity, mut timeout)| {
+        let total_time = time.get_total_time();
+        let spawn_time = timeout.spawn_time.get_or_insert(total_time);
+
+        if total_time - *spawn_time > timeout.lifetime {
             commands.command_scope(|mut commands| {
                 commands.entity(entity).despawn();
             })

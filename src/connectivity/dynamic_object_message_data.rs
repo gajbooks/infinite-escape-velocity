@@ -19,6 +19,8 @@ use ts_rs::TS;
 
 use crate::configuration_file_structures::reference_types::{AssetIndexReference, ObjectId};
 
+use super::view_layers::ViewLayers;
+
 #[derive(Serialize, Debug, TS)]
 pub struct VelocityMessage {
     pub vx: f32,
@@ -37,13 +39,12 @@ pub struct AngularVelocityMessage {
 
 #[derive(Serialize, Debug, TS)]
 #[ts(export)]
-pub struct DynamicObjectMessageData {
+pub struct DynamicObjectUpdateData {
     pub x: f64,
     pub y: f64,
     pub rotation: Option<RotationMessage>,
     pub velocity: Option<VelocityMessage>,
     pub angular_velocity: Option<AngularVelocityMessage>,
-    pub object_asset: AssetIndexReference,
     pub id: ObjectId,
 }
 
@@ -51,6 +52,9 @@ pub struct DynamicObjectMessageData {
 #[ts(export)]
 pub struct DynamicObjectCreationData {
     pub id: ObjectId,
+    pub object_asset: AssetIndexReference,
+    pub view_layer: ViewLayers,
+    pub display_radius: f32
 }
 
 #[derive(Serialize, Debug, TS)]

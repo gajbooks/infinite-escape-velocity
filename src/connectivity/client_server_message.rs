@@ -34,9 +34,12 @@ pub type ControlInputStatus = bool;
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum ClientServerMessage {
+    Authorize {
+        token: String,
+    },
     ControlInput {
         input: ControlInput,
         pressed: ControlInputStatus,
     },
-    Disconnect,
+    Refresh,
 }

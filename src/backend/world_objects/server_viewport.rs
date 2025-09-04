@@ -15,6 +15,9 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use std::sync::Mutex;
+
+use crate::backend::components::session::player_session_component::PlayerSessionComponent;
 use crate::backend::shrink_storage::ImmutableShrinkable;
 use crate::backend::spatial_optimizer::hash_sized::HashSized;
 use crate::backend::world_objects::components::collision_component::*;
@@ -22,11 +25,10 @@ use crate::configuration_file_structures::reference_types::AssetIndexReference;
 use crate::connectivity::controllable_object_message_data::ViewportFollowData;
 use crate::connectivity::dynamic_object_message_data::*;
 use crate::connectivity::server_client_message::*;
-use crate::connectivity::user_session::UserSession;
+use crate::connectivity::view_layers::ViewLayers;
 use crate::shared_types::Coordinates;
 use bevy_ecs::prelude::*;
 use dashmap::DashSet;
-use tokio::sync::mpsc::UnboundedSender;
 use tracing::warn;
 
 use super::components::angular_velocity_component::AngularVelocityComponent;
@@ -38,66 +40,96 @@ use super::components::velocity_component::VelocityComponent;
 pub struct ViewportBundle {
     pub viewport: ServerViewport,
     pub collidable: CollidableComponent<Displayable>,
+    pub parent_session: ChildOf,
 }
 
 #[derive(Component)]
 pub struct Displayable {
+    pub display_radius: f32,
     pub object_asset: AssetIndexReference,
+    pub view_layer: ViewLayers,
 }
 
 impl HashSized for Displayable {}
 
+#[derive(PartialEq)]
 pub enum ViewportTrackingMode {
     Entity(Entity),
     Static(Coordinates),
     Disconnected,
 }
 
+struct ViewportUpdated {
+    tracking_mode: ViewportTrackingMode,
+    updated: bool,
+}
+
+impl ViewportUpdated {
+    fn set_tracking_mode(&mut self, tracking_mode: ViewportTrackingMode) {
+        if self.tracking_mode != tracking_mode {
+            self.updated = false;
+            self.tracking_mode = tracking_mode;
+        }
+    }
+
+    fn get_tracking_mode(&self) -> &ViewportTrackingMode {
+        &self.tracking_mode
+    }
+
+    fn is_updated(&self) -> bool {
+        self.updated
+    }
+
+    fn set_updated(&mut self) {
+        self.updated = true;
+    }
+
+    fn set_unupdated(&mut self) {
+        self.updated = false;
+    }
+}
+
+struct ServerViewportData {
+    last_tick_ids: DashSet<Entity>,
+    tracking_mode: ViewportUpdated,
+}
+
 #[derive(Component)]
 pub struct ServerViewport {
-    player: Entity,
-    last_tick_ids: DashSet<Entity>,
-    outgoing_messages: UnboundedSender<ServerClientMessage>,
-    tracking_mode: ViewportTrackingMode,
+    data: Mutex<ServerViewportData>,
 }
 
 impl ServerViewport {
-    pub fn new(
-        player: Entity,
-        outgoing_queue: UnboundedSender<ServerClientMessage>,
-    ) -> ServerViewport {
+    pub fn new() -> ServerViewport {
         return ServerViewport {
-            player,
-            last_tick_ids: DashSet::new(),
-            outgoing_messages: outgoing_queue,
-            tracking_mode: ViewportTrackingMode::Static(Coordinates::new(0.0, 0.0)),
+            data: ServerViewportData {
+                last_tick_ids: DashSet::new(),
+                tracking_mode: ViewportUpdated {
+                    updated: false,
+                    tracking_mode: ViewportTrackingMode::Static(Coordinates::new(0.0, 0.0)),
+                },
+            }
+            .into(),
         };
     }
 
-    pub fn set_tracking_mode(&mut self, new_tracking_mode: ViewportTrackingMode) {
-        self.tracking_mode = new_tracking_mode;
-        let tracking_message_data = match self.tracking_mode {
-            ViewportTrackingMode::Entity(entity) => ViewportFollowData::Entity {
-                id: entity.to_bits(),
-            },
-            ViewportTrackingMode::Static(location) => ViewportFollowData::Static {
-                x: location.x,
-                y: location.y,
-            },
-            ViewportTrackingMode::Disconnected => ViewportFollowData::Disconnected,
-        };
+    pub fn refresh_for_client(&self) {
+        let mut locked = self.data.lock().unwrap();
+        locked.last_tick_ids.clear();
+        locked.tracking_mode.set_unupdated();
+    }
 
-        let _ = self
-            .outgoing_messages
-            .send(ServerClientMessage::ViewportFollow(tracking_message_data)); // Nothing we can do about send errors for users disconnected
+    pub fn set_tracking_mode(&self, new_tracking_mode: ViewportTrackingMode) {
+        let mut locked = self.data.lock().unwrap();
+        locked.tracking_mode.set_tracking_mode(new_tracking_mode);
     }
 }
 
 pub fn tick_viewport(
     mut all_viewports: Query<(
-        Entity,
         &mut ServerViewport,
         &mut CollidableComponent<Displayable>,
+        &ChildOf,
     )>,
     displayables: Query<(
         &CollisionMarker<Displayable>,
@@ -107,31 +139,55 @@ pub fn tick_viewport(
     optional_velocity: Query<&VelocityComponent>,
     optional_rotation: Query<&RotationComponent>,
     optional_angular_velocity: Query<&AngularVelocityComponent>,
-    sessions: Query<&UserSession>,
-    mut commands: Commands,
+    sessions: Query<&PlayerSessionComponent>,
 ) {
-    for (viewport_entity, mut viewport, mut collide_with) in all_viewports.iter_mut() {
-        // Despawn the viewport if the owning user session no longer exists
-        if sessions.contains(viewport.player) == false {
-            commands.entity(viewport_entity).despawn();
-            continue;
+    for (mut viewport, mut collide_with, parent) in all_viewports.iter_mut() {
+        let parent = match sessions.get(parent.parent()) {
+            Ok(parent_session) => parent_session,
+            Err(_) => {
+                return;
+            }
+        };
+
+        let outbound_messages = parent.command_queue_outbound.clone();
+
+        let viewport = viewport.data.get_mut().unwrap();
+
+        if viewport.tracking_mode.is_updated() == false {
+            let tracking_message_data = match viewport.tracking_mode.get_tracking_mode() {
+                ViewportTrackingMode::Entity(entity) => ViewportFollowData::Entity {
+                    id: entity.to_bits(),
+                },
+                ViewportTrackingMode::Static(location) => ViewportFollowData::Static {
+                    x: location.x,
+                    y: location.y,
+                },
+                ViewportTrackingMode::Disconnected => ViewportFollowData::Disconnected,
+            };
+
+            let _ = outbound_messages
+                .send_blocking(ServerClientMessage::ViewportFollow(tracking_message_data)); // Nothing we can do about send errors for users disconnected
+
+            viewport.tracking_mode.set_updated();
         }
 
-        match viewport.tracking_mode {
+        match viewport.tracking_mode.get_tracking_mode() {
             ViewportTrackingMode::Entity(entity) => {
                 // Track viewport to assigned entity
-                match displayables.get(entity) {
+                match displayables.get(*entity) {
                     Ok((_, position, _)) => {
                         collide_with.shape = collide_with.shape.move_center(position.position);
                     }
                     Err(_lost_track) => {
-                        viewport.tracking_mode = ViewportTrackingMode::Disconnected;
+                        viewport
+                            .tracking_mode
+                            .set_tracking_mode(ViewportTrackingMode::Disconnected);
                     }
                 }
             }
             ViewportTrackingMode::Static(location) => {
                 // Presumably some external force may want to move the viewport to a fixed position unrelated to any entity
-                collide_with.shape = collide_with.shape.move_center(location);
+                collide_with.shape = collide_with.shape.move_center(*location);
             }
             ViewportTrackingMode::Disconnected => {
                 // Potentially do something if the viewport has lost contact with its assigned entity
@@ -143,7 +199,10 @@ pub fn tick_viewport(
             let (_collided_hitbox, position, displayable) = match displayables.get(collision) {
                 Ok(x) => x,
                 Err(_) => {
-                    warn!("Entity collided with Viewport which does not have the required components: {:?}", collision);
+                    warn!(
+                        "Entity collided with Viewport which does not have the required components: {:?}",
+                        collision
+                    );
                     continue;
                 }
             };
@@ -152,9 +211,12 @@ pub fn tick_viewport(
             match viewport.last_tick_ids.contains(&collision) {
                 true => {}
                 false => {
-                    let _ = viewport.outgoing_messages.send(
+                    let _ = outbound_messages.send_blocking(
                         ServerClientMessage::DynamicObjectCreation(DynamicObjectCreationData {
                             id: collision.to_bits(),
+                            object_asset: displayable.object_asset,
+                            view_layer: displayable.view_layer,
+                            display_radius: displayable.display_radius,
                         }),
                     ); // Nothing we can do about send errors for users disconnected
                 }
@@ -183,19 +245,16 @@ pub fn tick_viewport(
             };
 
             // Send an update frame for each object moved which has been within the viewport for at least one frame
-            let _ = viewport
-                .outgoing_messages
-                .send(ServerClientMessage::DynamicObjectUpdate(
-                    DynamicObjectMessageData {
-                        id: collision.to_bits(),
-                        x: position.position.x,
-                        y: position.position.y,
-                        rotation: rotation,
-                        velocity: velocity,
-                        angular_velocity: angular_velocity,
-                        object_asset: displayable.object_asset,
-                    },
-                )); // Nothing we can do about send errors for users disconnected
+            let _ = outbound_messages.send_blocking(ServerClientMessage::DynamicObjectUpdate(
+                DynamicObjectUpdateData {
+                    id: collision.to_bits(),
+                    x: position.position.x,
+                    y: position.position.y,
+                    rotation: rotation,
+                    velocity: velocity,
+                    angular_velocity: angular_velocity,
+                },
+            )); // Nothing we can do about send errors for users disconnected
         }
 
         // Find all entities in the previous frame which no longer are within the viewport for the current frame
@@ -207,13 +266,11 @@ pub fn tick_viewport(
 
         // Send a destruction frame for all removed entities to guarantee no stale entities remain on the client
         for remove in removed {
-            let _ = viewport
-                .outgoing_messages
-                .send(ServerClientMessage::DynamicObjectDestruction(
-                    DynamicObjectDestructionData {
-                        id: remove.to_bits(),
-                    },
-                )); // Nothing we can do about send errors for users disconnected
+            let _ = outbound_messages.send_blocking(ServerClientMessage::DynamicObjectDestruction(
+                DynamicObjectDestructionData {
+                    id: remove.to_bits(),
+                },
+            )); // Nothing we can do about send errors for users disconnected
         }
 
         // Clear the entities we consider for the last tick

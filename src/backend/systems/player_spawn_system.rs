@@ -17,11 +17,14 @@
 
 use bevy_ecs::{
     entity::Entity,
-    system::{Commands, Query, Res},
+    hierarchy::ChildOf,
+    prelude::{Commands, Query, Res},
 };
 
 use crate::{
+    AssetIndexResource,
     backend::{
+        components::session::player_session_component::PlayerSessionComponent,
         shape::{CircleData, Shape},
         world_objects::{
             components::{
@@ -33,13 +36,12 @@ use crate::{
             ship::ShipBundle,
         },
     },
-    connectivity::user_session::UserSession,
     shared_types::{Coordinates, Radius, Speed},
-    AssetIndexResource,
 };
 
 pub fn spawn_player_ship_and_viewports(
-    mut sessions: Query<(Entity, &mut UserSession)>,
+    entities: Query<Entity>,
+    mut sessions: Query<(Entity, &mut PlayerSessionComponent)>,
     mut viewports: Query<&mut ServerViewport>,
     mut commands: Commands,
     asset_index: Res<AssetIndexResource>,
@@ -47,7 +49,17 @@ pub fn spawn_player_ship_and_viewports(
     sessions
         .iter_mut()
         .for_each(|(session_entity, mut session)| {
-            let following_id = match session.should_follow {
+            let following_id = if let Some(following) = session.should_follow {
+                if entities.contains(following) {
+                    Some(following)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let following_id = match following_id {
                 Some(following) => following,
                 None => {
                     let new_ship = ShipBundle::new(
@@ -62,10 +74,8 @@ pub fn spawn_player_ship_and_viewports(
                         .spawn((
                             new_ship,
                             SemiNewtonianPhysicsComponent::new(Speed::new(200.0)),
-                            PlayerControlledComponent::new(
-                                session.control_input_sender.subscribe(),
-                                session.cancel.clone(),
-                            ),
+                            PlayerControlledComponent {},
+                            ChildOf(session_entity),
                         ))
                         .id();
                     session.should_follow = Some(new_ship_id);
@@ -77,7 +87,7 @@ pub fn spawn_player_ship_and_viewports(
                 Some(viewport_exists) => {
                     match viewports.get_mut(viewport_exists) {
                         // Viewport exists already
-                        Ok(mut has) => {
+                        Ok(has) => {
                             has.set_tracking_mode(ViewportTrackingMode::Entity(following_id));
                         }
                         // Viewport has somehow been destroyed, forget reference
@@ -89,14 +99,12 @@ pub fn spawn_player_ship_and_viewports(
                 None => {
                     let new_viewport = commands
                         .spawn(ViewportBundle {
-                            viewport: ServerViewport::new(
-                                session_entity,
-                                session.to_remote.clone(),
-                            ),
+                            viewport: ServerViewport::new(),
                             collidable: CollidableComponent::new(Shape::Circle(CircleData {
                                 location: Coordinates::new(0.0, 0.0),
                                 radius: Radius::new(6000.0),
                             })),
+                            parent_session: ChildOf(session_entity),
                         })
                         .id();
                     session.primary_viewport = Some(new_viewport);

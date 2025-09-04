@@ -7,12 +7,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug Infinite Escape Velocity Backend",
+            "presentation": {
+                "hidden": true,
+                "group": "Debug"
+            },
+            "name": "Launch Debug Infinite Escape Velocity Backend",
             "cargo": {
                 "args": [
                     "build",
                     "--bin=infinite-escape-velocity",
-                    "--package=infinite-escape-velocity"
+                    "--package=infinite-escape-velocity",
+                    "--frozen"
                 ],
                 "filter": {
                     "name": "infinite-escape-velocity",
@@ -25,13 +30,18 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Release Infinite Escape Velocity Backend",
+            "presentation": {
+                "hidden": true,
+                "group": "Release"
+            },
+            "name": "Launch Release Infinite Escape Velocity Backend",
             "cargo": {
                 "args": [
                     "build",
                     "--bin=infinite-escape-velocity",
                     "--package=infinite-escape-velocity",
-                    "--release"
+                    "--release",
+                    "--frozen"
                 ],
                 "filter": {
                     "name": "infinite-escape-velocity",
@@ -39,35 +49,77 @@
                 }
             },
             "args": ["../infinite-escape-velocity-data/game_data", "--webapp-directory", "webapp/dist/webapp"],
-            "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Build Webapp",
+            "cwd": "${workspaceFolder}"
         },
         {
-            "name": "Debug Infinite Escape Velocity Frontend",
+            "name": "Launch Debug Infinite Escape Velocity Frontend",
+            "presentation": {
+                "hidden": true,
+                "group": "Debug"
+            },
             "type": "node",
             "request": "launch",
             "cwd": "${workspaceRoot}/webapp",
             "runtimeExecutable": "npm",
             "runtimeArgs": [
-                "run-script", "open"
-            ],
-            "preLaunchTask": "Export Bindings/Run Tests"
+                "run-script", "ng", "--", "serve", "-o"
+            ]
         },
         {
             "name": "Release Infinite Escape Velocity Frontend",
+            "presentation": {
+                "group": "Release"
+            },
             "type": "node",
             "request": "launch",
             "cwd": "${workspaceRoot}/webapp",
             "runtimeExecutable": "npm",
             "runtimeArgs": [
-                "run-script", "open-release"
+                "run-script", "do-nothing"
             ],
+            "preLaunchTask": "Open Release In Browser"
         }
     ],
     "compounds": [
         {
+            "name": "Debug Infinite Escape Velocity Frontend",
+            "configurations": ["Launch Debug Infinite Escape Velocity Frontend"],
+            "presentation": {
+                "group": "Debug"
+            },
+            "preLaunchTask": "Cargo Make Debug"
+        },
+        {
+            "name": "Debug Infinite Escape Velocity Backend",
+            "presentation": {
+                "group": "Debug"
+            },
+            "configurations": ["Launch Debug Infinite Escape Velocity Backend"],
+            "preLaunchTask": "Cargo Make Debug"
+        },
+        {   
             "name": "Debug Both Components",
-            "configurations": ["Debug Infinite Escape Velocity Frontend", "Debug Infinite Escape Velocity Backend"]
-        }
+            "presentation": {
+                "group": "Debug"
+            },
+            "configurations": ["Launch Debug Infinite Escape Velocity Frontend", "Launch Debug Infinite Escape Velocity Backend"],
+            "preLaunchTask": "Cargo Make Debug"
+        },
+        {
+            "name": "Release Infinite Escape Velocity Backend",
+            "presentation": {
+                "group": "Release"
+            },
+            "configurations": ["Launch Release Infinite Escape Velocity Backend"],
+            "preLaunchTask": "Cargo Make Release",
+        },
+        {
+            "name": "Release Both Components",
+            "presentation": {
+                "group": "Release"
+            },
+            "configurations": ["Release Infinite Escape Velocity Frontend", "Launch Release Infinite Escape Velocity Backend"],
+            "preLaunchTask": "Cargo Make Release",
+        },
     ]
 }

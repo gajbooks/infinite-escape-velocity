@@ -1,0 +1,2 @@
+[env]
+TS_RS_EXPORT_DIR = { value = "webapp/bindings/", relative = true, force = true }
