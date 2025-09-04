@@ -40,6 +40,7 @@ use crate::{
 };
 
 pub fn spawn_player_ship_and_viewports(
+    entities: Query<Entity>,
     mut sessions: Query<(Entity, &mut PlayerSessionComponent)>,
     mut viewports: Query<&mut ServerViewport>,
     mut commands: Commands,
@@ -48,7 +49,17 @@ pub fn spawn_player_ship_and_viewports(
     sessions
         .iter_mut()
         .for_each(|(session_entity, mut session)| {
-            let following_id = match session.should_follow {
+            let following_id = if let Some(following) = session.should_follow {
+                if entities.contains(following) {
+                    Some(following)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            let following_id = match following_id {
                 Some(following) => following,
                 None => {
                     let new_ship = ShipBundle::new(
@@ -76,7 +87,7 @@ pub fn spawn_player_ship_and_viewports(
                 Some(viewport_exists) => {
                     match viewports.get_mut(viewport_exists) {
                         // Viewport exists already
-                        Ok(mut has) => {
+                        Ok(has) => {
                             has.set_tracking_mode(ViewportTrackingMode::Entity(following_id));
                         }
                         // Viewport has somehow been destroyed, forget reference

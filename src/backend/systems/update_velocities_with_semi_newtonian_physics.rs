@@ -86,7 +86,7 @@ pub fn update_velocities_with_semi_newtonian_physics(
     )>,
     delta_t: Res<DeltaTResource>,
 ) {
-    let delta_t = delta_t.last_tick.as_secs_f32();
+    let delta_t = delta_t.get_last_tick_duration().as_secs_f32();
     compatible_entities.par_iter_mut().for_each(
         |(semi_newtonian_physics, mut velocity, rotation, angular_velocity)| {
             // Calculate the acceleration vector before rotation this tick (subtract to find previous tick angle)

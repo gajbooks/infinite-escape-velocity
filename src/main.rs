@@ -119,7 +119,6 @@ async fn spawn_a_ship_idk_task(commands: EcsCommunicationService) {
 fn spawn_a_ship_idk(
     placeholders: Query<Entity, With<RandomShipSpawnPlaceholderComponent>>,
     asset_index: Res<AssetIndexResource>,
-    time: Res<DeltaTResource>,
     mut commands: Commands,
 ) {
     for spawn in placeholders.iter() {
@@ -140,10 +139,7 @@ fn spawn_a_ship_idk(
             )
             .unwrap(),
             SemiNewtonianPhysicsComponent::new(Speed::new(50.0)),
-            TimeoutComponent {
-                spawn_time: time.total_time,
-                lifetime: Duration::from_secs(10),
-            },
+            TimeoutComponent::new(Duration::from_secs(10)),
         ));
 
         commands.entity(spawn).despawn();
@@ -402,7 +398,7 @@ async fn main() {
             let duration = time::Instant::now().duration_since(now);
             {
                 let mut world_tick = world.get_resource_mut::<DeltaTResource>().unwrap();
-                world_tick.last_tick_time = duration;
+                world_tick.set_last_reported_real_world_time(duration);
             }
             stats_counter += 1;
             average_time += duration.as_secs_f32() / 1000.0;

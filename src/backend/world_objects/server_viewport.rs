@@ -52,6 +52,7 @@ pub struct Displayable {
 
 impl HashSized for Displayable {}
 
+#[derive(PartialEq)]
 pub enum ViewportTrackingMode {
     Entity(Entity),
     Static(Coordinates),
@@ -65,8 +66,10 @@ struct ViewportUpdated {
 
 impl ViewportUpdated {
     fn set_tracking_mode(&mut self, tracking_mode: ViewportTrackingMode) {
-        self.updated = false;
-        self.tracking_mode = tracking_mode;
+        if self.tracking_mode != tracking_mode {
+            self.updated = false;
+            self.tracking_mode = tracking_mode;
+        }
     }
 
     fn get_tracking_mode(&self) -> &ViewportTrackingMode {
