@@ -26,7 +26,7 @@ use axum::http::header::HOST;
 use axum::routing::post;
 use axum::{Router, routing::get};
 use backend::configuration_file_loaders::asset_bundle_loader::AssetBundleLoader;
-use backend::resources::delta_t_resource::{DeltaTResource, increment_time};
+use backend::resources::delta_t_resource::DeltaTResource;
 use backend::spatial_optimizer::collision_optimizer::{CollisionOptimizer, collision_system};
 use backend::spatial_optimizer::hash_sized::HashSized;
 use backend::world_objects::components::collision_component::clear_old_collisions;
@@ -362,7 +362,6 @@ async fn main() {
 
         schedule.add_systems(
             (
-                increment_time,
                 update_rotations_with_angular_velocity,
                 update_velocities_with_semi_newtonian_physics,
                 update_positions_with_velocity,
@@ -398,7 +397,7 @@ async fn main() {
             let duration = time::Instant::now().duration_since(now);
             {
                 let mut world_tick = world.get_resource_mut::<DeltaTResource>().unwrap();
-                world_tick.set_last_reported_real_world_time(duration);
+                world_tick.increment_time(duration);
             }
             stats_counter += 1;
             average_time += duration.as_secs_f32() / 1000.0;
