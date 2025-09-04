@@ -32,6 +32,7 @@ spin_sleep = "1"
 tokio = { version = "1", features = ["full"] }
 tower = { version = "*", features = ["util"] }
 tower-http = { version = "*", features = [
+    "cors",
     "fs",
     "trace",
     "compression-br",

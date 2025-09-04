@@ -73,8 +73,6 @@ export class GameplayCanvasComponent {
   assetCache: Map<BigInt, HTMLImageElement> = new Map();
   assetIdToName: Map<BigInt, string> = new Map();
   dynamicObjects: Map<BigInt, RenderedObject> = new Map();
-  half_screen_width: number = 0.0;
-  half_screen_height: number = 0.0;
   camera_center_x: number = 0.0;
   camera_center_y: number = 0.0;
   camera_center_entity: BigInt | null = null;
@@ -85,11 +83,11 @@ export class GameplayCanvasComponent {
   }
 
   object_offset_x(): number {
-    return this.half_screen_width - this.camera_center_x;
+    return (this.renderer.width() / 2) - this.camera_center_x;
   }
 
   object_offset_y(): number {
-    return this.half_screen_height - this.camera_center_y;
+    return (this.renderer.height() / 2) - this.camera_center_y;
   }
 
   refreshScreen() {
@@ -116,11 +114,9 @@ export class GameplayCanvasComponent {
     if (this.renderer != null && this.gameWindow != null) {
       if (this.renderer.width() != this.gameWindow.nativeElement.clientWidth) {
         this.renderer.width(this.gameWindow.nativeElement.clientWidth);
-        this.half_screen_width = this.renderer.width() / 2;
       }
       if (this.renderer.height() != this.gameWindow.nativeElement.clientHeight) {
         this.renderer.height(this.gameWindow.nativeElement.clientHeight);
-        this.half_screen_height = this.renderer.height() / 2;
       }
     }
   }

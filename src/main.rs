@@ -21,6 +21,8 @@ mod connectivity;
 mod shared_types;
 mod utility;
 
+use axum::http::Uri;
+use axum::http::header::HOST;
 use axum::routing::post;
 use axum::{Router, routing::get};
 use backend::configuration_file_loaders::asset_bundle_loader::AssetBundleLoader;
@@ -52,12 +54,14 @@ use rand::Rng;
 use shared_types::{Coordinates, Speed, Velocity};
 use tokio::time;
 use tower_http::compression::CompressionLayer;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::{Level, debug, trace};
 use tracing_subscriber::FmtSubscriber;
 
 use connectivity::handlers::websocket_handler::*;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing_subscriber::layer::SubscriberExt;
@@ -432,6 +436,33 @@ async fn main() {
 
     tokio::spawn(spawn_a_ship_idk_task(web_ecs_command_service.clone()));
 
+    // Annoyingly overcomplicated same-origin CORS allow
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::predicate(|origin, request_parts| {
+            let maybe_origin_string = origin.to_str();
+
+            if let Ok(valid_origin_string) = maybe_origin_string {
+                let maybe_parsed_uri = Uri::from_str(valid_origin_string);
+
+                if let Ok(valid_uri) = maybe_parsed_uri {
+                    if let Some(host_header) = request_parts.headers.get(HOST) {
+                        if let Some(valid_host) = valid_uri.host() {
+                            host_header.as_bytes().starts_with(valid_host.as_bytes())
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        }))
+        .allow_headers(Any);
+
     let app = app
         .route("/ws", get(websocket_handler))
         .with_state(websocket_state)
@@ -457,7 +488,8 @@ async fn main() {
             "/players/messaging/subscribe-message",
             get(subscribe_message),
         )
-        .with_state((chat_service.clone(), player_session_state.clone()));
+        .with_state((chat_service.clone(), player_session_state.clone()))
+        .layer(cors);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:2718").await.unwrap();
     axum::serve(
