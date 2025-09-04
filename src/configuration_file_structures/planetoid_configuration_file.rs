@@ -17,7 +17,9 @@
 
 use serde::Deserialize;
 
-use crate::backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets;
+use crate::backend::configuration_file_loaders::definition_caches::{
+    definition_cachable::DefinitionCachable, list_required_assets::ListRequiredAssets,
+};
 
 use super::{
     asset_definition_file::AssetType,
@@ -73,6 +75,12 @@ impl ListRequiredAssets for PlanetoidRecord {
         }
 
         required_assets
+    }
+}
+
+impl DefinitionCachable<PlanetoidReference> for PlanetoidRecord {
+    fn get_reference_id(&self) -> String {
+        self.planetoid_reference.clone()
     }
 }
 

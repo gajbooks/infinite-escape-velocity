@@ -18,11 +18,14 @@
 use std::{collections::HashMap, ffi::OsStr, path::PathBuf};
 
 use crate::{
-    backend::configuration_file_loaders::asset_bundle_loader::{
-        AssetBundleFileType, AssetBundleType,
+    backend::configuration_file_loaders::{
+        asset_bundle_loader::{AssetBundleFileType, AssetBundleType},
+        definition_caches::definition_cache::DefinitionCache,
     },
-    configuration_file_structures::planetoid_configuration_file::{
-        PlanetoidConfigurationFile, PlanetoidRecord,
+    configuration_file_structures::{
+        planetoid_configuration_file::{PlanetoidConfigurationFile, PlanetoidRecord},
+        reference_types::{PlanetoidReference, ShipReference},
+        ship_configuration_file::{ShipConfigurationFile, ShipRecord},
     },
 };
 
@@ -31,38 +34,39 @@ use super::{
         archive_reader::ArchiveReader, filesystem_reader::FilesystemReader, zip_reader::ZipReader,
     },
     asset_bundle_loader::AssetBundle,
-    definition_caches::{
-        list_required_assets::ListRequiredAssets,
-        planetoid_definition_cache::PlanetoidDefinitionCache,
-    },
+    definition_caches::list_required_assets::ListRequiredAssets,
 };
 
 enum DefinitionFileNames {
     Planetoids,
+    Ships,
 }
 
 impl DefinitionFileNames {
     pub fn path_to_definition_type(path: &str) -> Option<DefinitionFileNames> {
         match path {
             "planetoids.json" => Some(DefinitionFileNames::Planetoids),
+            "ships.json" => Some(DefinitionFileNames::Ships),
             _ => None,
         }
     }
 }
 
 pub struct DefinitionFileCache {
-    planetoids: PlanetoidDefinitionCache,
+    planetoids: DefinitionCache<PlanetoidRecord, PlanetoidReference>,
+    ships: DefinitionCache<ShipRecord, ShipReference>,
 }
 
 impl DefinitionFileCache {
     pub fn new() -> DefinitionFileCache {
         DefinitionFileCache {
-            planetoids: PlanetoidDefinitionCache::new(),
+            planetoids: DefinitionCache::new(),
+            ships: DefinitionCache::new(),
         }
     }
 
     pub fn get_planetoids(&self) -> &[PlanetoidRecord] {
-        self.planetoids.get_all_planetoid_records()
+        self.planetoids.get_all_records()
     }
 
     pub async fn load_definition_bundle(&mut self, file: &AssetBundle) -> Result<(), ()> {
@@ -122,9 +126,10 @@ impl DefinitionFileCache {
                                         &file_data,
                                     ) {
                                         Ok(deserialized) => {
-                                            match self.planetoids.add_planetoid_records(
-                                                deserialized.definitions.into_iter(),
-                                            ) {
+                                            match self
+                                                .planetoids
+                                                .add_records(deserialized.definitions.into_iter())
+                                            {
                                                 Ok(()) => {
                                                     // No problem here
                                                 }
@@ -141,6 +146,38 @@ impl DefinitionFileCache {
                                         Err(error_deserializing) => {
                                             tracing::error!(
                                                 "Error deserializing planetoids.json from definition bundle {} with error {}",
+                                                file.path.to_string_lossy(),
+                                                error_deserializing
+                                            );
+                                            return Err(());
+                                        }
+                                    }
+                                }
+                                DefinitionFileNames::Ships => {
+                                    match serde_json::de::from_slice::<ShipConfigurationFile>(
+                                        &file_data,
+                                    ) {
+                                        Ok(deserialized) => {
+                                            match self
+                                                .ships
+                                                .add_records(deserialized.definitions.into_iter())
+                                            {
+                                                Ok(()) => {
+                                                    // No problem here
+                                                }
+                                                Err(()) => {
+                                                    tracing::error!(
+                                                        "Error loading ship file {} from definition bundle {}",
+                                                        record_asset_file.to_string_lossy(),
+                                                        file.name
+                                                    );
+                                                    return Err(());
+                                                }
+                                            }
+                                        }
+                                        Err(error_deserializing) => {
+                                            tracing::error!(
+                                                "Error deserializing ships.json from definition bundle {} with error {}",
                                                 file.path.to_string_lossy(),
                                                 error_deserializing
                                             );

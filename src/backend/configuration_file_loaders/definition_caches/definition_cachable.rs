@@ -15,6 +15,8 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod definition_cachable;
-pub mod definition_cache;
-pub mod list_required_assets;
+use crate::backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets;
+
+pub trait DefinitionCachable<T>: ListRequiredAssets {
+    fn get_reference_id(&self) -> T;
+}

@@ -18,7 +18,9 @@
 use serde::Deserialize;
 
 use crate::{
-    backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets,
+    backend::configuration_file_loaders::definition_caches::{
+        definition_cachable::DefinitionCachable, list_required_assets::ListRequiredAssets,
+    },
     configuration_file_structures::{
         asset_definition_file::AssetType,
         reference_types::{AssetReference, ShipReference},
@@ -40,6 +42,12 @@ impl ListRequiredAssets for ShipRecord {
         required_assets.extend(self.display.get_required_asset_list());
 
         required_assets
+    }
+}
+
+impl DefinitionCachable<ShipReference> for ShipRecord {
+    fn get_reference_id(&self) -> String {
+        self.ship_reference.clone()
     }
 }
 
@@ -67,4 +75,9 @@ pub struct ShipRecordCombatProperties {
     base_hull: f32,
     base_shield: f32,
     base_shield_regen_rate: f32,
+}
+
+#[derive(Deserialize)]
+pub struct ShipConfigurationFile {
+    pub definitions: Vec<ShipRecord>,
 }
