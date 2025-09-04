@@ -21,8 +21,13 @@ export class SessionService {
                 this.session_await = new Promise(async (resolve) => {
                     let session_token = sessionStorage.getItem(SESSION_TOKEN_NAME);
 
+                    let reaquire = true;
 
-                    if (session_token == null) {
+                    if (session_token != null) {
+                        reaquire = !this.session.loginTokenIsGood(session_token);
+                    }
+
+                    if (reaquire || session_token == null) {
                         let ephemeral_player = await this.session.createEphemeralPlayer();
                         session_token = await this.session.loginEphemeralPlayer(ephemeral_player);
 

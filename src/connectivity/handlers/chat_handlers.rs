@@ -20,6 +20,7 @@ use std::time::Duration;
 
 use axum::Json;
 use axum::http::HeaderMap;
+use axum::http::header::AUTHORIZATION;
 use axum::response::Sse;
 use axum::response::sse::{Event, KeepAlive};
 use axum::{extract::State, http::StatusCode};
@@ -70,7 +71,7 @@ pub async fn subscribe_message(
     State((chat_service, player_sessions)): State<(ChatService, PlayerSessions)>,
     headers: HeaderMap,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    match headers.get("Authorization") {
+    match headers.get(AUTHORIZATION) {
         Some(auth_header) => match auth_header.to_str() {
             Ok(auth_header_string) => {
                 if let Some(player_profile) = player_sessions

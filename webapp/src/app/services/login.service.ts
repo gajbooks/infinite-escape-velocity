@@ -1,4 +1,4 @@
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpResponse } from "@angular/common/http";
 import { inject, Injectable } from "@angular/core";
 import { AuthType } from "bindings/players/AuthType";
 import { EphemeralPlayerResponse } from "bindings/players/EphemeralPlayerResponse";
@@ -17,8 +17,13 @@ export class LoginService {
     }
 
     async loginEphemeralPlayer(id: string): Promise<string> {
-        let auth: AuthType = {BasicToken: { token: id }};
+        let auth: AuthType = { BasicToken: { token: id } };
         const request = this.client.post<LoginPlayerResponse>('/players/login', auth);
         return await lastValueFrom(request).then(x => x.session_token);
+    }
+
+    async loginTokenIsGood(token: string): Promise<boolean> {
+        const request = this.client.get<HttpResponse<null>>('/players/validate-login', { headers: { 'Authorization': token } });
+        return await lastValueFrom(request).then(x => x.ok, e => false);
     }
 }

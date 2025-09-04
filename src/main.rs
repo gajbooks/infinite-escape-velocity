@@ -87,6 +87,7 @@ use crate::backend::world_objects::planetoid::PlanetoidBundle;
 use crate::connectivity::asset_index::{AssetIndex, AssetIndexState, get_asset_index};
 use crate::connectivity::asset_server::{AssetServerState, asset_by_name};
 use crate::connectivity::handlers::chat_handlers::{send_message, subscribe_message};
+use crate::connectivity::handlers::player_session_handlers::validate_login;
 use crate::connectivity::services::chat_service::ChatService;
 use crate::connectivity::services::ecs_communication_service::EcsCommunicationService;
 
@@ -482,6 +483,8 @@ async fn main() {
             player_session_state.clone(),
             web_ecs_command_service.clone(),
         ))
+        .route("/players/validate-login", get(validate_login))
+        .with_state(player_session_state.clone())
         .route("/players/messaging/send-message", post(send_message))
         .with_state((chat_service.clone(), player_session_state.clone()))
         .route(

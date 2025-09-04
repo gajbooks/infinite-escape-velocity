@@ -15,6 +15,8 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+use axum::http::HeaderMap;
+use axum::http::header::AUTHORIZATION;
 use axum::{Json, extract::State, http::StatusCode};
 use serde::Serialize;
 use ts_rs::TS;
@@ -33,14 +35,44 @@ pub struct LoginPlayerResponse {
 }
 
 pub async fn login_player(
-    State((player_profiles, player_sessions, spawn_service)): State<(PlayerProfiles, PlayerSessions, EcsCommunicationService)>,
+    State((player_profiles, player_sessions, spawn_service)): State<(
+        PlayerProfiles,
+        PlayerSessions,
+        EcsCommunicationService,
+    )>,
     Json(request): Json<AuthType>,
 ) -> Result<Json<LoginPlayerResponse>, StatusCode> {
     match player_profiles.validate_login_request(&request).await {
         Ok(valid_profile) => {
-            let session_token = player_sessions.create_session(valid_profile, &spawn_service).await;
+            let session_token = player_sessions
+                .create_session(valid_profile, &spawn_service)
+                .await;
             Ok(LoginPlayerResponse { session_token }.into())
         }
         Err(()) => Err(StatusCode::UNAUTHORIZED),
+    }
+}
+
+pub async fn validate_login(
+    State(player_sessions): State<PlayerSessions>,
+    headers: HeaderMap,
+) -> StatusCode {
+    match headers.get(AUTHORIZATION) {
+        Some(auth_header) => match auth_header.to_str() {
+            Ok(auth_header_string) => {
+                if let Some(true) = player_sessions
+                    .get_session(auth_header_string)
+                    .await
+                    .upgrade()
+                    .map(|x| x.player_profile.session.extend_session())
+                {
+                    StatusCode::NO_CONTENT
+                } else {
+                    StatusCode::UNAUTHORIZED
+                }
+            }
+            Err(_) => StatusCode::UNAUTHORIZED,
+        },
+        None => StatusCode::UNAUTHORIZED,
     }
 }
