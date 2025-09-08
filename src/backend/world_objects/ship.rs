@@ -33,16 +33,72 @@ use super::{
 };
 
 #[derive(Bundle)]
-pub struct ShipBundle {
-    pub displayable: Displayable,
+pub struct ShipStateBundle {
+    pub angular_velocity: AngularVelocityComponent,
     pub displayable_collision_marker: CollisionMarker<Displayable>,
     pub position: PositionComponent,
-    pub velocity: VelocityComponent,
     pub rotation: RotationComponent,
-    pub angular_velocity: AngularVelocityComponent,
+    pub velocity: VelocityComponent,
+}
+
+#[derive(Bundle)]
+pub struct ShipDataBundle {
+    pub displayable: Displayable,
+}
+
+#[derive(Bundle)]
+pub struct ShipBundle {
+    data: ShipDataBundle,
+    state: ShipStateBundle,
 }
 
 impl ShipBundle {
+    pub fn new_state_bundle(
+        position: Coordinates,
+        velocity: Option<Velocity>,
+        rotation: Option<Rotation>,
+        angular_velocity: Option<AngularVelocity>,
+    ) -> ShipStateBundle {
+        ShipStateBundle {
+            angular_velocity: AngularVelocityComponent {
+                angular_velocity: angular_velocity.unwrap_or_default(),
+            },
+            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(
+                PointData { point: position },
+            )),
+            position: PositionComponent { position: position },
+            rotation: RotationComponent {
+                rotation: rotation.unwrap_or_default(),
+            },
+            velocity: VelocityComponent {
+                velocity: velocity.unwrap_or_default(),
+            },
+        }
+    }
+
+    pub fn new_data_bundle(asset_index: &AssetIndex) -> Result<ShipDataBundle, ()> {
+        // Ship records do not exist yet in this build so just use a fixed asset name for now
+        let asset_name = "default_asset";
+        let display_asset = match asset_index.lookup_asset_by_name(asset_name) {
+            Some(has) => *has,
+            None => {
+                tracing::warn!(
+                    "Attempted to create ship with asset index {} which has an id which does not exist",
+                    asset_name
+                );
+                return Err(());
+            }
+        };
+
+        Ok(ShipDataBundle {
+            displayable: Displayable {
+                display_radius: 25.0,
+                object_asset: display_asset,
+                view_layer: ViewLayers::Ships,
+            },
+        })
+    }
+
     pub fn new(
         position: Coordinates,
         velocity: Option<Velocity>,
@@ -50,38 +106,17 @@ impl ShipBundle {
         angular_velocity: Option<AngularVelocity>,
         asset_index: &AssetIndex,
     ) -> Result<Self, ()> {
-        // Ship records do not exist yet in this build so just use a fixed asset name for now
-        let asset_name = "default_asset";
-        let display_asset = match asset_index.lookup_asset_by_name(asset_name) {
-            Some(has) => *has,
-            None => {
-                tracing::warn!(
-                    "Attempted to create planetoid with asset index {} which has an id which does not exist",
-                    asset_name
-                );
+        let data = Self::new_data_bundle(asset_index);
+
+        let data = match data {
+            Ok(valid) => valid,
+            Err(()) => {
                 return Err(());
             }
         };
 
-        Ok(Self {
-            displayable: Displayable {
-                display_radius: 25.0,
-                object_asset: display_asset,
-                view_layer: ViewLayers::Ships
-            },
-            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(
-                PointData { point: position },
-            )),
-            position: PositionComponent { position: position },
-            velocity: VelocityComponent {
-                velocity: velocity.unwrap_or_default(),
-            },
-            rotation: RotationComponent {
-                rotation: rotation.unwrap_or_default(),
-            },
-            angular_velocity: AngularVelocityComponent {
-                angular_velocity: angular_velocity.unwrap_or_default(),
-            },
-        })
+        let state = Self::new_state_bundle(position, velocity, rotation, angular_velocity);
+
+        Ok(Self { data, state })
     }
 }
