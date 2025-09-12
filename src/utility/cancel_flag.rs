@@ -15,7 +15,10 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use std::sync::{atomic::{self, AtomicBool}, Arc};
+use std::sync::{
+    Arc,
+    atomic::{self, AtomicBool},
+};
 
 #[derive(Clone)]
 pub struct CancelFlag(Arc<AtomicBool>);

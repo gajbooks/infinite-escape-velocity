@@ -98,10 +98,12 @@ pub fn spawn_player_ship_and_viewports(
                     let new_viewport = commands
                         .spawn(ViewportBundle {
                             viewport: ServerViewport::new(),
-                            collidable: CollisionEvaluatorComponent::new(Shape::Circle(CircleData {
-                                location: Coordinates::new(0.0, 0.0),
-                                radius: Radius::new(6000.0),
-                            })),
+                            collidable: CollisionEvaluatorComponent::new(Shape::Circle(
+                                CircleData {
+                                    location: Coordinates::new(0.0, 0.0),
+                                    radius: Radius::new(6000.0),
+                                },
+                            )),
                             parent_session: ChildOf(session_entity),
                         })
                         .id();

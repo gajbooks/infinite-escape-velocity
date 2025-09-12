@@ -23,11 +23,8 @@ use std::{
 use async_channel::{Receiver, Sender};
 use tracing::trace;
 
-use crate::{
-    connectivity::{
-        client_server_message::ClientServerMessage,
-        server_client_message::ServerClientMessage
-    },
+use crate::connectivity::{
+    client_server_message::ClientServerMessage, server_client_message::ServerClientMessage,
 };
 
 use super::player_profile::PlayerProfile;
@@ -120,11 +117,16 @@ pub struct PlayerSession {
     command_queue_inbound: async_channel::Sender<ClientServerMessage>,
     command_queue_outbound: async_channel::Receiver<ServerClientMessage>,
     pub player_profile: Arc<PlayerProfile>,
-    pub session_id: String
+    pub session_id: String,
 }
 
 impl PlayerSession {
-    pub fn new(profile: Arc<PlayerProfile>, session_id: String, command_queue_inbound: async_channel::Sender<ClientServerMessage>, command_queue_outbound: async_channel::Receiver<ServerClientMessage>) -> Self {
+    pub fn new(
+        profile: Arc<PlayerProfile>,
+        session_id: String,
+        command_queue_inbound: async_channel::Sender<ClientServerMessage>,
+        command_queue_outbound: async_channel::Receiver<ServerClientMessage>,
+    ) -> Self {
         Self {
             command_queue_inbound,
             command_queue_outbound,

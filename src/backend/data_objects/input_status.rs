@@ -21,11 +21,17 @@ pub struct InputStatus {
     pub backward: bool,
     pub left: bool,
     pub right: bool,
-    pub fire: bool
+    pub fire: bool,
 }
 
 impl Default for InputStatus {
     fn default() -> Self {
-        Self {forward: false, backward: false, left: false, right: false, fire: false}
+        Self {
+            forward: false,
+            backward: false,
+            left: false,
+            right: false,
+            fire: false,
+        }
     }
 }

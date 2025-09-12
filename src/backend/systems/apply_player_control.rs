@@ -27,7 +27,10 @@ use crate::{
     backend::{
         components::session::player_session_component::PlayerSessionComponent,
         world_objects::components::{
-            angular_velocity_properties_component::AngularVelocityPropertiesComponent, angular_velocity_state_component::AngularVelocityStateComponent, maximum_acceleration_properties_component::MaximumAccelerationPropertiesComponent, player_controlled_component::PlayerControlledComponent
+            angular_velocity_properties_component::AngularVelocityPropertiesComponent,
+            angular_velocity_state_component::AngularVelocityStateComponent,
+            maximum_acceleration_properties_component::MaximumAccelerationPropertiesComponent,
+            player_controlled_component::PlayerControlledComponent,
         },
     },
     shared_types::{AccelerationScalar, AngularVelocity},
@@ -38,7 +41,13 @@ pub trait PlayerControllablePhysics {
 }
 
 pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability = Mutable>>(
-    mut controllable: Query<(Entity, &PlayerControlledComponent, &mut T, &MaximumAccelerationPropertiesComponent, &ChildOf)>,
+    mut controllable: Query<(
+        Entity,
+        &PlayerControlledComponent,
+        &mut T,
+        &MaximumAccelerationPropertiesComponent,
+        &ChildOf,
+    )>,
     mut angular_velocity_components: Query<(
         &mut AngularVelocityStateComponent,
         &AngularVelocityPropertiesComponent,
@@ -46,7 +55,13 @@ pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability 
     sessions: Query<&PlayerSessionComponent>,
 ) {
     controllable.iter_mut().for_each(
-        |(entity, _player_controls, mut physics_component, acceleration_properties, parent_session)| {
+        |(
+            entity,
+            _player_controls,
+            mut physics_component,
+            acceleration_properties,
+            parent_session,
+        )| {
             let session = match sessions.get(parent_session.parent()) {
                 Ok(session) => session,
                 Err(_) => return,
@@ -55,8 +70,7 @@ pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability 
             let input_status = session.input_status;
 
             if input_status.forward {
-                physics_component
-                    .set_acceleration(acceleration_properties.maximum_acceleration);
+                physics_component.set_acceleration(acceleration_properties.maximum_acceleration);
             } else {
                 physics_component.set_acceleration(AccelerationScalar::zero());
             }

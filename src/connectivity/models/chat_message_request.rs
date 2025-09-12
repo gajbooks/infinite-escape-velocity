@@ -21,5 +21,5 @@ use ts_rs::TS;
 #[derive(Deserialize, TS)]
 #[ts(export, export_to = "players/messaging/")]
 pub struct ChatMessageRequest {
-    pub message: String
+    pub message: String,
 }

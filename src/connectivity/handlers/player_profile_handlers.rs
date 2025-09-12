@@ -15,7 +15,7 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -24,16 +24,14 @@ use crate::connectivity::player_info::player_profiles::PlayerProfiles;
 #[derive(Serialize, TS)]
 #[ts(export, export_to = "players/")]
 pub struct EphemeralPlayerResponse {
-    id: String
+    id: String,
 }
 
 pub async fn create_new_ephemeral_player(
     State(state): State<PlayerProfiles>,
 ) -> Result<Json<EphemeralPlayerResponse>, StatusCode> {
     match state.create_player_with_token().await {
-        Ok(created) => {
-            Ok(EphemeralPlayerResponse{id: created}.into())
-        },
+        Ok(created) => Ok(EphemeralPlayerResponse { id: created }.into()),
         Err(()) => Err(StatusCode::CONFLICT),
     }
 }
@@ -42,17 +40,18 @@ pub async fn create_new_ephemeral_player(
 #[ts(export, export_to = "players/")]
 pub struct CreateUsernamePlayerRequest {
     username: String,
-    password: String
+    password: String,
 }
 
 pub async fn create_new_username_player(
     State(state): State<PlayerProfiles>,
-    Json(request): Json<CreateUsernamePlayerRequest>
+    Json(request): Json<CreateUsernamePlayerRequest>,
 ) -> StatusCode {
-    match state.create_player_with_username_and_password(&request.username, &request.password).await {
-        Ok(_username) => {
-            StatusCode::OK
-        },
+    match state
+        .create_player_with_username_and_password(&request.username, &request.password)
+        .await
+    {
+        Ok(_username) => StatusCode::OK,
         Err(()) => StatusCode::CONFLICT,
     }
 }

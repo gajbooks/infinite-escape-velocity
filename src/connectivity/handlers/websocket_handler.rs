@@ -63,8 +63,7 @@ pub async fn websocket_handler(
 async fn handle_socket(socket: WebSocket, who: SocketAddr, state: HandlerState) {
     let (mut sender, mut receiver) = socket.split();
 
-    let (outbound_messages_sender, outbound_messages_receiver) =
-        unbounded::<ServerClientMessage>();
+    let (outbound_messages_sender, outbound_messages_receiver) = unbounded::<ServerClientMessage>();
     let (inbound_messages_sender, inbound_messages_receiver) = unbounded::<ClientServerMessage>();
     let canceled = CancelFlag::default();
 
@@ -211,10 +210,7 @@ async fn handle_socket(socket: WebSocket, who: SocketAddr, state: HandlerState) 
     tracing::trace!("Websocket connection task finished for {}", who);
 }
 
-async fn wait_for_websocket_login_message(
-    state: HandlerState,
-    connection: WebsocketConnection,
-) {
+async fn wait_for_websocket_login_message(state: HandlerState, connection: WebsocketConnection) {
     let auth_start = Instant::now();
     while let Ok(Ok(message)) = timeout(AUTHORIZATION_TIMEOUT, connection.inbound.recv()).await {
         if auth_start.elapsed() > AUTHORIZATION_TIMEOUT {
@@ -246,7 +242,10 @@ async fn wait_for_websocket_login_message(
                             connection.cancel.clone(),
                         ));
 
-                        tokio::task::spawn(refresh_session_with_valid_websocket(valid_session.player_profile.clone(), connection.cancel));
+                        tokio::task::spawn(refresh_session_with_valid_websocket(
+                            valid_session.player_profile.clone(),
+                            connection.cancel,
+                        ));
 
                         return;
                     }
@@ -258,7 +257,7 @@ async fn wait_for_websocket_login_message(
                         return;
                     }
                 }
-            },
+            }
             _ => (), // Don't handle anything else
         }
     }

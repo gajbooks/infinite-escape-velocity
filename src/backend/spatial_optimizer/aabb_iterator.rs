@@ -26,7 +26,6 @@ pub struct AABBIterator {
 }
 
 impl AABBIterator {
-
     pub fn new(bb: AABB, hash_cell_size: u32) -> AABBIterator {
         let max = HashCoordinateType::MAX as f64;
         let start_x = (bb.min.x % max) as HashCoordinateType / hash_cell_size as i32;

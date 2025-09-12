@@ -24,7 +24,7 @@ const MESSAGE_QUEUE_CAPACITY: usize = 100;
 
 #[derive(Clone)]
 pub struct ChatService {
-    broadcast: Sender<ChatMessageResponse>
+    broadcast: Sender<ChatMessageResponse>,
 }
 
 impl Default for ChatService {
@@ -36,10 +36,13 @@ impl Default for ChatService {
 
 impl ChatService {
     pub fn send_message(&self, message: &str, player_name: Option<&str>) {
-        let message = ChatMessageResponse{message: message.to_owned(), player_name: player_name.map(|x| x.to_owned())};
+        let message = ChatMessageResponse {
+            message: message.to_owned(),
+            player_name: player_name.map(|x| x.to_owned()),
+        };
 
         info!("[CHAT] {}", message.to_string());
-        
+
         // If there are no handles, we don't care about dropping the message or doing anything
         let _ = self.broadcast.send(message);
     }

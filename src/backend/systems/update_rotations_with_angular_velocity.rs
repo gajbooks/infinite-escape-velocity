@@ -17,11 +17,23 @@
 
 use bevy_ecs::system::{Query, Res};
 
-use crate::backend::{resources::delta_t_resource::DeltaTResource, world_objects::components::{angular_velocity_state_component::AngularVelocityStateComponent, rotation_component::RotationComponent}};
+use crate::backend::{
+    resources::delta_t_resource::DeltaTResource,
+    world_objects::components::{
+        angular_velocity_state_component::AngularVelocityStateComponent,
+        rotation_component::RotationComponent,
+    },
+};
 
-pub fn update_rotations_with_angular_velocity(mut movable: Query<(&mut RotationComponent, &AngularVelocityStateComponent)>, time: Res<DeltaTResource>) {
+pub fn update_rotations_with_angular_velocity(
+    mut movable: Query<(&mut RotationComponent, &AngularVelocityStateComponent)>,
+    time: Res<DeltaTResource>,
+) {
     let delta_t = time.get_last_tick_duration();
-    movable.par_iter_mut().for_each(|(mut rotation, angular_velocity)| {
-        rotation.rotation = (rotation.rotation + (angular_velocity.angular_velocity * delta_t)).signed();
-    });
+    movable
+        .par_iter_mut()
+        .for_each(|(mut rotation, angular_velocity)| {
+            rotation.rotation =
+                (rotation.rotation + (angular_velocity.angular_velocity * delta_t)).signed();
+        });
 }

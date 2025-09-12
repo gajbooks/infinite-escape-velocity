@@ -23,5 +23,5 @@ pub enum ViewLayers {
     Background = 0,
     Planetoids = 1,
     Ships = 2,
-    Weapons = 3
+    Weapons = 3,
 }

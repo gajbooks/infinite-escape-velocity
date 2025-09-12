@@ -15,11 +15,17 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use bevy_ecs::{entity::Entity, system::{ParallelCommands, Query}};
+use bevy_ecs::{
+    entity::Entity,
+    system::{ParallelCommands, Query},
+};
 
 use crate::backend::components::session::player_session_component::PlayerSessionComponent;
 
-pub fn player_session_cleanup(sessions: Query<(Entity, &PlayerSessionComponent)>, commands: ParallelCommands) {
+pub fn player_session_cleanup(
+    sessions: Query<(Entity, &PlayerSessionComponent)>,
+    commands: ParallelCommands,
+) {
     sessions.par_iter().for_each(|(entity, session)| {
         if let None = session.session.upgrade() {
             commands.command_scope(|mut x| x.entity(entity).despawn());

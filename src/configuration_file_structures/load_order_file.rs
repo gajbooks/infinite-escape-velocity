@@ -21,5 +21,5 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct LoadOrderFile {
-    pub files: Vec<PathBuf>
+    pub files: Vec<PathBuf>,
 }

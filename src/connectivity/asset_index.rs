@@ -17,7 +17,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use axum::{extract::State, Json};
+use axum::{Json, extract::State};
 
 use crate::configuration_file_structures::reference_types::{AssetIndexReference, AssetReference};
 

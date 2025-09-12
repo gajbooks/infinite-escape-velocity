@@ -54,7 +54,7 @@ pub struct DynamicObjectCreationData {
     pub id: ObjectId,
     pub object_asset: AssetIndexReference,
     pub view_layer: ViewLayers,
-    pub display_radius: f32
+    pub display_radius: f32,
 }
 
 #[derive(Serialize, Debug, TS)]

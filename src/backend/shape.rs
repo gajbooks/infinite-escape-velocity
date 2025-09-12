@@ -55,14 +55,12 @@ impl Shape {
                 location: center,
                 radius: circle.radius,
             }),
-            Shape::RoundedTube(tube) => {
-                Shape::RoundedTube(RoundedTubeData {
-                    center: center,
-                    rotation: tube.rotation,
-                    length: tube.length,
-                    radius: tube.radius,
-                })
-            }
+            Shape::RoundedTube(tube) => Shape::RoundedTube(RoundedTubeData {
+                center: center,
+                rotation: tube.rotation,
+                length: tube.length,
+                radius: tube.radius,
+            }),
             Shape::Point(_point) => Shape::Point(PointData { point: center }),
         }
     }
@@ -70,14 +68,12 @@ impl Shape {
     pub fn set_rotation(&self, rotation: Rotation) -> Shape {
         match self {
             Shape::Circle(circle) => Shape::Circle(circle.clone()),
-            Shape::RoundedTube(tube) => {
-                Shape::RoundedTube(RoundedTubeData {
-                    rotation: rotation.signed(),
-                    center: tube.center,
-                    length: tube.length,
-                    radius: tube.radius,
-                })
-            }
+            Shape::RoundedTube(tube) => Shape::RoundedTube(RoundedTubeData {
+                rotation: rotation.signed(),
+                center: tube.center,
+                length: tube.length,
+                radius: tube.radius,
+            }),
             Shape::Point(point) => Shape::Point(point.clone()),
         }
     }
@@ -95,7 +91,8 @@ impl Shape {
                 ),
             ),
             Shape::RoundedTube(tube) => {
-                let (point_1, point_2) = rounded_tube_points(&tube.center, &tube.rotation, &tube.length);
+                let (point_1, point_2) =
+                    rounded_tube_points(&tube.center, &tube.rotation, &tube.length);
                 let (min, max) = max_and_min_points(&point_1, &point_2);
                 let radius = Vector2D::splat(tube.radius.get());
 
@@ -139,13 +136,27 @@ impl Shape {
 }
 
 fn max_and_min_points(point_1: &Coordinates, point_2: &Coordinates) -> (Coordinates, Coordinates) {
-    (Coordinates::new(point_1.x.min(point_2.x), point_1.y.min(point_2.y)),
-    Coordinates::new(point_1.x.max(point_2.x), point_1.y.max(point_2.y)))
+    (
+        Coordinates::new(point_1.x.min(point_2.x), point_1.y.min(point_2.y)),
+        Coordinates::new(point_1.x.max(point_2.x), point_1.y.max(point_2.y)),
+    )
 }
 
-fn rounded_tube_points(center: &Coordinates, rotation: &Rotation, length: &Distance) -> (Coordinates, Coordinates) {
-    let point_1 = *center + Vector2D::<GlobalCoordinateType, WorldCoordinates>::from_angle_and_length(rotation.cast::<GlobalCoordinateType>(), length.get() / 2.0);
-    let point_2 = *center + Vector2D::<GlobalCoordinateType, WorldCoordinates>::from_angle_and_length(rotation.sub(Rotation::pi()).cast::<GlobalCoordinateType>(), length.get() / 2.0);
+fn rounded_tube_points(
+    center: &Coordinates,
+    rotation: &Rotation,
+    length: &Distance,
+) -> (Coordinates, Coordinates) {
+    let point_1 = *center
+        + Vector2D::<GlobalCoordinateType, WorldCoordinates>::from_angle_and_length(
+            rotation.cast::<GlobalCoordinateType>(),
+            length.get() / 2.0,
+        );
+    let point_2 = *center
+        + Vector2D::<GlobalCoordinateType, WorldCoordinates>::from_angle_and_length(
+            rotation.sub(Rotation::pi()).cast::<GlobalCoordinateType>(),
+            length.get() / 2.0,
+        );
     (point_1, point_2)
 }
 
@@ -164,8 +175,7 @@ fn circle_rounded_tube(circle: &CircleData, tube: &RoundedTubeData) -> bool {
     let line_length_squared = line_length * line_length.get();
 
     if line_length_squared.get() <= 0.0 {
-        return dist(circle.location, point_1)
-            <= (circle.radius + tube.radius);
+        return dist(circle.location, point_1) <= (circle.radius + tube.radius);
     }
 
     let t = ((circle.location.x - point_1.x) * (point_2.x - point_1.x)
@@ -181,8 +191,10 @@ fn circle_rounded_tube(circle: &CircleData, tube: &RoundedTubeData) -> bool {
 }
 
 fn tube_tube(tube_1: &RoundedTubeData, tube_2: &RoundedTubeData) -> bool {
-    let (tube_1_point_1, tube_1_point_2) = rounded_tube_points(&tube_1.center, &tube_1.rotation, &tube_1.length);
-    let (tube_2_point_1, tube_2_point_2) = rounded_tube_points(&tube_2.center, &tube_2.rotation, &tube_2.length);
+    let (tube_1_point_1, tube_1_point_2) =
+        rounded_tube_points(&tube_1.center, &tube_1.rotation, &tube_1.length);
+    let (tube_2_point_1, tube_2_point_2) =
+        rounded_tube_points(&tube_2.center, &tube_2.rotation, &tube_2.length);
     let t1p1_to_t2 = circle_rounded_tube(
         &CircleData {
             location: tube_1_point_1,

@@ -30,7 +30,11 @@ use crate::{
     backend::{
         resources::delta_t_resource::DeltaTResource,
         world_objects::components::{
-            angular_velocity_state_component::AngularVelocityStateComponent, maximum_speed_properties_component::MaximumSpeedPropertiesComponent, rotation_component::RotationComponent, semi_newtonian_physics_state_component::SemiNewtonianPhysicsStateComponent, velocity_component::VelocityComponent
+            angular_velocity_state_component::AngularVelocityStateComponent,
+            maximum_speed_properties_component::MaximumSpeedPropertiesComponent,
+            rotation_component::RotationComponent,
+            semi_newtonian_physics_state_component::SemiNewtonianPhysicsStateComponent,
+            velocity_component::VelocityComponent,
         },
     },
     shared_types::{Acceleration, Velocity, VelocityCoordinates},
@@ -86,7 +90,13 @@ pub fn update_velocities_with_semi_newtonian_physics(
 ) {
     let delta_t = delta_t.get_last_tick_duration();
     compatible_entities.par_iter_mut().for_each(
-        |(semi_newtonian_physics, mut velocity, rotation, angular_velocity, maximum_speed_properties)| {
+        |(
+            semi_newtonian_physics,
+            mut velocity,
+            rotation,
+            angular_velocity,
+            maximum_speed_properties,
+        )| {
             // Calculate the acceleration vector before rotation this tick (subtract to find previous tick angle)
             let thrust_vector_before = Acceleration::from_angle_and_length(
                 rotation.rotation - (angular_velocity.angular_velocity * delta_t),

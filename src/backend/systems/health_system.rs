@@ -15,23 +15,46 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-use bevy_ecs::{entity::Entity, system::{ParallelCommands, Query, Res}};
+use bevy_ecs::{
+    entity::Entity,
+    system::{ParallelCommands, Query, Res},
+};
 
-use crate::backend::{resources::delta_t_resource::DeltaTResource, world_objects::components::{health_properties_component::HealthPropertiesComponent, health_state_component::HealthStateComponent}};
+use crate::backend::{
+    resources::delta_t_resource::DeltaTResource,
+    world_objects::components::{
+        health_properties_component::HealthPropertiesComponent,
+        health_state_component::HealthStateComponent,
+    },
+};
 
-pub fn evaluate_health(delta_t: Res<DeltaTResource>, mut healthy_entities: Query<(Entity, &mut HealthStateComponent, &HealthPropertiesComponent)>, commands: ParallelCommands) {
-    healthy_entities.par_iter_mut().for_each(|(entity, mut health_state, health_properties)| {
-        if health_state.hull < 0.0 {
-            commands.command_scope(|mut comm| comm.entity(entity).despawn());
-            return;
-        }
-        
-        let delta_t = delta_t.get_last_tick_duration();
-        
-        let hull_regeneration = health_properties.hull_regeneration_rate * delta_t;
-        let shield_regeneration = health_properties.shield_regeneration_rate * delta_t;
+pub fn evaluate_health(
+    delta_t: Res<DeltaTResource>,
+    mut healthy_entities: Query<(
+        Entity,
+        &mut HealthStateComponent,
+        &HealthPropertiesComponent,
+    )>,
+    commands: ParallelCommands,
+) {
+    healthy_entities
+        .par_iter_mut()
+        .for_each(|(entity, mut health_state, health_properties)| {
+            if health_state.hull < 0.0 {
+                commands.command_scope(|mut comm| comm.entity(entity).despawn());
+                return;
+            }
 
-        health_state.hull = health_properties.maximum_hull.min(health_state.hull + hull_regeneration);
-        health_state.shield = health_properties.maximum_shield.min(health_state.shield + shield_regeneration);
-    });
+            let delta_t = delta_t.get_last_tick_duration();
+
+            let hull_regeneration = health_properties.hull_regeneration_rate * delta_t;
+            let shield_regeneration = health_properties.shield_regeneration_rate * delta_t;
+
+            health_state.hull = health_properties
+                .maximum_hull
+                .min(health_state.hull + hull_regeneration);
+            health_state.shield = health_properties
+                .maximum_shield
+                .min(health_state.shield + shield_regeneration);
+        });
 }
