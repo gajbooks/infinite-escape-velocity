@@ -414,7 +414,8 @@ async fn main() {
 
         const STATS_INTERVAL: usize = 1000;
         let mut stats_counter: usize = 0;
-        let mut average_time: f32 = 0.0;
+        let mut average_time: f64 = 0.0;
+        let mut peak_time: Duration = Duration::ZERO;
         loop {
             let now = time::Instant::now();
             schedule.run(&mut world);
@@ -424,13 +425,17 @@ async fn main() {
                 world_tick.increment_time(duration);
             }
             stats_counter += 1;
-            average_time += duration.as_secs_f32() / 1000.0;
+            average_time += duration.as_secs_f64() / 1000.0;
+            peak_time = peak_time.max(duration);
             if stats_counter == STATS_INTERVAL {
                 trace!(
-                    "Ticked in {} milliseconds average with {} entities currently",
-                    average_time / STATS_INTERVAL as f32,
-                    world.entities().len()
+                    "Ticked in {:.7} milliseconds average with {} entities currently, {:.7} milliseconds peak",
+                    average_time / STATS_INTERVAL as f64,
+                    world.entities().len(),
+                    peak_time.as_secs_f64() / 1000.0
                 );
+                average_time = 0.0;
+                peak_time = Duration::ZERO;
                 stats_counter = 0;
             }
             let minimum_time = MINIMUM_TICK_DURATION.saturating_sub(duration);
