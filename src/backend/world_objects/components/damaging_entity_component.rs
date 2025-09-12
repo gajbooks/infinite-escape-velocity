@@ -15,8 +15,17 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-const DEFAULT_HASH_CELL_SIZE: u32 = 1024;
+use bevy_ecs::{component::Component, entity::Entity};
 
-pub trait HashSized {
-    const HASH_CELL_SIZE: u32 = DEFAULT_HASH_CELL_SIZE;
+use crate::{backend::spatial_optimizer::hash_cell_size::HashCellSize, shared_types::Health};
+
+#[derive(Component)]
+pub struct DamagingEntityComponent {
+    pub alliegence: Entity,
+    pub hull_damage: Health,
+    pub shield_damage: Health,
 }
+
+pub struct DamagingEntityCollisionMarker;
+
+impl HashCellSize for DamagingEntityCollisionMarker {}

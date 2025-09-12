@@ -18,6 +18,7 @@
 pub mod angular_velocity_properties_component;
 pub mod angular_velocity_state_component;
 pub mod collision_component;
+pub mod damaging_entity_component;
 pub mod health_properties_component;
 pub mod health_state_component;
 pub mod maximum_acceleration_properties_component;

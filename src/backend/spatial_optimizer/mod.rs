@@ -16,6 +16,6 @@
 */
 
 pub mod aabb_iterator;
-pub mod hash_coordinates;
 pub mod collision_optimizer;
-pub mod hash_sized;
+pub mod hash_cell_size;
+pub mod hash_coordinates;

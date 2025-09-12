@@ -15,14 +15,8 @@
     along with Infinite Escape Velocity.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-pub mod apply_player_control;
-pub mod damage_system;
-pub mod health_system;
-pub mod player_session_cleanup;
-pub mod player_spawn_system;
-pub mod submit_command;
-pub mod update_collisions_with_position;
-pub mod update_collisions_with_rotation;
-pub mod update_positions_with_velocity;
-pub mod update_rotations_with_angular_velocity;
-pub mod update_velocities_with_semi_newtonian_physics;
+const DEFAULT_HASH_CELL_SIZE: u32 = 1024;
+
+pub trait HashCellSize: Send + Sync + 'static {
+    const HASH_CELL_SIZE: u32 = DEFAULT_HASH_CELL_SIZE;
+}

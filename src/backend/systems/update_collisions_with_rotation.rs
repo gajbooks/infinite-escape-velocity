@@ -17,13 +17,24 @@
 
 use bevy_ecs::system::Query;
 
-use crate::backend::world_objects::components::{collision_component::{CollisionEvaluatorComponent, CollisionSourceComponent}, rotation_component::RotationComponent};
+use crate::backend::{
+    spatial_optimizer::hash_cell_size::HashCellSize,
+    world_objects::components::{
+        collision_component::{CollisionEvaluatorComponent, CollisionSourceComponent},
+        rotation_component::RotationComponent,
+    },
+};
 
-pub fn update_collisions_with_rotation<T: Send + Sync>(mut sender: Query<(&mut CollisionEvaluatorComponent<T>, &RotationComponent)>, mut receiver: Query<(&mut CollisionSourceComponent<T>, &RotationComponent)>) {
+pub fn update_collisions_with_rotation<T: ?Sized + HashCellSize>(
+    mut sender: Query<(&mut CollisionEvaluatorComponent<T>, &RotationComponent)>,
+    mut receiver: Query<(&mut CollisionSourceComponent<T>, &RotationComponent)>,
+) {
     sender.par_iter_mut().for_each(|(mut collider, rotation)| {
         collider.shape = collider.shape.set_rotation(rotation.rotation);
     });
-    receiver.par_iter_mut().for_each(|(mut collider, rotation)| {
-        collider.shape = collider.shape.set_rotation(rotation.rotation);
-    });
+    receiver
+        .par_iter_mut()
+        .for_each(|(mut collider, rotation)| {
+            collider.shape = collider.shape.set_rotation(rotation.rotation);
+        });
 }

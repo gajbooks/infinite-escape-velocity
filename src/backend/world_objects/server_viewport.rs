@@ -19,7 +19,7 @@ use std::sync::Mutex;
 
 use crate::backend::components::session::player_session_component::PlayerSessionComponent;
 use crate::backend::shrink_storage::ImmutableShrinkable;
-use crate::backend::spatial_optimizer::hash_sized::HashSized;
+use crate::backend::spatial_optimizer::hash_cell_size::HashCellSize;
 use crate::backend::world_objects::components::collision_component::*;
 use crate::configuration_file_structures::reference_types::AssetIndexReference;
 use crate::connectivity::controllable_object_message_data::ViewportFollowData;
@@ -39,7 +39,7 @@ use super::components::velocity_component::VelocityComponent;
 #[derive(Bundle)]
 pub struct ViewportBundle {
     pub viewport: ServerViewport,
-    pub collidable: CollisionEvaluatorComponent<Displayable>,
+    pub collidable: CollisionEvaluatorComponent<DisplayableCollisionMarker>,
     pub parent_session: ChildOf,
 }
 
@@ -50,7 +50,9 @@ pub struct Displayable {
     pub view_layer: ViewLayers,
 }
 
-impl HashSized for Displayable {}
+pub struct DisplayableCollisionMarker;
+
+impl HashCellSize for DisplayableCollisionMarker {}
 
 #[derive(PartialEq)]
 pub enum ViewportTrackingMode {
@@ -128,11 +130,11 @@ impl ServerViewport {
 pub fn tick_viewport(
     mut all_viewports: Query<(
         &mut ServerViewport,
-        &mut CollisionEvaluatorComponent<Displayable>,
+        &mut CollisionEvaluatorComponent<DisplayableCollisionMarker>,
         &ChildOf,
     )>,
     displayables: Query<(
-        &CollisionSourceComponent<Displayable>,
+        &CollisionSourceComponent<DisplayableCollisionMarker>,
         &PositionComponent,
         &Displayable,
     )>,
@@ -141,7 +143,7 @@ pub fn tick_viewport(
     optional_angular_velocity: Query<&AngularVelocityStateComponent>,
     sessions: Query<&PlayerSessionComponent>,
 ) {
-    for (mut viewport, mut collide_with, parent) in all_viewports.iter_mut() {
+    for (mut viewport, mut viewport_collisions, parent) in all_viewports.iter_mut() {
         let parent = match sessions.get(parent.parent()) {
             Ok(parent_session) => parent_session,
             Err(_) => {
@@ -176,7 +178,8 @@ pub fn tick_viewport(
                 // Track viewport to assigned entity
                 match displayables.get(*entity) {
                     Ok((_, position, _)) => {
-                        collide_with.shape = collide_with.shape.move_center(position.position);
+                        viewport_collisions.shape =
+                            viewport_collisions.shape.move_center(position.position);
                     }
                     Err(_lost_track) => {
                         viewport
@@ -187,14 +190,14 @@ pub fn tick_viewport(
             }
             ViewportTrackingMode::Static(location) => {
                 // Presumably some external force may want to move the viewport to a fixed position unrelated to any entity
-                collide_with.shape = collide_with.shape.move_center(*location);
+                viewport_collisions.shape = viewport_collisions.shape.move_center(*location);
             }
             ViewportTrackingMode::Disconnected => {
                 // Potentially do something if the viewport has lost contact with its assigned entity
             }
         };
 
-        for collision in collide_with.list.iter().map(|x| x.key().clone()) {
+        for collision in viewport_collisions.list.iter().map(|x| x.key().clone()) {
             // Theoretically we could get an entity in the collision list that doesn't match the query, we should just ignore them
             let (_collided_hitbox, position, displayable) = match displayables.get(collision) {
                 Ok(x) => x,
@@ -262,7 +265,7 @@ pub fn tick_viewport(
             .last_tick_ids
             .iter()
             .map(|x| *x)
-            .filter(|x| !collide_with.list.contains(&x));
+            .filter(|x| !viewport_collisions.list.contains(&x));
 
         // Send a destruction frame for all removed entities to guarantee no stale entities remain on the client
         for remove in removed {
@@ -277,7 +280,7 @@ pub fn tick_viewport(
         viewport.last_tick_ids.clear();
 
         // Add all entities for this tick to the last tick counter
-        for x in collide_with.list.iter() {
+        for x in viewport_collisions.list.iter() {
             viewport.last_tick_ids.insert(*x);
         }
 

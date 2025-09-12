@@ -19,22 +19,22 @@ use crate::backend::world_objects::components::collision_component::{
     CollisionEvaluatorComponent, CollisionSourceComponent,
 };
 
-use super::{hash_coordinates::*, hash_sized::HashSized};
+use super::{hash_cell_size::HashCellSize, hash_coordinates::*};
 use bevy_ecs::prelude::*;
 use rayon::prelude::*;
 
-enum SenderReceiver<'a, T: Send + Sync + 'static> {
+enum SenderReceiver<'a, T: ?Sized + HashCellSize> {
     Sender(&'a CollisionSourceComponent<T>),
     Receiver(&'a CollisionEvaluatorComponent<T>),
 }
 
-struct ObjectWithinCell<'a, T: Send + Sync + 'static> {
+struct ObjectWithinCell<'a, T: ?Sized + HashCellSize> {
     pub cell: HashCoordinates,
     pub entity: Entity,
     pub sender_receiver: SenderReceiver<'a, T>,
 }
 
-pub fn collision_system<T: Send + Sync + HashSized>(
+pub fn collision_system<T: ?Sized + HashCellSize>(
     mut optimizer: ResMut<CollisionOptimizer<T>>,
     receivers: Query<(Entity, &CollisionEvaluatorComponent<T>)>,
     senders: Query<(Entity, &CollisionSourceComponent<T>)>,
@@ -106,11 +106,11 @@ pub fn collision_system<T: Send + Sync + HashSized>(
 }
 
 #[derive(Resource)]
-pub struct CollisionOptimizer<T: Send + Sync + 'static> {
+pub struct CollisionOptimizer<T: ?Sized + HashCellSize> {
     cache: Option<Vec<ObjectWithinCell<'static, T>>>,
 }
 
-impl<T: Send + Sync + 'static> CollisionOptimizer<T> {
+impl<T: ?Sized + HashCellSize> CollisionOptimizer<T> {
     pub fn new() -> Self {
         Self {
             cache: Some(Vec::new()),

@@ -19,21 +19,26 @@ use bevy_ecs::bundle::Bundle;
 use euclid::Point2D;
 
 use crate::{
-    backend::shape::{CircleData, Shape},
+    backend::{
+        shape::{CircleData, Shape},
+        world_objects::server_viewport::DisplayableCollisionMarker,
+    },
     configuration_file_structures::planetoid_configuration_file::PlanetoidRecord,
     connectivity::{asset_index::AssetIndex, view_layers::ViewLayers},
     shared_types::Radius,
 };
 
 use super::{
-    components::{collision_component::CollisionSourceComponent, position_component::PositionComponent},
+    components::{
+        collision_component::CollisionSourceComponent, position_component::PositionComponent,
+    },
     server_viewport::Displayable,
 };
 
 #[derive(Bundle)]
 pub struct PlanetoidBundle {
     pub displayable: Displayable,
-    pub displayable_collision_marker: CollisionSourceComponent<Displayable>,
+    pub displayable_collision_marker: CollisionSourceComponent<DisplayableCollisionMarker>,
     pub position: PositionComponent,
 }
 
@@ -57,9 +62,9 @@ impl PlanetoidBundle {
             displayable: Displayable {
                 display_radius: radius.0 as f32,
                 object_asset: display_asset,
-                view_layer: ViewLayers::Planetoids
+                view_layer: ViewLayers::Planetoids,
             },
-            displayable_collision_marker: CollisionSourceComponent::<Displayable>::new(Shape::Circle(
+            displayable_collision_marker: CollisionSourceComponent::new(Shape::Circle(
                 CircleData {
                     location: position,
                     radius: radius,

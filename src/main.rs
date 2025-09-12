@@ -28,13 +28,13 @@ use axum::{Router, routing::get};
 use backend::configuration_file_loaders::asset_bundle_loader::AssetBundleLoader;
 use backend::resources::delta_t_resource::DeltaTResource;
 use backend::spatial_optimizer::collision_optimizer::{CollisionOptimizer, collision_system};
-use backend::spatial_optimizer::hash_sized::HashSized;
+use backend::spatial_optimizer::hash_cell_size::HashCellSize;
 use backend::world_objects::components::collision_component::clear_old_collisions;
 use backend::world_objects::components::semi_newtonian_physics_state_component::SemiNewtonianPhysicsStateComponent;
 use backend::world_objects::components::timeout_component::{
     TimeoutComponent, check_despawn_times,
 };
-use backend::world_objects::server_viewport::{Displayable, tick_viewport};
+use backend::world_objects::server_viewport::tick_viewport;
 use backend::world_objects::ship::ShipBundle;
 use bevy_ecs::entity::Entity;
 use bevy_ecs::prelude::{Commands, Res, Resource};
@@ -73,7 +73,9 @@ use crate::backend::configuration_file_loaders::asset_file_cache::AssetFileCache
 use crate::backend::configuration_file_loaders::definition_caches::list_required_assets::ListRequiredAssets;
 use crate::backend::configuration_file_loaders::definition_file_cache::DefinitionFileCache;
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
+use crate::backend::shape::{CircleData, Shape};
 use crate::backend::systems::apply_player_control::apply_player_control;
+use crate::backend::systems::damage_system::evaluate_damage;
 use crate::backend::systems::health_system::evaluate_health;
 use crate::backend::systems::player_session_cleanup::player_session_cleanup;
 use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
@@ -83,14 +85,20 @@ use crate::backend::systems::update_collisions_with_rotation::update_collisions_
 use crate::backend::systems::update_positions_with_velocity::update_positions_with_velocity;
 use crate::backend::systems::update_rotations_with_angular_velocity::update_rotations_with_angular_velocity;
 use crate::backend::systems::update_velocities_with_semi_newtonian_physics::update_velocities_with_semi_newtonian_physics;
+use crate::backend::world_objects::components::collision_component::CollisionEvaluatorComponent;
+use crate::backend::world_objects::components::damaging_entity_component::{
+    DamagingEntityCollisionMarker, DamagingEntityComponent,
+};
 use crate::backend::world_objects::components::random_ship_spawn_placeholder::RandomShipSpawnPlaceholderComponent;
 use crate::backend::world_objects::planetoid::PlanetoidBundle;
+use crate::backend::world_objects::server_viewport::DisplayableCollisionMarker;
 use crate::connectivity::asset_index::{AssetIndex, AssetIndexState, get_asset_index};
 use crate::connectivity::asset_server::{AssetServerState, asset_by_name};
 use crate::connectivity::handlers::chat_handlers::{send_message, subscribe_message};
 use crate::connectivity::handlers::player_session_handlers::validate_login;
 use crate::connectivity::services::chat_service::ChatService;
 use crate::connectivity::services::ecs_communication_service::EcsCommunicationService;
+use crate::shared_types::Distance;
 
 fn plus_or_minus_random(radius: f64) -> f64 {
     let value = rand::rng().random::<f64>();
@@ -123,10 +131,11 @@ fn spawn_a_ship_idk(
     mut commands: Commands,
 ) {
     for spawn in placeholders.iter() {
-        commands.spawn((
+        let position = Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0));
+        let mut new_entity = commands.spawn((
             ShipBundle::new(
                 &asset_index.asset_index,
-                Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0)),
+                position,
                 Some(Angle::radians(
                     plus_or_minus_random(std::f64::consts::PI) as f32
                 )),
@@ -140,13 +149,25 @@ fn spawn_a_ship_idk(
             )
             .unwrap(),
             TimeoutComponent::new(Duration::from_secs(10)),
+            CollisionEvaluatorComponent::<DamagingEntityCollisionMarker>::new(Shape::Circle(
+                CircleData {
+                    location: position,
+                    radius: Distance::new(10.0),
+                },
+            )),
         ));
+
+        new_entity.insert(DamagingEntityComponent {
+            alliegence: new_entity.id(),
+            hull_damage: 1000.0,
+            shield_damage: 1000.0,
+        });
 
         commands.entity(spawn).despawn();
     }
 }
 
-fn build_collision_phase<T: Send + Sync + HashSized + 'static>(
+fn build_collision_phase<T: Send + Sync + ?Sized + HashCellSize + 'static>(
     schedule: &mut Schedule,
     world: &mut World,
 ) {
@@ -360,7 +381,8 @@ async fn main() {
                 .chain(),
         );
 
-        build_collision_phase::<Displayable>(&mut schedule, &mut world);
+        build_collision_phase::<DisplayableCollisionMarker>(&mut schedule, &mut world);
+        build_collision_phase::<DamagingEntityCollisionMarker>(&mut schedule, &mut world);
 
         schedule.add_systems(
             (
@@ -373,10 +395,10 @@ async fn main() {
                 .after(pre_collision_checkpoint),
         );
 
-
         schedule
             .add_systems(
                 (
+                    evaluate_damage,
                     evaluate_health,
                     tick_viewport,
                     spawn_a_ship_idk,

@@ -20,15 +20,17 @@ use std::marker::PhantomData;
 use bevy_ecs::prelude::*;
 use dashmap::DashSet;
 
-use crate::backend::{shape::Shape, shrink_storage::*};
+use crate::backend::{
+    shape::Shape, shrink_storage::*, spatial_optimizer::hash_cell_size::HashCellSize,
+};
 
 #[derive(Component)]
-pub struct CollisionSourceComponent<T: Send + Sync + Sized + 'static> {
+pub struct CollisionSourceComponent<T: ?Sized + HashCellSize> {
     _phantom: PhantomData<T>,
     pub shape: Shape,
 }
 
-impl<T: Send + Sync + Sized + 'static> CollisionSourceComponent<T> {
+impl<T: ?Sized + HashCellSize> CollisionSourceComponent<T> {
     pub fn new(shape: Shape) -> Self {
         Self {
             _phantom: PhantomData,
@@ -38,17 +40,19 @@ impl<T: Send + Sync + Sized + 'static> CollisionSourceComponent<T> {
 }
 
 #[derive(Component)]
-pub struct CollisionEvaluatorComponent<T: Send + Sync + Sized + 'static> {
+pub struct CollisionEvaluatorComponent<T: ?Sized + HashCellSize> {
     _phantom: PhantomData<T>,
     pub list: DashSet<Entity>,
     pub shape: Shape,
 }
 
-pub fn clear_old_collisions<T: Send + Sync + Sized>(collidables: Query<&CollisionEvaluatorComponent<T>>) {
+pub fn clear_old_collisions<T: ?Sized + HashCellSize>(
+    collidables: Query<&CollisionEvaluatorComponent<T>>,
+) {
     collidables.par_iter().for_each(|x| x.clear());
 }
 
-impl<T: Send + Sync + Sized + 'static> CollisionEvaluatorComponent<T> {
+impl<T: ?Sized + HashCellSize> CollisionEvaluatorComponent<T> {
     pub fn clear(&self) {
         self.list.shrink_storage();
         self.list.clear();
