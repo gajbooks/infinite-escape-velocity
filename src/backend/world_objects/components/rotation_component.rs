@@ -19,7 +19,7 @@ use bevy_ecs::component::Component;
 
 use crate::shared_types::Rotation;
 
-#[derive(Debug, Component)]
+#[derive(Debug, Default, Component)]
 pub struct RotationComponent {
     pub rotation: Rotation,
 }

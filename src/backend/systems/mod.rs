@@ -16,6 +16,7 @@
 */
 
 pub mod apply_player_control;
+pub mod health_system;
 pub mod player_session_cleanup;
 pub mod player_spawn_system;
 pub mod submit_command;

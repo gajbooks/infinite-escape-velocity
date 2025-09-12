@@ -19,6 +19,8 @@ use std::time::{self, Duration};
 
 use bevy_ecs::prelude::Resource;
 
+use crate::shared_types::Seconds;
+
 const MICROSECONDS_PER_SECOND: u64 = 1_000_000;
 const FRACTIONAL_MAX_TICK_TIME: u64 = 20;
 const FRACTIONAL_MIN_TICK_TIME: u64 = 60;
@@ -45,8 +47,8 @@ impl DeltaTResource {
         self.total_time
     }
 
-    pub fn get_last_tick_duration(&self) -> Duration {
-        self.last_tick
+    pub fn get_last_tick_duration(&self) -> Seconds {
+        self.last_tick.as_secs_f32()
     }
 
     pub fn increment_time(&mut self, reported_real_world_time: Duration) {

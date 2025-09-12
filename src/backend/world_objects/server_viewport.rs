@@ -31,7 +31,7 @@ use bevy_ecs::prelude::*;
 use dashmap::DashSet;
 use tracing::warn;
 
-use super::components::angular_velocity_component::AngularVelocityComponent;
+use super::components::angular_velocity_state_component::AngularVelocityStateComponent;
 use super::components::position_component::PositionComponent;
 use super::components::rotation_component::RotationComponent;
 use super::components::velocity_component::VelocityComponent;
@@ -39,7 +39,7 @@ use super::components::velocity_component::VelocityComponent;
 #[derive(Bundle)]
 pub struct ViewportBundle {
     pub viewport: ServerViewport,
-    pub collidable: CollidableComponent<Displayable>,
+    pub collidable: CollisionEvaluatorComponent<Displayable>,
     pub parent_session: ChildOf,
 }
 
@@ -128,17 +128,17 @@ impl ServerViewport {
 pub fn tick_viewport(
     mut all_viewports: Query<(
         &mut ServerViewport,
-        &mut CollidableComponent<Displayable>,
+        &mut CollisionEvaluatorComponent<Displayable>,
         &ChildOf,
     )>,
     displayables: Query<(
-        &CollisionMarker<Displayable>,
+        &CollisionSourceComponent<Displayable>,
         &PositionComponent,
         &Displayable,
     )>,
     optional_velocity: Query<&VelocityComponent>,
     optional_rotation: Query<&RotationComponent>,
-    optional_angular_velocity: Query<&AngularVelocityComponent>,
+    optional_angular_velocity: Query<&AngularVelocityStateComponent>,
     sessions: Query<&PlayerSessionComponent>,
 ) {
     for (mut viewport, mut collide_with, parent) in all_viewports.iter_mut() {

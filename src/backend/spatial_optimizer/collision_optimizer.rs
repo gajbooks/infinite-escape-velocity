@@ -16,7 +16,7 @@
 */
 
 use crate::backend::world_objects::components::collision_component::{
-    CollidableComponent, CollisionMarker,
+    CollisionEvaluatorComponent, CollisionSourceComponent,
 };
 
 use super::{hash_coordinates::*, hash_sized::HashSized};
@@ -24,8 +24,8 @@ use bevy_ecs::prelude::*;
 use rayon::prelude::*;
 
 enum SenderReceiver<'a, T: Send + Sync + 'static> {
-    Sender(&'a CollisionMarker<T>),
-    Receiver(&'a CollidableComponent<T>),
+    Sender(&'a CollisionSourceComponent<T>),
+    Receiver(&'a CollisionEvaluatorComponent<T>),
 }
 
 struct ObjectWithinCell<'a, T: Send + Sync + 'static> {
@@ -36,8 +36,8 @@ struct ObjectWithinCell<'a, T: Send + Sync + 'static> {
 
 pub fn collision_system<T: Send + Sync + HashSized>(
     mut optimizer: ResMut<CollisionOptimizer<T>>,
-    receivers: Query<(Entity, &CollidableComponent<T>)>,
-    senders: Query<(Entity, &CollisionMarker<T>)>,
+    receivers: Query<(Entity, &CollisionEvaluatorComponent<T>)>,
+    senders: Query<(Entity, &CollisionSourceComponent<T>)>,
 ) {
     let mut list = optimizer.cache.take().unwrap();
     list.extend(receivers.iter().flat_map(|(entity, collision_receiver)| {

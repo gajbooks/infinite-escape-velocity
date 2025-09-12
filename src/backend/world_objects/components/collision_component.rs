@@ -23,12 +23,12 @@ use dashmap::DashSet;
 use crate::backend::{shape::Shape, shrink_storage::*};
 
 #[derive(Component)]
-pub struct CollisionMarker<T: Send + Sync + Sized + 'static> {
+pub struct CollisionSourceComponent<T: Send + Sync + Sized + 'static> {
     _phantom: PhantomData<T>,
     pub shape: Shape,
 }
 
-impl<T: Send + Sync + Sized + 'static> CollisionMarker<T> {
+impl<T: Send + Sync + Sized + 'static> CollisionSourceComponent<T> {
     pub fn new(shape: Shape) -> Self {
         Self {
             _phantom: PhantomData,
@@ -38,17 +38,17 @@ impl<T: Send + Sync + Sized + 'static> CollisionMarker<T> {
 }
 
 #[derive(Component)]
-pub struct CollidableComponent<T: Send + Sync + Sized + 'static> {
+pub struct CollisionEvaluatorComponent<T: Send + Sync + Sized + 'static> {
     _phantom: PhantomData<T>,
     pub list: DashSet<Entity>,
     pub shape: Shape,
 }
 
-pub fn clear_old_collisions<T: Send + Sync + Sized>(collidables: Query<&CollidableComponent<T>>) {
+pub fn clear_old_collisions<T: Send + Sync + Sized>(collidables: Query<&CollisionEvaluatorComponent<T>>) {
     collidables.par_iter().for_each(|x| x.clear());
 }
 
-impl<T: Send + Sync + Sized + 'static> CollidableComponent<T> {
+impl<T: Send + Sync + Sized + 'static> CollisionEvaluatorComponent<T> {
     pub fn clear(&self) {
         self.list.shrink_storage();
         self.list.clear();
@@ -58,8 +58,8 @@ impl<T: Send + Sync + Sized + 'static> CollidableComponent<T> {
         self.list.insert(collided_object);
     }
 
-    pub fn new(shape: Shape) -> CollidableComponent<T> {
-        CollidableComponent {
+    pub fn new(shape: Shape) -> CollisionEvaluatorComponent<T> {
+        CollisionEvaluatorComponent {
             _phantom: PhantomData,
             list: DashSet::new(),
             shape: shape,

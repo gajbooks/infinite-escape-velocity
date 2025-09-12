@@ -26,14 +26,14 @@ use crate::{
 };
 
 use super::{
-    components::{collision_component::CollisionMarker, position_component::PositionComponent},
+    components::{collision_component::CollisionSourceComponent, position_component::PositionComponent},
     server_viewport::Displayable,
 };
 
 #[derive(Bundle)]
 pub struct PlanetoidBundle {
     pub displayable: Displayable,
-    pub displayable_collision_marker: CollisionMarker<Displayable>,
+    pub displayable_collision_marker: CollisionSourceComponent<Displayable>,
     pub position: PositionComponent,
 }
 
@@ -59,7 +59,7 @@ impl PlanetoidBundle {
                 object_asset: display_asset,
                 view_layer: ViewLayers::Planetoids
             },
-            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Circle(
+            displayable_collision_marker: CollisionSourceComponent::<Displayable>::new(Shape::Circle(
                 CircleData {
                     location: position,
                     radius: radius,

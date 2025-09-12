@@ -28,15 +28,14 @@ use crate::{
         shape::{CircleData, Shape},
         world_objects::{
             components::{
-                collision_component::CollidableComponent,
+                collision_component::CollisionEvaluatorComponent,
                 player_controlled_component::PlayerControlledComponent,
-                semi_newtonian_physics_component::SemiNewtonianPhysicsComponent,
             },
             server_viewport::{ServerViewport, ViewportBundle, ViewportTrackingMode},
             ship::ShipBundle,
         },
     },
-    shared_types::{Coordinates, Radius, Speed},
+    shared_types::{Coordinates, Radius},
 };
 
 pub fn spawn_player_ship_and_viewports(
@@ -63,17 +62,16 @@ pub fn spawn_player_ship_and_viewports(
                 Some(following) => following,
                 None => {
                     let new_ship = ShipBundle::new(
+                        &asset_index.asset_index,
                         Coordinates::new(0.0, 0.0),
                         None,
                         None,
                         None,
-                        &asset_index.asset_index,
                     )
                     .unwrap();
                     let new_ship_id = commands
                         .spawn((
                             new_ship,
-                            SemiNewtonianPhysicsComponent::new(Speed::new(200.0)),
                             PlayerControlledComponent {},
                             ChildOf(session_entity),
                         ))
@@ -100,7 +98,7 @@ pub fn spawn_player_ship_and_viewports(
                     let new_viewport = commands
                         .spawn(ViewportBundle {
                             viewport: ServerViewport::new(),
-                            collidable: CollidableComponent::new(Shape::Circle(CircleData {
+                            collidable: CollisionEvaluatorComponent::new(Shape::Circle(CircleData {
                                 location: Coordinates::new(0.0, 0.0),
                                 radius: Radius::new(6000.0),
                             })),

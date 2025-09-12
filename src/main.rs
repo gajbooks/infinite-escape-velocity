@@ -30,7 +30,7 @@ use backend::resources::delta_t_resource::DeltaTResource;
 use backend::spatial_optimizer::collision_optimizer::{CollisionOptimizer, collision_system};
 use backend::spatial_optimizer::hash_sized::HashSized;
 use backend::world_objects::components::collision_component::clear_old_collisions;
-use backend::world_objects::components::semi_newtonian_physics_component::SemiNewtonianPhysicsComponent;
+use backend::world_objects::components::semi_newtonian_physics_state_component::SemiNewtonianPhysicsStateComponent;
 use backend::world_objects::components::timeout_component::{
     TimeoutComponent, check_despawn_times,
 };
@@ -51,7 +51,7 @@ use connectivity::player_info::player_profiles::PlayerProfiles;
 use connectivity::player_info::player_sessions::PlayerSessions;
 use euclid::Angle;
 use rand::Rng;
-use shared_types::{Coordinates, Speed, Velocity};
+use shared_types::{Coordinates, Velocity};
 use tokio::time;
 use tower_http::compression::CompressionLayer;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
@@ -74,6 +74,7 @@ use crate::backend::configuration_file_loaders::definition_caches::list_required
 use crate::backend::configuration_file_loaders::definition_file_cache::DefinitionFileCache;
 use crate::backend::resources::delta_t_resource::MINIMUM_TICK_DURATION;
 use crate::backend::systems::apply_player_control::apply_player_control;
+use crate::backend::systems::health_system::evaluate_health;
 use crate::backend::systems::player_session_cleanup::player_session_cleanup;
 use crate::backend::systems::player_spawn_system::spawn_player_ship_and_viewports;
 use crate::backend::systems::submit_command::process_external_commands;
@@ -124,21 +125,20 @@ fn spawn_a_ship_idk(
     for spawn in placeholders.iter() {
         commands.spawn((
             ShipBundle::new(
+                &asset_index.asset_index,
                 Coordinates::new(plus_or_minus_random(100.0), plus_or_minus_random(100.0)),
+                Some(Angle::radians(
+                    plus_or_minus_random(std::f64::consts::PI) as f32
+                )),
+                Some(Angle::radians(
+                    plus_or_minus_random(std::f64::consts::PI) as f32
+                )),
                 Some(Velocity::new(
                     plus_or_minus_random(100.0) as f32,
                     plus_or_minus_random(100.0) as f32,
                 )),
-                Some(Angle::radians(
-                    plus_or_minus_random(std::f64::consts::PI) as f32
-                )),
-                Some(Angle::radians(
-                    plus_or_minus_random(std::f64::consts::PI) as f32
-                )),
-                &asset_index.asset_index,
             )
             .unwrap(),
-            SemiNewtonianPhysicsComponent::new(Speed::new(50.0)),
             TimeoutComponent::new(Duration::from_secs(10)),
         ));
 
@@ -360,6 +360,8 @@ async fn main() {
                 .chain(),
         );
 
+        build_collision_phase::<Displayable>(&mut schedule, &mut world);
+
         schedule.add_systems(
             (
                 update_rotations_with_angular_velocity,
@@ -371,11 +373,11 @@ async fn main() {
                 .after(pre_collision_checkpoint),
         );
 
-        build_collision_phase::<Displayable>(&mut schedule, &mut world);
 
         schedule
             .add_systems(
                 (
+                    evaluate_health,
                     tick_viewport,
                     spawn_a_ship_idk,
                     check_despawn_times,
@@ -384,7 +386,7 @@ async fn main() {
                     .after(post_collision_checkpoint),
             )
             .add_systems(
-                apply_player_control::<SemiNewtonianPhysicsComponent>
+                apply_player_control::<SemiNewtonianPhysicsStateComponent>
                     .after(post_collision_checkpoint),
             );
 

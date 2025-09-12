@@ -20,6 +20,6 @@ use bevy_ecs::component::Component;
 use crate::shared_types::AngularVelocity;
 
 #[derive(Debug, Component)]
-pub struct AngularVelocityComponent {
-    pub angular_velocity: AngularVelocity,
+pub struct AngularVelocityPropertiesComponent {
+    pub maximum_angular_velocity: AngularVelocity,
 }

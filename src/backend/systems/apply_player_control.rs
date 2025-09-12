@@ -27,8 +27,7 @@ use crate::{
     backend::{
         components::session::player_session_component::PlayerSessionComponent,
         world_objects::components::{
-            angular_velocity_component::AngularVelocityComponent,
-            player_controlled_component::PlayerControlledComponent,
+            angular_velocity_properties_component::AngularVelocityPropertiesComponent, angular_velocity_state_component::AngularVelocityStateComponent, maximum_acceleration_properties_component::MaximumAccelerationPropertiesComponent, player_controlled_component::PlayerControlledComponent
         },
     },
     shared_types::{AccelerationScalar, AngularVelocity},
@@ -38,16 +37,16 @@ pub trait PlayerControllablePhysics {
     fn set_acceleration(&mut self, acceleration: AccelerationScalar);
 }
 
-const PLAYER_ACCELERATION_PLACEHOLDER: f32 = 40.0;
-const PLAYER_ANGULAR_VELOCITY_PLACEHOLDER: f32 = std::f32::consts::PI / 2.0;
-
 pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability = Mutable>>(
-    mut controllable: Query<(Entity, &PlayerControlledComponent, &mut T, &ChildOf)>,
-    mut angular_velocity_components: Query<&mut AngularVelocityComponent>,
+    mut controllable: Query<(Entity, &PlayerControlledComponent, &mut T, &MaximumAccelerationPropertiesComponent, &ChildOf)>,
+    mut angular_velocity_components: Query<(
+        &mut AngularVelocityStateComponent,
+        &AngularVelocityPropertiesComponent,
+    )>,
     sessions: Query<&PlayerSessionComponent>,
 ) {
     controllable.iter_mut().for_each(
-        |(entity, _player_controls, mut physics_component, parent_session)| {
+        |(entity, _player_controls, mut physics_component, acceleration_properties, parent_session)| {
             let session = match sessions.get(parent_session.parent()) {
                 Ok(session) => session,
                 Err(_) => return,
@@ -57,19 +56,19 @@ pub fn apply_player_control<T: PlayerControllablePhysics + Component<Mutability 
 
             if input_status.forward {
                 physics_component
-                    .set_acceleration(AccelerationScalar::new(PLAYER_ACCELERATION_PLACEHOLDER));
+                    .set_acceleration(acceleration_properties.maximum_acceleration);
             } else {
                 physics_component.set_acceleration(AccelerationScalar::zero());
             }
 
             match angular_velocity_components.get_mut(entity) {
-                Ok(mut angular_velocity) => {
+                Ok((mut angular_velocity, angular_velocity_properties)) => {
                     if input_status.left && !input_status.right {
                         angular_velocity.angular_velocity =
-                            -AngularVelocity::radians(PLAYER_ANGULAR_VELOCITY_PLACEHOLDER);
+                            -angular_velocity_properties.maximum_angular_velocity;
                     } else if input_status.right && !input_status.left {
                         angular_velocity.angular_velocity =
-                            AngularVelocity::radians(PLAYER_ANGULAR_VELOCITY_PLACEHOLDER);
+                            angular_velocity_properties.maximum_angular_velocity;
                     } else {
                         angular_velocity.angular_velocity = -AngularVelocity::zero();
                     }

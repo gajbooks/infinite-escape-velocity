@@ -16,7 +16,6 @@
 */
 
 use euclid::*;
-use serde::Serialize;
 
 pub type GlobalCoordinateType = f64;
 pub type LocalCoordinateType = f32;
@@ -24,11 +23,6 @@ pub type LocalCoordinateType = f32;
 pub struct WorldCoordinates;
 pub struct VelocityCoordinates;
 pub struct AccelerationCoordinates;
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize)]
-pub struct ObjectType {
-    name: String,
-}
 
 pub type AABB = Box2D<GlobalCoordinateType, WorldCoordinates>;
 
@@ -40,5 +34,9 @@ pub type AngularVelocity = Angle<LocalCoordinateType>;
 pub type Radius = Length<GlobalCoordinateType, WorldCoordinates>;
 pub type Distance = Length<GlobalCoordinateType, WorldCoordinates>;
 pub type Speed = Length<LocalCoordinateType, VelocityCoordinates>;
-pub type Offset = Size2D<GlobalCoordinateType, WorldCoordinates>;
 pub type AccelerationScalar = Length<LocalCoordinateType, AccelerationCoordinates>;
+
+pub type Health = f32;
+pub type HealthRate = f32;
+
+pub type Seconds = f32;

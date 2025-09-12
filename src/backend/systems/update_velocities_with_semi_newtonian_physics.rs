@@ -30,10 +30,7 @@ use crate::{
     backend::{
         resources::delta_t_resource::DeltaTResource,
         world_objects::components::{
-            angular_velocity_component::AngularVelocityComponent,
-            rotation_component::RotationComponent,
-            semi_newtonian_physics_component::SemiNewtonianPhysicsComponent,
-            velocity_component::VelocityComponent,
+            angular_velocity_state_component::AngularVelocityStateComponent, maximum_speed_properties_component::MaximumSpeedPropertiesComponent, rotation_component::RotationComponent, semi_newtonian_physics_state_component::SemiNewtonianPhysicsStateComponent, velocity_component::VelocityComponent
         },
     },
     shared_types::{Acceleration, Velocity, VelocityCoordinates},
@@ -79,16 +76,17 @@ fn rotate_maximum_speed_vector(
 
 pub fn update_velocities_with_semi_newtonian_physics(
     mut compatible_entities: Query<(
-        &SemiNewtonianPhysicsComponent,
+        &SemiNewtonianPhysicsStateComponent,
         &mut VelocityComponent,
         &RotationComponent,
-        &AngularVelocityComponent,
+        &AngularVelocityStateComponent,
+        &MaximumSpeedPropertiesComponent,
     )>,
     delta_t: Res<DeltaTResource>,
 ) {
-    let delta_t = delta_t.get_last_tick_duration().as_secs_f32();
+    let delta_t = delta_t.get_last_tick_duration();
     compatible_entities.par_iter_mut().for_each(
-        |(semi_newtonian_physics, mut velocity, rotation, angular_velocity)| {
+        |(semi_newtonian_physics, mut velocity, rotation, angular_velocity, maximum_speed_properties)| {
             // Calculate the acceleration vector before rotation this tick (subtract to find previous tick angle)
             let thrust_vector_before = Acceleration::from_angle_and_length(
                 rotation.rotation - (angular_velocity.angular_velocity * delta_t),
@@ -112,7 +110,7 @@ pub fn update_velocities_with_semi_newtonian_physics(
                 velocity.velocity + delta_t_acceleration.cast_unit::<VelocityCoordinates>();
 
             // Amount of excess velocity the new velocity value has beyond the maximum allowed
-            let excess_speed = new_velocity.length() - semi_newtonian_physics.maximum_speed.get();
+            let excess_speed = new_velocity.length() - maximum_speed_properties.maximum_speed.get();
 
             // Only do anything if there is excess velocity above the margin and we are actually accelerating
             let new_velocity = if excess_speed > MAX_SPEED_EPSILON
@@ -135,14 +133,14 @@ pub fn update_velocities_with_semi_newtonian_physics(
                 );
 
                 // Ensure this correction never takes the speed below the maximum speed
-                rotated_velocity.with_min_length(semi_newtonian_physics.maximum_speed.get())
+                rotated_velocity.with_min_length(maximum_speed_properties.maximum_speed.get())
             } else {
                 new_velocity
             };
 
             // Apply general drag to velocity if we are below the minumum stopping speed
             let new_velocity = if new_velocity.length()
-                <= (semi_newtonian_physics.maximum_speed.get() / MIN_DRAG_SPEED_PERCENT)
+                <= (maximum_speed_properties.maximum_speed.get() / MIN_DRAG_SPEED_PERCENT)
             {
                 new_velocity * (-DRAG_CONSTANT * delta_t).exp()
             } else {

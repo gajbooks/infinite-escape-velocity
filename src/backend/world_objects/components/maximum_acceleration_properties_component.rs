@@ -17,27 +17,9 @@
 
 use bevy_ecs::component::Component;
 
-use crate::{backend::systems::apply_player_control::PlayerControllablePhysics, shared_types::{ AccelerationScalar, Speed}};
+use crate::shared_types::AccelerationScalar;
 
 #[derive(Component)]
-pub struct SemiNewtonianPhysicsComponent {
-    pub maximum_speed: Speed,
-    pub thrust: AccelerationScalar
-}
-
-impl SemiNewtonianPhysicsComponent {
-    pub fn new(
-        maximum_speed: Speed,
-    ) -> SemiNewtonianPhysicsComponent {
-        SemiNewtonianPhysicsComponent {
-            maximum_speed,
-            thrust: AccelerationScalar::default()
-        }
-    }
-}
-
-impl PlayerControllablePhysics for SemiNewtonianPhysicsComponent {
-    fn set_acceleration(&mut self, acceleration: AccelerationScalar) {
-        self.thrust = acceleration;
-    }
+pub struct MaximumAccelerationPropertiesComponent {
+    pub maximum_acceleration: AccelerationScalar,
 }

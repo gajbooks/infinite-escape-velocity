@@ -17,15 +17,23 @@
 
 use bevy_ecs::bundle::Bundle;
 
+const ANGULAR_VELOCITY_PLACEHOLDER: f32 = std::f32::consts::PI / 2.0;
+const MAXIMUM_SPEED_PLACEHOLDER: f32 = 200.0;
+const MAXIMUM_ACCELERATION_PLACEHOLDER: f32 = 40.0;
+const MAXIMUM_HULL_PLACEHOLDER: Health = 100.0;
+const HULL_REGEN_PLACEHOLDER: Health = 1.0;
+const MAXIMUM_SHIELD_PLACEHOLDER: Health = 0.0;
+const SHIELD_REGEN_PLACEHOLDER: Health = 0.0;
+
 use crate::{
-    backend::shape::{PointData, Shape},
+    backend::{shape::{PointData, Shape}, world_objects::components::{angular_velocity_properties_component::AngularVelocityPropertiesComponent, health_properties_component::HealthPropertiesComponent, health_state_component::HealthStateComponent, maximum_acceleration_properties_component::MaximumAccelerationPropertiesComponent, maximum_speed_properties_component::MaximumSpeedPropertiesComponent, semi_newtonian_physics_state_component::SemiNewtonianPhysicsStateComponent}},
     connectivity::{asset_index::AssetIndex, view_layers::ViewLayers},
-    shared_types::{AngularVelocity, Coordinates, Rotation, Velocity},
+    shared_types::{AccelerationScalar, AngularVelocity, Coordinates, Health, Rotation, Speed, Velocity},
 };
 
 use super::{
     components::{
-        angular_velocity_component::AngularVelocityComponent, collision_component::CollisionMarker,
+        angular_velocity_state_component::AngularVelocityStateComponent, collision_component::CollisionSourceComponent,
         position_component::PositionComponent, rotation_component::RotationComponent,
         velocity_component::VelocityComponent,
     },
@@ -34,16 +42,22 @@ use super::{
 
 #[derive(Bundle)]
 pub struct ShipStateBundle {
-    pub angular_velocity: AngularVelocityComponent,
-    pub displayable_collision_marker: CollisionMarker<Displayable>,
+    pub angular_velocity: AngularVelocityStateComponent,
+    pub displayable_collision_marker: CollisionSourceComponent<Displayable>,
+    pub health: HealthStateComponent,
     pub position: PositionComponent,
     pub rotation: RotationComponent,
+    pub semi_newtonian_physics: SemiNewtonianPhysicsStateComponent,
     pub velocity: VelocityComponent,
 }
 
 #[derive(Bundle)]
 pub struct ShipDataBundle {
+    pub angular_velocity_properties: AngularVelocityPropertiesComponent,
     pub displayable: Displayable,
+    pub health_properties: HealthPropertiesComponent,
+    pub maximum_acceleration_properties: MaximumAccelerationPropertiesComponent,
+    pub maximum_speed_properties: MaximumSpeedPropertiesComponent
 }
 
 #[derive(Bundle)]
@@ -54,22 +68,27 @@ pub struct ShipBundle {
 
 impl ShipBundle {
     pub fn new_state_bundle(
-        position: Coordinates,
-        velocity: Option<Velocity>,
-        rotation: Option<Rotation>,
+        acceleration: Option<AccelerationScalar>,
         angular_velocity: Option<AngularVelocity>,
+        hull: Health,
+        position: Coordinates,
+        rotation: Option<Rotation>,
+        shield: Health,
+        velocity: Option<Velocity>,
     ) -> ShipStateBundle {
         ShipStateBundle {
-            angular_velocity: AngularVelocityComponent {
+            angular_velocity: AngularVelocityStateComponent {
                 angular_velocity: angular_velocity.unwrap_or_default(),
             },
-            displayable_collision_marker: CollisionMarker::<Displayable>::new(Shape::Point(
+            displayable_collision_marker: CollisionSourceComponent::<Displayable>::new(Shape::Point(
                 PointData { point: position },
             )),
+            health: HealthStateComponent { hull: hull, shield: shield },
             position: PositionComponent { position: position },
             rotation: RotationComponent {
                 rotation: rotation.unwrap_or_default(),
             },
+            semi_newtonian_physics: SemiNewtonianPhysicsStateComponent { thrust: acceleration.unwrap_or_default() },
             velocity: VelocityComponent {
                 velocity: velocity.unwrap_or_default(),
             },
@@ -96,15 +115,19 @@ impl ShipBundle {
                 object_asset: display_asset,
                 view_layer: ViewLayers::Ships,
             },
+            angular_velocity_properties: AngularVelocityPropertiesComponent { maximum_angular_velocity: euclid::Angle { radians: ANGULAR_VELOCITY_PLACEHOLDER } },
+            health_properties: HealthPropertiesComponent { maximum_hull: MAXIMUM_HULL_PLACEHOLDER, hull_regeneration_rate: HULL_REGEN_PLACEHOLDER, maximum_shield: MAXIMUM_SHIELD_PLACEHOLDER, shield_regeneration_rate: SHIELD_REGEN_PLACEHOLDER },
+            maximum_acceleration_properties: MaximumAccelerationPropertiesComponent { maximum_acceleration: AccelerationScalar::new(MAXIMUM_ACCELERATION_PLACEHOLDER) },
+            maximum_speed_properties: MaximumSpeedPropertiesComponent { maximum_speed: Speed::new(MAXIMUM_SPEED_PLACEHOLDER) }
         })
     }
 
     pub fn new(
-        position: Coordinates,
-        velocity: Option<Velocity>,
-        rotation: Option<Rotation>,
-        angular_velocity: Option<AngularVelocity>,
         asset_index: &AssetIndex,
+        position: Coordinates,
+        angular_velocity: Option<AngularVelocity>,
+        rotation: Option<Rotation>,
+        velocity: Option<Velocity>,
     ) -> Result<Self, ()> {
         let data = Self::new_data_bundle(asset_index);
 
@@ -115,7 +138,7 @@ impl ShipBundle {
             }
         };
 
-        let state = Self::new_state_bundle(position, velocity, rotation, angular_velocity);
+        let state = Self::new_state_bundle(None, angular_velocity, MAXIMUM_HULL_PLACEHOLDER, position, rotation, MAXIMUM_SHIELD_PLACEHOLDER, velocity);
 
         Ok(Self { data, state })
     }

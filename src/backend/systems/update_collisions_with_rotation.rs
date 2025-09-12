@@ -17,9 +17,9 @@
 
 use bevy_ecs::system::Query;
 
-use crate::backend::world_objects::components::{collision_component::{CollidableComponent, CollisionMarker}, rotation_component::RotationComponent};
+use crate::backend::world_objects::components::{collision_component::{CollisionEvaluatorComponent, CollisionSourceComponent}, rotation_component::RotationComponent};
 
-pub fn update_collisions_with_rotation<T: Send + Sync>(mut sender: Query<(&mut CollidableComponent<T>, &RotationComponent)>, mut receiver: Query<(&mut CollisionMarker<T>, &RotationComponent)>) {
+pub fn update_collisions_with_rotation<T: Send + Sync>(mut sender: Query<(&mut CollisionEvaluatorComponent<T>, &RotationComponent)>, mut receiver: Query<(&mut CollisionSourceComponent<T>, &RotationComponent)>) {
     sender.par_iter_mut().for_each(|(mut collider, rotation)| {
         collider.shape = collider.shape.set_rotation(rotation.rotation);
     });
