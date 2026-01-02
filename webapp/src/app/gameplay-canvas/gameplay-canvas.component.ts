@@ -190,10 +190,8 @@ export class GameplayCanvasComponent {
               });
 
               let setAttributes = () => {
-                konva_image.setAttrs({
-                  offsetX: konva_image.width() / 2,
-                  offsetY: konva_image.height() / 2,
-                })
+                konva_image.offsetX(konva_image.width() / 2);
+                konva_image.offsetY(konva_image.height() / 2);
               };
 
               let loadedEventEmitter: Subject<null>;
